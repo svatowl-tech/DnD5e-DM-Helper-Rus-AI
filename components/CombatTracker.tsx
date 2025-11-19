@@ -5,7 +5,7 @@ import { CONDITIONS, SAMPLE_COMBATANTS } from '../constants';
 import { Shield, Heart, Sword, Skull, Play, RefreshCw, Plus, X, Trash2, Users, BookOpen, Coins, Loader } from 'lucide-react';
 import BestiaryBrowser from './BestiaryBrowser';
 import { ApiMonsterDetails } from '../services/dndApiService';
-import { generateCombatLoot } from '../services/geminiService';
+import { generateCombatLoot } from '../services/polzaService';
 
 interface CombatTrackerProps {
   addLog: (entry: LogEntry) => void;

@@ -4,7 +4,7 @@ import { CONDITIONS } from '../constants';
 import { RULES_DATA } from '../data/rulesData';
 import { RuleSection } from '../types';
 import { Search, Sword, Map, Users, Crown, Zap, Skull, BookOpen, X, ChevronDown, ChevronUp, Sparkles, Loader } from 'lucide-react';
-import { generateExtendedDetails } from '../services/geminiService';
+import { generateExtendedDetails } from '../services/polzaService';
 
 type Category = 'all' | 'combat' | 'exploration' | 'social' | 'magic' | 'dm' | 'conditions' | 'spells';
 

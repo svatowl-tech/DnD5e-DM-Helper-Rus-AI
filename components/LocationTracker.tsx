@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { LocationData, PartyMember, Combatant, EntityType, LoreEntry, LogEntry, LocationTrackerProps, Note } from '../types';
-import { parseLoreFromText, generateEncounterIntro, generateScenarioDescription, generateFullLocation, generateLocationContent, generateExtendedDetails } from '../services/geminiService';
+import { parseLoreFromText, generateEncounterIntro, generateScenarioDescription, generateFullLocation, generateLocationContent, generateExtendedDetails } from '../services/polzaService';
 import { getMonstersByCr } from '../services/dndApiService';
 import { MapPin, Users, Skull, Sparkles, BookOpen, Loader, Search, Eye, ChevronRight, ArrowRight, Menu, Map, Copy, Plus, Home, Trees, Tent, Castle, ArrowLeft, LandPlot, Landmark, Beer, Footprints, ShieldAlert, Ghost, Info, X, Save, FileText, RefreshCcw } from 'lucide-react';
 import { FAERUN_LORE } from '../data/faerunLore';

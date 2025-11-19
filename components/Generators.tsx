@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
     generateNpc, 
     generateLoot, 
@@ -9,8 +9,11 @@ import {
     generateMinorLocation, 
     generateJobBoard, 
     generatePuzzle,
-    generateTrinket
-} from '../services/geminiService';
+    generateTrinket,
+    AVAILABLE_MODELS,
+    getActiveModel,
+    setActiveModel
+} from '../services/polzaService';
 import { NpcData } from '../types';
 import { 
     Sparkles, 
@@ -24,7 +27,8 @@ import {
     Map, 
     FileQuestion, 
     Scroll, 
-    HelpCircle 
+    HelpCircle,
+    Bot
 } from 'lucide-react';
 
 type ToolType = 'npc' | 'loot' | 'trinket' | 'desc' | 'shop' | 'quest' | 'location' | 'board' | 'puzzle';
@@ -44,6 +48,7 @@ const TOOLS = [
 const Generators: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [activeTool, setActiveTool] = useState<ToolType>('npc');
+  const [selectedModel, setSelectedModel] = useState(getActiveModel());
   
   // State inputs
   const [npcKeywords, setNpcKeywords] = useState('');
@@ -65,6 +70,12 @@ const Generators: React.FC = () => {
   const [generatedText, setGeneratedText] = useState<string>('');
   const [copied, setCopied] = useState(false);
 
+  const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const val = e.target.value;
+      setSelectedModel(val);
+      setActiveModel(val);
+  };
+
   const runGenerator = async (fn: () => Promise<any>) => {
       setLoading(true);
       setGeneratedNpc(null);
@@ -77,7 +88,8 @@ const Generators: React.FC = () => {
               setGeneratedText(result);
           }
       } catch (e) {
-          setGeneratedText("Ошибка генерации. Попробуйте еще раз.");
+          setGeneratedText("Ошибка генерации. Проверьте API Key или баланс Polza.AI.");
+          console.error(e);
       } finally {
           setLoading(false);
       }
@@ -91,6 +103,24 @@ const Generators: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col gap-4">
+      
+      {/* Model Selector */}
+      <div className="flex items-center gap-3 bg-dnd-card px-4 py-2 rounded border border-gray-700">
+        <div className="flex items-center gap-2 text-gold-500">
+            <Bot className="w-5 h-5" />
+            <span className="text-sm font-bold uppercase">Модель:</span>
+        </div>
+        <select 
+            value={selectedModel}
+            onChange={handleModelChange}
+            className="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white outline-none focus:border-gold-500 flex-1 md:flex-none md:w-64"
+        >
+            {AVAILABLE_MODELS.map(m => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+        </select>
+      </div>
+
       {/* Tools Grid */}
       <div className="grid grid-cols-3 md:grid-cols-9 gap-2 shrink-0">
           {TOOLS.map(tool => (
