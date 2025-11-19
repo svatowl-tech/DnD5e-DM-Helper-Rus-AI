@@ -21,7 +21,8 @@ import {
   Menu,
   Globe,
   Rocket,
-  Smartphone
+  Smartphone,
+  Settings
 } from 'lucide-react';
 
 import CombatTracker from './components/CombatTracker';
@@ -245,13 +246,11 @@ const App: React.FC = () => {
                             </div>
 
                             <div className="bg-gray-800/50 p-4 rounded border border-gray-700">
-                                <h4 className="font-bold text-white mb-2 flex items-center gap-2"><Rocket className="w-4 h-4 text-red-400"/> Важно: API Ключ</h4>
-                                <p className="mb-2">Для работы AI функций (Gemini) нужен ключ. Без него генераторы не будут работать.</p>
+                                <h4 className="font-bold text-white mb-2 flex items-center gap-2"><Rocket className="w-4 h-4 text-red-400"/> Важно: Polza API Ключ</h4>
+                                <p className="mb-2">Для работы AI генераторов используется <strong>Polza.AI</strong>. Вам нужен ключ от этого сервиса.</p>
                                 <ul className="list-disc list-inside space-y-1 text-gray-300">
-                                    <li>В настройках проекта на Vercel/Netlify найдите раздел <strong>"Environment Variables"</strong>.</li>
-                                    <li>Добавьте переменную с именем <code>API_KEY</code>.</li>
-                                    <li>Вставьте ваш ключ от Google Gemini API в значение.</li>
-                                    <li>Пересоберите проект (Redeploy).</li>
+                                    <li><strong>Способ 1 (Для разработчика):</strong> Добавьте <code>API_KEY</code> в переменные окружения (Environment Variables) вашего хостинга (Vercel/Netlify).</li>
+                                    <li><strong>Способ 2 (Для пользователя):</strong> Если вы не можете изменить настройки сервера, просто откройте вкладку <strong>"AI Инструменты"</strong>, нажмите на иконку шестеренки <Settings className="w-3 h-3 inline"/> и введите свой ключ там. Он сохранится в браузере.</li>
                                 </ul>
                             </div>
                         </div>

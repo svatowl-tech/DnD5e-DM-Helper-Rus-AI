@@ -6,7 +6,7 @@ export const AVAILABLE_MODELS = [
   { id: 'meta-llama/llama-3.1-8b-instruct', name: 'Llama 3.1 (8B)' },
   { id: 'deepseek/deepseek-r1-distill-llama-8b', name: 'DeepSeek R1 (8B)' },
   { id: 'qwen/qwen3-32b', name: 'Qwen 3 (32B)' },
-  { id: 'openai/gpt-oss-20b', name: 'GPT OSS (20B)' } // Assuming generic ID mapping
+  { id: 'openai/gpt-oss-20b', name: 'GPT OSS (20B)' }
 ];
 
 // Helper to get stored model or default
@@ -18,16 +18,25 @@ export const setActiveModel = (modelId: string) => {
     localStorage.setItem('dmc_ai_model', modelId);
 };
 
+// API Key Management
+const STORAGE_KEY_API = 'dmc_polza_api_key';
+
+export const setCustomApiKey = (key: string) => {
+    localStorage.setItem(STORAGE_KEY_API, key.trim());
+};
+
+export const getCustomApiKey = () => {
+    return localStorage.getItem(STORAGE_KEY_API);
+};
+
 const BASE_URL = "https://api.polza.ai/api/v1/chat/completions";
 
-// Robust JSON cleaner for open models that love to chat
+// Robust JSON cleaner for open models
 const cleanJsonText = (text: string): string => {
   if (!text) return "{}";
-  // Try to find JSON block
   const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
   if (jsonMatch) return jsonMatch[1].trim();
   
-  // If no block, try to find the first { and last }
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
   if (start !== -1 && end !== -1) {
@@ -43,8 +52,12 @@ const cleanHtmlText = (text: string): string => {
 
 // Generic request wrapper
 async function polzaRequest(messages: any[], jsonMode = false): Promise<string> {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) throw new Error("API Key not found");
+    // Prioritize custom key set in UI, then environment variable
+    const apiKey = getCustomApiKey() || process.env.API_KEY;
+    
+    if (!apiKey) {
+        throw new Error("API Key не найден. Пожалуйста, укажите ключ Polza.AI в настройках генератора (иконка шестеренки).");
+    }
 
     const model = getActiveModel();
 
@@ -60,22 +73,25 @@ async function polzaRequest(messages: any[], jsonMode = false): Promise<string> 
                 messages: messages,
                 temperature: 0.7,
                 max_tokens: 2000,
-                // Some open models support json_object, others don't reliably. 
-                // We rely on prompt engineering for broader compatibility.
-                // response_format: jsonMode ? { type: "json_object" } : undefined 
             })
         });
 
         if (!response.ok) {
+            if (response.status === 401) {
+                throw new Error("Ошибка авторизации (401). Проверьте правильность API Key в настройках.");
+            }
+            if (response.status === 402) {
+                throw new Error("Недостаточно средств на балансе API (402).");
+            }
             const err = await response.json().catch(() => ({ error: { message: response.statusText } }));
             throw new Error(err.error?.message || `API Error ${response.status}`);
         }
 
         const data = await response.json();
         return data.choices[0]?.message?.content || "";
-    } catch (error) {
+    } catch (error: any) {
         console.error("Polza AI Error:", error);
-        throw error;
+        throw error; // Re-throw to be caught by UI
     }
 }
 

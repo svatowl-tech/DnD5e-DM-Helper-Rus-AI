@@ -12,7 +12,9 @@ import {
     generateTrinket,
     AVAILABLE_MODELS,
     getActiveModel,
-    setActiveModel
+    setActiveModel,
+    setCustomApiKey,
+    getCustomApiKey
 } from '../services/polzaService';
 import { NpcData } from '../types';
 import { 
@@ -28,7 +30,10 @@ import {
     FileQuestion, 
     Scroll, 
     HelpCircle,
-    Bot
+    Bot,
+    Settings,
+    Save,
+    Key
 } from 'lucide-react';
 
 type ToolType = 'npc' | 'loot' | 'trinket' | 'desc' | 'shop' | 'quest' | 'location' | 'board' | 'puzzle';
@@ -49,6 +54,8 @@ const Generators: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [activeTool, setActiveTool] = useState<ToolType>('npc');
   const [selectedModel, setSelectedModel] = useState(getActiveModel());
+  const [showSettings, setShowSettings] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
   
   // State inputs
   const [npcKeywords, setNpcKeywords] = useState('');
@@ -68,7 +75,13 @@ const Generators: React.FC = () => {
   // Outputs
   const [generatedNpc, setGeneratedNpc] = useState<NpcData | null>(null);
   const [generatedText, setGeneratedText] = useState<string>('');
+  const [errorText, setErrorText] = useState<string>('');
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+      const storedKey = getCustomApiKey();
+      if (storedKey) setApiKeyInput(storedKey);
+  }, []);
 
   const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
       const val = e.target.value;
@@ -76,10 +89,18 @@ const Generators: React.FC = () => {
       setActiveModel(val);
   };
 
+  const handleSaveKey = () => {
+      setCustomApiKey(apiKeyInput);
+      setShowSettings(false);
+      setErrorText(''); // Clear previous errors
+      alert("Ключ сохранен! Теперь генераторы должны работать.");
+  };
+
   const runGenerator = async (fn: () => Promise<any>) => {
       setLoading(true);
       setGeneratedNpc(null);
       setGeneratedText('');
+      setErrorText('');
       try {
           const result = await fn();
           if (typeof result === 'object') {
@@ -87,9 +108,9 @@ const Generators: React.FC = () => {
           } else {
               setGeneratedText(result);
           }
-      } catch (e) {
-          setGeneratedText("Ошибка генерации. Проверьте API Key или баланс Polza.AI.");
+      } catch (e: any) {
           console.error(e);
+          setErrorText(e.message || "Ошибка генерации. Проверьте настройки API.");
       } finally {
           setLoading(false);
       }
@@ -104,21 +125,52 @@ const Generators: React.FC = () => {
   return (
     <div className="h-full flex flex-col gap-4">
       
-      {/* Model Selector */}
-      <div className="flex items-center gap-3 bg-dnd-card px-4 py-2 rounded border border-gray-700">
+      {/* Controls Header */}
+      <div className="flex items-center gap-2 bg-dnd-card px-4 py-2 rounded border border-gray-700 relative">
         <div className="flex items-center gap-2 text-gold-500">
             <Bot className="w-5 h-5" />
-            <span className="text-sm font-bold uppercase">Модель:</span>
+            <span className="text-sm font-bold uppercase hidden md:inline">Модель:</span>
         </div>
         <select 
             value={selectedModel}
             onChange={handleModelChange}
-            className="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white outline-none focus:border-gold-500 flex-1 md:flex-none md:w-64"
+            className="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white outline-none focus:border-gold-500 flex-1"
         >
             {AVAILABLE_MODELS.map(m => (
                 <option key={m.id} value={m.id}>{m.name}</option>
             ))}
         </select>
+        
+        <button 
+            onClick={() => setShowSettings(!showSettings)}
+            className={`p-2 rounded border transition-colors ${showSettings ? 'bg-gold-600 text-black border-gold-500' : 'bg-gray-800 text-gray-400 border-gray-600 hover:text-white'}`}
+            title="Настройки API Key"
+        >
+            <Settings className="w-4 h-4" />
+        </button>
+
+        {/* Settings Dropdown */}
+        {showSettings && (
+            <div className="absolute top-full right-0 mt-2 w-80 bg-gray-900 border border-gold-500 rounded shadow-2xl p-4 z-20 animate-in fade-in slide-in-from-top-2">
+                <h4 className="font-bold text-white mb-2 flex items-center gap-2"><Key className="w-4 h-4"/> API Configuration</h4>
+                <p className="text-xs text-gray-400 mb-3">
+                    Если генерация не работает (ошибка 401), укажите ваш ключ от Polza.AI здесь.
+                </p>
+                <input 
+                    type="password" 
+                    className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-sm text-white mb-3 outline-none focus:border-gold-500"
+                    placeholder="sk-..."
+                    value={apiKeyInput}
+                    onChange={e => setApiKeyInput(e.target.value)}
+                />
+                <button 
+                    onClick={handleSaveKey}
+                    className="w-full bg-gold-600 hover:bg-gold-500 text-black font-bold py-2 rounded flex items-center justify-center gap-2"
+                >
+                    <Save className="w-4 h-4"/> Сохранить
+                </button>
+            </div>
+        )}
       </div>
 
       {/* Tools Grid */}
@@ -253,7 +305,20 @@ const Generators: React.FC = () => {
 
       {/* Result Area */}
       <div className="flex-1 bg-gray-900 rounded-lg border border-gray-800 p-4 overflow-y-auto relative">
-         {generatedNpc && (
+         {errorText && (
+             <div className="bg-red-900/30 border border-red-500 text-red-200 p-4 rounded flex flex-col items-center justify-center gap-2 animate-in fade-in">
+                 <div className="font-bold flex items-center gap-2"><Bot className="w-5 h-5"/> Ошибка AI</div>
+                 <p className="text-center text-sm">{errorText}</p>
+                 <button 
+                    onClick={() => setShowSettings(true)}
+                    className="mt-2 bg-red-700 hover:bg-red-600 text-white px-4 py-1 rounded text-sm font-bold"
+                 >
+                    Настроить API Key
+                 </button>
+             </div>
+         )}
+
+         {generatedNpc && !errorText && (
              <div className="space-y-4 text-gray-200 animate-in fade-in">
                  <div className="flex justify-between items-start">
                     <h3 className="text-2xl font-serif text-gold-500 font-bold">{generatedNpc.name}</h3>
@@ -292,7 +357,7 @@ const Generators: React.FC = () => {
              </div>
          )}
 
-         {generatedText && (
+         {generatedText && !errorText && (
              <div className="animate-in fade-in text-sm text-gray-300 [&_h1]:text-gold-500 [&_h1]:text-2xl [&_h1]:font-serif [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-gold-500 [&_h2]:text-xl [&_h2]:font-serif [&_h2]:font-bold [&_h2]:mb-3 [&_h2]:mt-5 [&_h3]:text-gold-500 [&_h3]:font-serif [&_h3]:text-lg [&_h3]:font-bold [&_h3]:mb-2 [&_h3]:mt-4 [&_h3:first-child]:mt-0 [&_h4]:text-gold-400 [&_h4]:font-bold [&_h4]:mb-2 [&_strong]:text-white [&_strong]:font-bold [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mb-1 [&_p]:mb-3 [&_table]:w-full [&_table]:border-collapse [&_th]:text-left [&_th]:p-2 [&_th]:border-b [&_th]:border-gray-700 [&_td]:p-2 [&_td]:border-b [&_td]:border-gray-800">
                  <div className="flex justify-end mb-2 sticky top-0 bg-gray-900 py-2 z-10 border-b border-gray-800">
                     <button onClick={() => copyToClipboard(generatedText)} className="text-gray-400 hover:text-white flex items-center gap-1 text-xs uppercase font-bold">
@@ -303,7 +368,7 @@ const Generators: React.FC = () => {
              </div>
          )}
 
-         {!generatedNpc && !generatedText && !loading && (
+         {!generatedNpc && !generatedText && !loading && !errorText && (
              <div className="h-full flex flex-col items-center justify-center text-gray-600 italic opacity-40">
                  <Sparkles className="w-12 h-12 mb-2" />
                  <p>Выберите инструмент и нажмите кнопку</p>
