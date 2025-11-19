@@ -1,0 +1,22 @@
+{
+  "name": "Dungeon Master's Codex",
+  "short_name": "DM Codex",
+  "description": "A comprehensive digital assistant for Dungeon Masters.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b111d",
+  "theme_color": "#0b111d",
+  "orientation": "landscape",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3408/3408506.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3408/3408506.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

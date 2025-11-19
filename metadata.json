@@ -1,0 +1,5 @@
+{
+  "name": "Dungeon Master's Codex",
+  "description": "A comprehensive digital assistant for Dungeon Masters running live tabletop games. Features campaign management, combat tracking, AI-powered content generation, and quick rule references.",
+  "requestFramePermissions": []
+}

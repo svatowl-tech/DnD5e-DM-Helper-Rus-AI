@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#0b111d" />
+    <meta name="description" content="Dungeon Master's Codex - Digital Assistant for D&D" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3408/3408506.png">
+    <title>Кодекс Мастера Подземелий</title>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              serif: ['Cinzel', 'serif'],
+              sans: ['Inter', 'sans-serif'],
+            },
+            colors: {
+              parchment: '#f0e6d2',
+              ink: '#1a1a1a',
+              gold: {
+                500: '#d4af37',
+                600: '#b4941f',
+              },
+              dnd: {
+                red: '#8a0b0b',
+                dark: '#111d28', // Slightly adjusted for better contrast on mobile
+                darker: '#0b111d',
+                card: '#1f2937'
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        background-color: #0b111d;
+        color: #e5e7eb;
+        overscroll-behavior: none; /* Prevent bounce effect on mobile */
+      }
+      /* Custom scrollbar for dark theme */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #111827; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #374151; 
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #4b5563; 
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-player": "https://esm.sh/react-player@2.16.0?bundle&external=react,react-dom"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/service-worker.js')
+            .then((registration) => {
+              console.log('SW registered: ', registration);
+            })
+            .catch((registrationError) => {
+              console.log('SW registration failed: ', registrationError);
+            });
+        });
+      }
+    </script>
+  </body>
+</html>
