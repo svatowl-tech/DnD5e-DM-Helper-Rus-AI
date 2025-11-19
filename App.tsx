@@ -18,7 +18,10 @@ import {
   Download,
   X,
   Share,
-  Menu
+  Menu,
+  Globe,
+  Rocket,
+  Smartphone
 } from 'lucide-react';
 
 import CombatTracker from './components/CombatTracker';
@@ -46,6 +49,7 @@ const App: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallButton, setShowInstallButton] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [helpSection, setHelpSection] = useState<'install' | 'deploy'>('install');
 
   // Handle PWA Install Prompt
   useEffect(() => {
@@ -61,6 +65,7 @@ const App: React.FC = () => {
   const handleInstallClick = async () => {
     if (!deferredPrompt) {
         // If no prompt (e.g. iOS), show help modal instead
+        setHelpSection('install');
         setShowHelpModal(true);
         return;
     }
@@ -163,45 +168,92 @@ const App: React.FC = () => {
       {/* Help / Install Modal */}
       {showHelpModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-            <div className="bg-dnd-card border border-gold-600 w-full max-w-lg rounded-lg shadow-2xl flex flex-col overflow-hidden">
-                <div className="p-4 bg-gray-900 border-b border-gold-600/50 flex justify-between items-center">
+            <div className="bg-dnd-card border border-gold-600 w-full max-w-lg rounded-lg shadow-2xl flex flex-col overflow-hidden max-h-[80vh]">
+                <div className="p-4 bg-gray-900 border-b border-gold-600/50 flex justify-between items-center shrink-0">
                     <h3 className="font-serif font-bold text-xl text-gold-500 flex items-center gap-2">
-                        <Download className="w-5 h-5"/> Установка приложения
+                        <HelpCircle className="w-5 h-5"/> Справка
                     </h3>
                     <button onClick={() => setShowHelpModal(false)} className="text-gray-400 hover:text-white">
                         <X className="w-6 h-6" />
                     </button>
                 </div>
-                <div className="p-6 space-y-6 overflow-y-auto text-sm text-gray-300">
-                    <p>Это приложение работает как нативная программа на вашем планшете или телефоне. Интернет не обязателен после первой загрузки.</p>
-                    
-                    <div className="bg-gray-800/50 p-4 rounded border border-gray-700">
-                        <h4 className="font-bold text-white mb-2 flex items-center gap-2"><span className="text-xl">🍎</span> iOS (iPad / iPhone)</h4>
-                        <ol className="list-decimal list-inside space-y-2">
-                            <li>Откройте этот сайт в <strong>Safari</strong>.</li>
-                            <li>Нажмите кнопку <strong>"Поделиться"</strong> <Share className="w-4 h-4 inline"/> (квадрат со стрелкой).</li>
-                            <li>Прокрутите вниз и выберите <strong>"На экран «Домой»"</strong>.</li>
-                            <li>Нажмите "Добавить".</li>
-                        </ol>
-                    </div>
 
-                    <div className="bg-gray-800/50 p-4 rounded border border-gray-700">
-                        <h4 className="font-bold text-white mb-2 flex items-center gap-2"><span className="text-xl">🤖</span> Android (Chrome)</h4>
-                        <ol className="list-decimal list-inside space-y-2">
-                            <li>Откройте этот сайт в <strong>Chrome</strong>.</li>
-                            <li>Нажмите меню <strong>(три точки)</strong> в углу.</li>
-                            <li>Выберите <strong>"Установить приложение"</strong> или "Добавить на гл. экран".</li>
-                        </ol>
-                    </div>
+                {/* Tabs */}
+                <div className="flex border-b border-gray-700 shrink-0">
+                    <button 
+                        onClick={() => setHelpSection('install')}
+                        className={`flex-1 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${helpSection === 'install' ? 'text-gold-500 border-b-2 border-gold-500 bg-gray-800/50' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+                    >
+                        <Smartphone className="w-4 h-4"/> Установка (PWA)
+                    </button>
+                    <button 
+                        onClick={() => setHelpSection('deploy')}
+                        className={`flex-1 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${helpSection === 'deploy' ? 'text-gold-500 border-b-2 border-gold-500 bg-gray-800/50' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+                    >
+                        <Globe className="w-4 h-4"/> Деплой (Хостинг)
+                    </button>
+                </div>
 
-                    {showInstallButton && (
-                        <div className="text-center pt-2">
-                            <button 
-                                onClick={handleInstallClick}
-                                className="bg-gold-600 hover:bg-gold-500 text-black font-bold py-2 px-6 rounded-full shadow-lg animate-pulse"
-                            >
-                                Установить сейчас
-                            </button>
+                <div className="p-6 space-y-6 overflow-y-auto text-sm text-gray-300 custom-scrollbar">
+                    {helpSection === 'install' ? (
+                        <>
+                            <p>Это приложение можно установить как нативную программу на планшет или телефон. Интернет не обязателен после первой загрузки.</p>
+                            
+                            <div className="bg-gray-800/50 p-4 rounded border border-gray-700">
+                                <h4 className="font-bold text-white mb-2 flex items-center gap-2"><span className="text-xl">🍎</span> iOS (iPad / iPhone)</h4>
+                                <ol className="list-decimal list-inside space-y-2">
+                                    <li>Откройте этот сайт в <strong>Safari</strong>.</li>
+                                    <li>Нажмите кнопку <strong>"Поделиться"</strong> <Share className="w-4 h-4 inline"/> (квадрат со стрелкой).</li>
+                                    <li>Прокрутите вниз и выберите <strong>"На экран «Домой»"</strong>.</li>
+                                    <li>Нажмите "Добавить".</li>
+                                </ol>
+                            </div>
+
+                            <div className="bg-gray-800/50 p-4 rounded border border-gray-700">
+                                <h4 className="font-bold text-white mb-2 flex items-center gap-2"><span className="text-xl">🤖</span> Android (Chrome)</h4>
+                                <ol className="list-decimal list-inside space-y-2">
+                                    <li>Откройте этот сайт в <strong>Chrome</strong>.</li>
+                                    <li>Нажмите меню <strong>(три точки)</strong> в углу.</li>
+                                    <li>Выберите <strong>"Установить приложение"</strong> или "Добавить на гл. экран".</li>
+                                </ol>
+                            </div>
+
+                            {showInstallButton && (
+                                <div className="text-center pt-2">
+                                    <button 
+                                        onClick={handleInstallClick}
+                                        className="bg-gold-600 hover:bg-gold-500 text-black font-bold py-2 px-6 rounded-full shadow-lg animate-pulse"
+                                    >
+                                        Установить сейчас
+                                    </button>
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div className="space-y-4">
+                            <p>Чтобы разместить приложение в интернете бесплатно (например, на Vercel или Netlify):</p>
+                            
+                            <div className="bg-gray-800/50 p-4 rounded border border-gray-700">
+                                <h4 className="font-bold text-white mb-2 flex items-center gap-2"><Globe className="w-4 h-4 text-blue-400"/> Инструкция (Vercel/Netlify)</h4>
+                                <ol className="list-decimal list-inside space-y-2 text-gray-300">
+                                    <li>Скачайте исходный код этого проекта.</li>
+                                    <li>Создайте репозиторий на <strong>GitHub</strong> и загрузите туда код.</li>
+                                    <li>Зарегистрируйтесь на <a href="https://vercel.com" target="_blank" rel="noreferrer" className="text-gold-500 hover:underline">Vercel</a> или <a href="https://netlify.com" target="_blank" rel="noreferrer" className="text-gold-500 hover:underline">Netlify</a>.</li>
+                                    <li>Нажмите <strong>"New Project"</strong> и выберите ваш репозиторий.</li>
+                                    <li>Сервис автоматически определит настройки сборки. Нажмите <strong>Deploy</strong>.</li>
+                                </ol>
+                            </div>
+
+                            <div className="bg-gray-800/50 p-4 rounded border border-gray-700">
+                                <h4 className="font-bold text-white mb-2 flex items-center gap-2"><Rocket className="w-4 h-4 text-red-400"/> Важно: API Ключ</h4>
+                                <p className="mb-2">Для работы AI функций (Gemini) нужен ключ. Без него генераторы не будут работать.</p>
+                                <ul className="list-disc list-inside space-y-1 text-gray-300">
+                                    <li>В настройках проекта на Vercel/Netlify найдите раздел <strong>"Environment Variables"</strong>.</li>
+                                    <li>Добавьте переменную с именем <code>API_KEY</code>.</li>
+                                    <li>Вставьте ваш ключ от Google Gemini API в значение.</li>
+                                    <li>Пересоберите проект (Redeploy).</li>
+                                </ul>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -278,7 +330,7 @@ const App: React.FC = () => {
            {/* Install / Help Button */}
            <div className="p-2">
                 <button 
-                    onClick={() => setShowHelpModal(true)}
+                    onClick={() => { setHelpSection('install'); setShowHelpModal(true); }}
                     className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-200 text-sm ${showInstallButton ? 'bg-blue-900/30 text-blue-200 border border-blue-800 animate-pulse' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'}`}
                 >
                     <span className="flex items-center justify-center">{showInstallButton ? <Download className="w-5 h-5"/> : <HelpCircle className="w-5 h-5"/>}</span>
