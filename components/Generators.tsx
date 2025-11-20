@@ -13,8 +13,6 @@ import {
     AVAILABLE_MODELS,
     getActiveModel,
     setActiveModel,
-    setCustomApiKey,
-    getCustomApiKey
 } from '../services/polzaService';
 import { NpcData } from '../types';
 import { 
@@ -31,9 +29,6 @@ import {
     Scroll, 
     HelpCircle,
     Bot,
-    Settings,
-    Save,
-    Key
 } from 'lucide-react';
 
 type ToolType = 'npc' | 'loot' | 'trinket' | 'desc' | 'shop' | 'quest' | 'location' | 'board' | 'puzzle';
@@ -54,8 +49,6 @@ const Generators: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [activeTool, setActiveTool] = useState<ToolType>('npc');
   const [selectedModel, setSelectedModel] = useState(getActiveModel());
-  const [showSettings, setShowSettings] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState('');
   
   // State inputs
   const [npcKeywords, setNpcKeywords] = useState('');
@@ -78,22 +71,10 @@ const Generators: React.FC = () => {
   const [errorText, setErrorText] = useState<string>('');
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-      const storedKey = getCustomApiKey();
-      if (storedKey) setApiKeyInput(storedKey);
-  }, []);
-
   const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
       const val = e.target.value;
       setSelectedModel(val);
       setActiveModel(val);
-  };
-
-  const handleSaveKey = () => {
-      setCustomApiKey(apiKeyInput);
-      setShowSettings(false);
-      setErrorText(''); // Clear previous errors
-      alert("Ключ сохранен! Теперь генераторы должны работать.");
   };
 
   const runGenerator = async (fn: () => Promise<any>) => {
@@ -140,37 +121,6 @@ const Generators: React.FC = () => {
                 <option key={m.id} value={m.id}>{m.name}</option>
             ))}
         </select>
-        
-        <button 
-            onClick={() => setShowSettings(!showSettings)}
-            className={`p-2 rounded border transition-colors ${showSettings ? 'bg-gold-600 text-black border-gold-500' : 'bg-gray-800 text-gray-400 border-gray-600 hover:text-white'}`}
-            title="Настройки API Key"
-        >
-            <Settings className="w-4 h-4" />
-        </button>
-
-        {/* Settings Dropdown */}
-        {showSettings && (
-            <div className="absolute top-full right-0 mt-2 w-80 bg-gray-900 border border-gold-500 rounded shadow-2xl p-4 z-20 animate-in fade-in slide-in-from-top-2">
-                <h4 className="font-bold text-white mb-2 flex items-center gap-2"><Key className="w-4 h-4"/> API Configuration</h4>
-                <p className="text-xs text-gray-400 mb-3">
-                    Если генерация не работает (ошибка 401), укажите ваш ключ от Polza.AI здесь.
-                </p>
-                <input 
-                    type="password" 
-                    className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-sm text-white mb-3 outline-none focus:border-gold-500"
-                    placeholder="sk-..."
-                    value={apiKeyInput}
-                    onChange={e => setApiKeyInput(e.target.value)}
-                />
-                <button 
-                    onClick={handleSaveKey}
-                    className="w-full bg-gold-600 hover:bg-gold-500 text-black font-bold py-2 rounded flex items-center justify-center gap-2"
-                >
-                    <Save className="w-4 h-4"/> Сохранить
-                </button>
-            </div>
-        )}
       </div>
 
       {/* Tools Grid */}
@@ -309,12 +259,6 @@ const Generators: React.FC = () => {
              <div className="bg-red-900/30 border border-red-500 text-red-200 p-4 rounded flex flex-col items-center justify-center gap-2 animate-in fade-in">
                  <div className="font-bold flex items-center gap-2"><Bot className="w-5 h-5"/> Ошибка AI</div>
                  <p className="text-center text-sm">{errorText}</p>
-                 <button 
-                    onClick={() => setShowSettings(true)}
-                    className="mt-2 bg-red-700 hover:bg-red-600 text-white px-4 py-1 rounded text-sm font-bold"
-                 >
-                    Настроить API Key
-                 </button>
              </div>
          )}
 

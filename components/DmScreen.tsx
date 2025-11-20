@@ -129,8 +129,8 @@ const DmScreen: React.FC = () => {
     try {
         const content = await generateExtendedDetails('spell', spellName, 'D&D 5e');
         setSpellContent(content);
-    } catch (e) {
-        setSpellContent('Не удалось загрузить описание заклинания.');
+    } catch (e: any) {
+        setSpellContent(`<div class="text-red-400 p-4 bg-red-900/20 rounded border border-red-900">Ошибка загрузки: ${e.message}</div>`);
     } finally {
         setLoadingSpell(false);
     }

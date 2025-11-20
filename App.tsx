@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Tab, LogEntry, Note } from './types';
+import { setCustomApiKey, getCustomApiKey } from './services/polzaService';
 import { 
   LayoutDashboard, 
   Swords, 
@@ -22,7 +23,8 @@ import {
   Globe,
   Rocket,
   Smartphone,
-  Settings
+  Settings,
+  Key
 } from 'lucide-react';
 
 import CombatTracker from './components/CombatTracker';
@@ -49,8 +51,13 @@ const App: React.FC = () => {
   // PWA / Install State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallButton, setShowInstallButton] = useState(false);
+  
+  // Modals
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [helpSection, setHelpSection] = useState<'install' | 'deploy'>('install');
+  
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
 
   // Handle PWA Install Prompt
   useEffect(() => {
@@ -61,6 +68,12 @@ const App: React.FC = () => {
     };
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  // Load API Key
+  useEffect(() => {
+    const key = getCustomApiKey();
+    if (key) setApiKeyInput(key);
   }, []);
 
   const handleInstallClick = async () => {
@@ -76,6 +89,12 @@ const App: React.FC = () => {
       setDeferredPrompt(null);
       setShowInstallButton(false);
     }
+  };
+
+  const handleSaveKey = () => {
+      setCustomApiKey(apiKeyInput);
+      setShowSettingsModal(false);
+      alert("API Ключ успешно сохранен и будет использоваться во всем приложении.");
   };
 
   // Save logs whenever they change
@@ -150,7 +169,6 @@ const App: React.FC = () => {
         return <CombatTracker addLog={addLog} />;
       case Tab.NOTES:
         // Render with a key based on tab to ensure it remounts correctly when tab becomes active
-        // This ensures it picks up latest localStorage changes from other tabs (like Export Log)
         return <CampaignNotes key="notes-tab" />;
       case Tab.GENERATORS:
         return <Generators />;
@@ -166,6 +184,47 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-dnd-darker text-gray-200 font-sans">
       
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-dnd-card border border-gold-600 w-full max-w-md rounded-lg shadow-2xl p-6">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-serif font-bold text-xl text-gold-500 flex items-center gap-2">
+                        <Settings className="w-5 h-5"/> Настройки Приложения
+                    </h3>
+                    <button onClick={() => setShowSettingsModal(false)} className="text-gray-400 hover:text-white">
+                        <X className="w-6 h-6" />
+                    </button>
+                </div>
+                
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-bold text-gray-300 mb-1 flex items-center gap-2">
+                            <Key className="w-4 h-4 text-gold-500"/> Polza API Key
+                        </label>
+                        <p className="text-xs text-gray-500 mb-2">
+                            Необходим для работы AI генераторов (локации, NPC, лут). Ключ сохраняется только в вашем браузере.
+                        </p>
+                        <input 
+                            type="password" 
+                            className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white focus:border-gold-500 outline-none"
+                            placeholder="sk-..."
+                            value={apiKeyInput}
+                            onChange={e => setApiKeyInput(e.target.value)}
+                        />
+                    </div>
+                    
+                    <button 
+                        onClick={handleSaveKey}
+                        className="w-full bg-gold-600 hover:bg-gold-500 text-black font-bold py-2 rounded shadow-lg transition-all"
+                    >
+                        Сохранить настройки
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
       {/* Help / Install Modal */}
       {showHelpModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
@@ -250,7 +309,7 @@ const App: React.FC = () => {
                                 <p className="mb-2">Для работы AI генераторов используется <strong>Polza.AI</strong>. Вам нужен ключ от этого сервиса.</p>
                                 <ul className="list-disc list-inside space-y-1 text-gray-300">
                                     <li><strong>Способ 1 (Для разработчика):</strong> Добавьте <code>API_KEY</code> в переменные окружения (Environment Variables) вашего хостинга (Vercel/Netlify).</li>
-                                    <li><strong>Способ 2 (Для пользователя):</strong> Если вы не можете изменить настройки сервера, просто откройте вкладку <strong>"AI Инструменты"</strong>, нажмите на иконку шестеренки <Settings className="w-3 h-3 inline"/> и введите свой ключ там. Он сохранится в браузере.</li>
+                                    <li><strong>Способ 2 (Для пользователя):</strong> Откройте <strong>Настройки</strong> <Settings className="w-3 h-3 inline"/> в меню приложения и введите ключ там.</li>
                                 </ul>
                             </div>
                         </div>
@@ -326,8 +385,15 @@ const App: React.FC = () => {
 
         {/* Bottom Controls */}
         <div className="border-t border-gray-800 bg-gray-900/50">
-           {/* Install / Help Button */}
-           <div className="p-2">
+           {/* Install / Help / Settings Buttons */}
+           <div className="p-2 space-y-1">
+                <button 
+                    onClick={() => setShowSettingsModal(true)}
+                    className="w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-200 text-sm text-gray-500 hover:text-gold-400 hover:bg-gray-800"
+                >
+                    <span className="flex items-center justify-center"><Settings className="w-5 h-5"/></span>
+                    <span className="hidden md:block font-medium">Настройки</span>
+                </button>
                 <button 
                     onClick={() => { setHelpSection('install'); setShowHelpModal(true); }}
                     className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-200 text-sm ${showInstallButton ? 'bg-blue-900/30 text-blue-200 border border-blue-800 animate-pulse' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'}`}

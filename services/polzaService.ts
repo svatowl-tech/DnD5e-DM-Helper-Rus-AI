@@ -56,7 +56,7 @@ async function polzaRequest(messages: any[], jsonMode = false): Promise<string> 
     const apiKey = getCustomApiKey() || process.env.API_KEY;
     
     if (!apiKey) {
-        throw new Error("API Key не найден. Пожалуйста, укажите ключ Polza.AI в настройках генератора (иконка шестеренки).");
+        throw new Error("API Key не найден. Нажмите 'Настройки' в меню слева и введите ключ Polza.AI.");
     }
 
     const model = getActiveModel();
@@ -78,10 +78,10 @@ async function polzaRequest(messages: any[], jsonMode = false): Promise<string> 
 
         if (!response.ok) {
             if (response.status === 401) {
-                throw new Error("Ошибка авторизации (401). Проверьте правильность API Key в настройках.");
+                throw new Error("Ошибка 401: Неверный ключ. Нажмите 'Настройки' в меню и обновите API Key.");
             }
             if (response.status === 402) {
-                throw new Error("Недостаточно средств на балансе API (402).");
+                throw new Error("Ошибка 402: Недостаточно средств на балансе Polza.AI.");
             }
             const err = await response.json().catch(() => ({ error: { message: response.statusText } }));
             throw new Error(err.error?.message || `API Error ${response.status}`);

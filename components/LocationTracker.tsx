@@ -84,8 +84,8 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
             setShowLoreInput(false);
             setLoreInput('');
             setShowHandbook(false);
-        } catch (e) {
-            alert("Ошибка анализа текста.");
+        } catch (e: any) {
+            alert(`Ошибка анализа: ${e.message}`);
         } finally {
             setLoading(false);
         }
@@ -112,9 +112,9 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
             // Ensure unique ID for tracking
             newLocation.id = Date.now().toString();
             setLocation(newLocation);
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            alert("Не удалось сгенерировать локацию.");
+            alert(`Не удалось сгенерировать локацию: ${e.message}`);
         } finally {
             setLoading(false);
         }
@@ -171,8 +171,9 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
                 return updated;
             });
 
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
+            alert(`Ошибка генерации контента: ${e.message}`);
         } finally {
             setGeneratingSection(null);
         }
@@ -184,8 +185,9 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
         try {
             const text = await generateScenarioDescription(location.name + ". " + location.atmosphere);
             setEncounterIntro(text); 
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
+            alert(`Ошибка генерации описания: ${e.message}`);
         } finally {
             setLoading(false);
         }
@@ -233,8 +235,9 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
 
             localStorage.setItem('dmc_combatants', JSON.stringify([...currentCombatants, ...newMonsters]));
 
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
+            alert(`Ошибка создания энкаунтера: ${e.message}`);
         } finally {
             setEncounterLoading(false);
         }
@@ -278,8 +281,8 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
         try {
             const content = await generateExtendedDetails(category, name, location.name);
             setModalContent(content);
-        } catch (e) {
-            setModalContent("<p class='text-red-400'>Не удалось загрузить информацию. Попробуйте еще раз. (Возможно, проблемы с сетью или блокировщиком рекламы)</p>");
+        } catch (e: any) {
+            setModalContent(`<p class='text-red-400'>Ошибка: ${e.message}</p>`);
         } finally {
             setModalLoading(false);
         }
@@ -395,7 +398,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
                                 )}
                             </div>
                             <div className="p-3 bg-gray-900 border-t border-gray-700 flex justify-between">
-                                {modalCategory && !modalLoading && !modalContent.includes('Не удалось') && (
+                                {modalCategory && !modalLoading && !modalContent.includes('Ошибка') && (
                                      <button 
                                         onClick={() => openDetailModal(modalCategory, modalTitle)}
                                         className="bg-gray-800 hover:bg-gray-700 text-gold-500 px-4 py-2 rounded text-sm font-bold flex items-center gap-2 border border-gray-600"
@@ -406,7 +409,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
                                 <div className="flex gap-2 ml-auto">
                                     <button 
                                         onClick={handleSaveModalToJournal}
-                                        disabled={modalLoading || modalContent.includes('Не удалось')}
+                                        disabled={modalLoading || modalContent.includes('Ошибка')}
                                         className="bg-green-800 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         <FileText className="w-4 h-4" /> Сохранить в Журнал

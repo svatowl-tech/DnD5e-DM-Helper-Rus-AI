@@ -150,9 +150,9 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
           
           alert("Добыча сгенерирована и добавлена в лог сессии.");
 
-      } catch (e) {
+      } catch (e: any) {
           console.error(e);
-          alert("Ошибка генерации лута.");
+          alert(`Ошибка генерации лута: ${e.message}`);
       } finally {
           setLootLoading(false);
       }
