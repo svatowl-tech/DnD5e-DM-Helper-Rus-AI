@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Note } from '../types';
-import { FileText, Save, Plus, Trash2, Check, Clock, Eye, Edit } from 'lucide-react';
+import { FileText, Save, Plus, Trash2, Check, Clock, Eye, Edit, ArrowLeft } from 'lucide-react';
 
 const CampaignNotes: React.FC = () => {
     const [notes, setNotes] = useState<Note[]>(() => {
@@ -11,6 +11,7 @@ const CampaignNotes: React.FC = () => {
     const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
     const [savedIndicator, setSavedIndicator] = useState(false);
     const [isViewMode, setIsViewMode] = useState(true);
+    const [showListMobile, setShowListMobile] = useState(true);
 
     useEffect(() => {
         localStorage.setItem('dmc_notes', JSON.stringify(notes));
@@ -22,7 +23,10 @@ const CampaignNotes: React.FC = () => {
 
     // Switch to view mode when changing notes
     useEffect(() => {
-        setIsViewMode(true);
+        if (activeNoteId) {
+            setIsViewMode(true);
+            setShowListMobile(false); // Switch to detail view on mobile
+        }
     }, [activeNoteId]);
 
     const activeNote = notes.find(n => n.id === activeNoteId);
@@ -39,6 +43,7 @@ const CampaignNotes: React.FC = () => {
         setNotes([newNote, ...notes]);
         setActiveNoteId(newNote.id);
         setIsViewMode(false); // Auto switch to edit for new notes
+        setShowListMobile(false);
     };
 
     const updateActiveNote = (updates: Partial<Note>) => {
@@ -49,14 +54,17 @@ const CampaignNotes: React.FC = () => {
     const deleteNote = (id: string) => {
         if(window.confirm('Удалить эту заметку безвозвратно?')) {
             setNotes(prev => prev.filter(n => n.id !== id));
-            if (activeNoteId === id) setActiveNoteId(null);
+            if (activeNoteId === id) {
+                setActiveNoteId(null);
+                setShowListMobile(true);
+            }
         }
     };
 
     return (
         <div className="h-full flex gap-4">
-            {/* Sidebar List */}
-            <div className="w-1/3 border-r border-gray-700 flex flex-col">
+            {/* Sidebar List (Hidden on mobile if note active) */}
+            <div className={`w-full lg:w-1/3 border-r border-gray-700 flex flex-col ${showListMobile ? 'flex' : 'hidden lg:flex'}`}>
                 <div className="mb-4 flex items-center justify-between">
                      <button 
                         onClick={createNote}
@@ -91,25 +99,30 @@ const CampaignNotes: React.FC = () => {
                 </div>
             </div>
 
-            {/* Editor Area */}
-            <div className="flex-1 flex flex-col bg-dnd-card/30 rounded-lg border border-gray-800 overflow-hidden relative">
+            {/* Editor Area (Hidden on mobile if no note active) */}
+            <div className={`flex-1 flex flex-col bg-dnd-card/30 rounded-lg border border-gray-800 overflow-hidden relative ${!showListMobile ? 'flex' : 'hidden lg:flex'}`}>
                 {activeNote ? (
                     <>
                         <div className="p-4 border-b border-gray-700 bg-gray-900/50 flex justify-between items-start gap-4">
+                            {/* Mobile Back Button */}
+                            <button onClick={() => setShowListMobile(true)} className="lg:hidden text-gold-500 p-1 -ml-2">
+                                <ArrowLeft className="w-6 h-6"/>
+                            </button>
+
                             <div className="flex-1">
                                 <input 
-                                    className="w-full bg-transparent text-2xl font-serif font-bold text-gold-500 outline-none placeholder-gray-600"
+                                    className="w-full bg-transparent text-xl md:text-2xl font-serif font-bold text-gold-500 outline-none placeholder-gray-600"
                                     value={activeNote.title}
                                     onChange={e => updateActiveNote({ title: e.target.value })}
                                     placeholder="Заголовок..."
                                 />
-                                <div className="flex gap-2 mt-2">
+                                <div className="flex flex-wrap gap-2 mt-2">
                                     {activeNote.tags.map((tag, i) => (
                                         <span key={i} className="text-xs text-blue-300 bg-blue-900/30 px-2 py-0.5 rounded">#{tag}</span>
                                     ))}
                                 </div>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 shrink-0">
                                 <button
                                     onClick={() => setIsViewMode(!isViewMode)}
                                     className={`p-2 rounded transition-colors border ${isViewMode ? 'bg-gold-600 text-black border-gold-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'}`}
@@ -122,12 +135,12 @@ const CampaignNotes: React.FC = () => {
 
                         {isViewMode ? (
                             <div 
-                                className="flex-1 bg-transparent p-6 text-gray-300 leading-relaxed overflow-y-auto custom-scrollbar [&_h1]:text-gold-500 [&_h1]:text-2xl [&_h1]:font-serif [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-gold-500 [&_h2]:text-xl [&_h2]:font-serif [&_h2]:font-bold [&_h2]:mb-3 [&_h2]:mt-5 [&_h3]:text-gold-500 [&_h3]:font-serif [&_h3]:text-lg [&_h3]:font-bold [&_h3]:mb-2 [&_h3]:mt-4 [&_h3:first-child]:mt-0 [&_h4]:text-gold-400 [&_h4]:font-bold [&_h4]:mb-2 [&_strong]:text-white [&_strong]:font-bold [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mb-1 [&_p]:mb-3 [&_table]:w-full [&_table]:border-collapse [&_th]:text-left [&_th]:p-2 [&_th]:border-b [&_th]:border-gray-700 [&_td]:p-2 [&_td]:border-b [&_td]:border-gray-800"
+                                className="flex-1 bg-transparent p-4 md:p-6 text-gray-300 leading-relaxed overflow-y-auto custom-scrollbar [&_h1]:text-gold-500 [&_h1]:text-2xl [&_h1]:font-serif [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-gold-500 [&_h2]:text-xl [&_h2]:font-serif [&_h2]:font-bold [&_h2]:mb-3 [&_h2]:mt-5 [&_h3]:text-gold-500 [&_h3]:font-serif [&_h3]:text-lg [&_h3]:font-bold [&_h3]:mb-2 [&_h3]:mt-4 [&_h3:first-child]:mt-0 [&_h4]:text-gold-400 [&_h4]:font-bold [&_h4]:mb-2 [&_strong]:text-white [&_strong]:font-bold [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mb-1 [&_p]:mb-3 [&_table]:w-full [&_table]:border-collapse [&_th]:text-left [&_th]:p-2 [&_th]:border-b [&_th]:border-gray-700 [&_td]:p-2 [&_td]:border-b [&_td]:border-gray-800"
                                 dangerouslySetInnerHTML={{ __html: activeNote.content || '<p class="text-gray-500 italic">Нет содержимого...</p>' }}
                             />
                         ) : (
                             <textarea 
-                                className="flex-1 bg-black/20 p-6 text-gray-300 leading-relaxed outline-none resize-none font-mono text-sm"
+                                className="flex-1 bg-black/20 p-4 md:p-6 text-gray-300 leading-relaxed outline-none resize-none font-mono text-sm"
                                 value={activeNote.content}
                                 onChange={e => updateActiveNote({ content: e.target.value })}
                                 placeholder="Записывайте секреты кампании, статы NPC или идеи для сюжета здесь... Поддерживается HTML."
@@ -137,7 +150,7 @@ const CampaignNotes: React.FC = () => {
                         <div className="absolute bottom-4 right-4">
                             <button 
                                 onClick={() => deleteNote(activeNote.id)}
-                                className="bg-gray-800 text-gray-500 hover:bg-red-900/50 hover:text-red-400 p-2 rounded-full transition-colors border border-gray-700 hover:border-red-500"
+                                className="bg-gray-800 text-gray-500 hover:bg-red-900/50 hover:text-red-400 p-3 rounded-full transition-colors border border-gray-700 hover:border-red-500 shadow-lg"
                                 title="Удалить заметку"
                             >
                                 <Trash2 className="w-5 h-5" />

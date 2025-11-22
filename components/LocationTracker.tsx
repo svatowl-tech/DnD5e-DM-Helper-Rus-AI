@@ -1,14 +1,17 @@
 
 import React, { useState, useEffect } from 'react';
-import { LocationData, PartyMember, Combatant, EntityType, LoreEntry, LogEntry, LocationTrackerProps, Note } from '../types';
-import { parseLoreFromText, generateEncounterIntro, generateScenarioDescription, generateFullLocation, generateLocationContent, generateExtendedDetails } from '../services/polzaService';
+import { LocationData, PartyMember, Combatant, EntityType, LoreEntry, LocationTrackerProps, Note, SavedImage } from '../types';
+import { parseLoreFromText, generateEncounterIntro, generateScenarioDescription, generateFullLocation, generateLocationContent, generateExtendedDetails, generateMultiverseBreach, generateRealityGlitch, generateImage } from '../services/polzaService';
 import { getMonstersByCr } from '../services/dndApiService';
-import { MapPin, Users, Skull, Sparkles, BookOpen, Loader, Search, Eye, ChevronRight, ArrowRight, Menu, Map, Copy, Plus, Home, Trees, Tent, Castle, ArrowLeft, LandPlot, Landmark, Beer, Footprints, ShieldAlert, Ghost, Info, X, Save, FileText, RefreshCcw } from 'lucide-react';
+import { MapPin, Users, Skull, Sparkles, BookOpen, Loader, Search, Eye, ChevronRight, ArrowRight, Menu, Map, Copy, Plus, Home, Trees, Tent, Castle, ArrowLeft, LandPlot, Landmark, Beer, Footprints, ShieldAlert, Ghost, Info, X, Save, FileText, RefreshCcw, ChevronDown, ChevronUp, Zap, Anchor, Globe, Hexagon, Activity, Radio, Flame, Image as ImageIcon, ZoomIn, Church, Building, Mountain } from 'lucide-react';
 import { FAERUN_LORE } from '../data/faerunLore';
+import { useAudio } from '../contexts/AudioContext';
 
-const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote }) => {
+const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, onImageGenerated, onShowImage }) => {
+    // Audio Context for automation
+    const { playPlaylist } = useAudio();
+
     const [lore, setLore] = useState<LoreEntry[]>(() => {
-        // Initialize from storage or fallback to default constant
         const savedLore = localStorage.getItem('dmc_lore');
         return savedLore ? JSON.parse(savedLore) : FAERUN_LORE;
     });
@@ -16,6 +19,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
     const [selectedRegion, setSelectedRegion] = useState<LoreEntry | null>(null);
     const [loreInput, setLoreInput] = useState('');
     const [loading, setLoading] = useState(false);
+    const [breachLoading, setBreachLoading] = useState(false); // New state for Breach loading
     const [generatingSection, setGeneratingSection] = useState<string | null>(null);
     const [party, setParty] = useState<PartyMember[]>([]);
     const [showLoreInput, setShowLoreInput] = useState(false);
@@ -24,6 +28,11 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
     const [showHandbook, setShowHandbook] = useState(true);
     const [handbookSearch, setHandbookSearch] = useState('');
     const [expandedRegion, setExpandedRegion] = useState<string | null>(null);
+    const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+    
+    // Image Generation State
+    const [locationImage, setLocationImage] = useState<SavedImage | null>(null);
+    const [imageLoading, setImageLoading] = useState(false);
 
     // Modal State
     const [modalOpen, setModalOpen] = useState(false);
@@ -32,7 +41,6 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
     const [modalCategory, setModalCategory] = useState('');
     const [modalLoading, setModalLoading] = useState(false);
 
-    // Persist Lore whenever it changes
     useEffect(() => {
         localStorage.setItem('dmc_lore', JSON.stringify(lore));
     }, [lore]);
@@ -49,9 +57,8 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
             const region = lore.find(r => r.id === savedRegionId);
             if (region) setSelectedRegion(region);
         }
-    }, []); // Run once on mount, but relies on 'lore' which is initialized synchronously
+    }, []); 
 
-    // Keep region reference updated if lore changes
     useEffect(() => {
         if (selectedRegion) {
             const updatedRegion = lore.find(r => r.id === selectedRegion.id);
@@ -62,6 +69,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
     useEffect(() => {
         if (location) {
             localStorage.setItem('dmc_active_location', JSON.stringify(location));
+            setLocationImage(null); // Reset image when location changes
         } else {
             localStorage.removeItem('dmc_active_location');
         }
@@ -75,6 +83,31 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
         }
     }, [selectedRegion]);
 
+    // Automation: Play music when location changes significantly
+    const triggerLocationMusic = (loc: LocationData) => {
+        const text = (loc.type + ' ' + loc.name + ' ' + loc.atmosphere).toLowerCase();
+        
+        let playlistId = 'atmosphere'; // Default
+
+        if (loc.originWorld) {
+            playlistId = 'scifi';
+        } else if (text.includes('лес') || text.includes('роща') || text.includes('чаща') || text.includes('forest')) {
+            playlistId = 'forest';
+        } else if (text.includes('подземел') || text.includes('пещер') || text.includes('склеп') || text.includes('руины') || text.includes('dungeon')) {
+            playlistId = 'dungeon';
+        } else if (text.includes('таверна') || text.includes('трактир') || text.includes('inn') || text.includes('tavern')) {
+            playlistId = 'tavern';
+        } else if (text.includes('город') || text.includes('порт') || text.includes('столица') || text.includes('city')) {
+            playlistId = 'city';
+        } else if (text.includes('пустын') || text.includes('песк') || text.includes('восток') || text.includes('desert')) {
+            playlistId = 'eastern';
+        }
+
+        // Play in shuffle mode for ambient variety
+        playPlaylist(playlistId, true);
+        addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Включена атмосфера: ${playlistId}`, type: 'system' });
+    };
+
     const handleParseLore = async () => {
         if (!loreInput) return;
         setLoading(true);
@@ -84,6 +117,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
             setShowLoreInput(false);
             setLoreInput('');
             setShowHandbook(false);
+            triggerLocationMusic(data);
         } catch (e: any) {
             alert(`Ошибка анализа: ${e.message}`);
         } finally {
@@ -95,6 +129,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
         setLocation(loc);
         setShowHandbook(false);
         setEncounterIntro(''); 
+        triggerLocationMusic(loc);
     };
 
     const selectRegion = (region: LoreEntry) => {
@@ -109,9 +144,9 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
         setLoading(true);
         try {
             const newLocation = await generateFullLocation(selectedRegion.name, type);
-            // Ensure unique ID for tracking
             newLocation.id = Date.now().toString();
             setLocation(newLocation);
+            triggerLocationMusic(newLocation);
         } catch (e: any) {
             console.error(e);
             alert(`Не удалось сгенерировать локацию: ${e.message}`);
@@ -120,14 +155,64 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
         }
     };
 
-    // Save current location to the selected region in Lore
+    // Project Ark Generators
+    const handleGenerateBreach = async () => {
+        setBreachLoading(true); // Start special loading
+        try {
+            const breach = await generateMultiverseBreach();
+            breach.id = Date.now().toString();
+            
+            // Small delay to ensure animation plays smoothly if API is too fast
+            await new Promise(r => setTimeout(r, 1500));
+            
+            setLocation(breach);
+            triggerLocationMusic(breach); // Should trigger 'scifi'
+            
+            addLog({
+                id: Date.now().toString(),
+                timestamp: Date.now(),
+                text: `[КОВЧЕГ] ⚠️ ВНИМАНИЕ! Обнаружен разлом: ${breach.name}. Источник: ${breach.originWorld}.`,
+                type: 'combat' // Red highlighting for importance
+            });
+
+        } catch (e: any) {
+            alert(`Ошибка генерации разлома: ${e.message}. Попробуйте еще раз.`);
+        } finally {
+            setBreachLoading(false);
+        }
+    };
+
+    const handleGenerateGlitch = async () => {
+        if (!location) return;
+        setLoading(true);
+        try {
+            const glitch = await generateRealityGlitch(location.name);
+            
+            setModalTitle(`Аномалия: ${glitch.name}`);
+            setModalContent(`<p class="text-lg text-purple-300 font-bold border-l-4 border-purple-500 pl-4 py-2 bg-purple-900/20">${glitch.effect}</p>`);
+            setModalCategory('glitch');
+            setModalOpen(true);
+
+            addLog({
+                id: Date.now().toString(),
+                timestamp: Date.now(),
+                text: `[АНОМАЛИЯ] ${glitch.name}: ${glitch.effect}`,
+                type: 'combat'
+            });
+
+        } catch (e: any) {
+            alert(`Ошибка: ${e.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleSaveLocationToHandbook = () => {
         if (!selectedRegion || !location) return;
 
         setLore(prevLore => {
             return prevLore.map(region => {
                 if (region.id === selectedRegion.id) {
-                    // Check if location already exists (by ID if available, or Name)
                     const existingIndex = region.locations.findIndex(l => 
                         (location.id && l.id === location.id) || l.name === location.name
                     );
@@ -149,7 +234,6 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
             });
         });
         
-        // Update current location to have the ID if it was new
         if (!location.id) {
              setLocation(prev => prev ? ({...prev, id: Date.now().toString()}) : null);
         }
@@ -164,9 +248,9 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
             setLocation(prev => {
                 if (!prev) return null;
                 const updated = { ...prev };
-                if (category === 'npc') updated.npcs = [...prev.npcs, ...newItems];
-                if (category === 'secret') updated.secrets = [...prev.secrets, ...newItems];
-                if (category === 'loot') updated.loot = [...prev.loot, ...newItems];
+                if (category === 'npc') updated.npcs = [...(prev.npcs || []), ...newItems];
+                if (category === 'secret') updated.secrets = [...(prev.secrets || []), ...newItems];
+                if (category === 'loot') updated.loot = [...(prev.loot || []), ...newItems];
                 if (category === 'quest') updated.quests = [...(prev.quests || []), ...newItems];
                 return updated;
             });
@@ -258,7 +342,6 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
         const newNote: Note = {
             id: Date.now().toString(),
             title: `${modalCategory.toUpperCase()}: ${modalTitle}`,
-            // We now save HTML content directly because CampaignNotes supports view/edit modes
             content: modalContent, 
             tags: [location.name, modalCategory, selectedRegion?.name || 'Unknown'],
             type: 'npc', 
@@ -266,10 +349,9 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
         };
 
         onSaveNote(newNote);
-        setModalOpen(false); // Automatically close modal after saving
+        setModalOpen(false);
     };
 
-    // Extended Details Handler
     const openDetailModal = async (category: string, name: string) => {
         if (!location) return;
         setModalOpen(true);
@@ -288,7 +370,55 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
         }
     };
 
-    // Filter Handbook
+    const handleGenerateLocationImage = async () => {
+        if (!location) return;
+        setImageLoading(true);
+        try {
+            const prompt = `Fantasy landscape: ${location.name}, ${location.type}. ${location.atmosphere}. ${location.description}. Cinematic lighting, highly detailed, digital art.`;
+            const url = await generateImage(prompt, "16:9");
+            
+            const newImage: SavedImage = {
+                id: Date.now().toString(),
+                url: url,
+                title: location.name,
+                type: 'location',
+                timestamp: Date.now()
+            };
+
+            setLocationImage(newImage);
+            if (onImageGenerated) onImageGenerated(newImage);
+
+        } catch (e: any) {
+            alert("Ошибка генерации изображения: " + e.message);
+        } finally {
+            setImageLoading(false);
+        }
+    };
+
+    const handleGenerateNpcImage = async (name: string, description: string) => {
+        if (!confirm(`Сгенерировать портрет для ${name}? Это займет некоторое время.`)) return;
+        
+        try {
+            const prompt = `Fantasy portrait of ${name}. ${description}. Detailed digital art style.`;
+            const url = await generateImage(prompt, "1:1");
+            
+            const newImage: SavedImage = {
+                id: Date.now().toString(),
+                url: url,
+                title: name,
+                type: 'npc',
+                timestamp: Date.now()
+            };
+
+            if (onImageGenerated) onImageGenerated(newImage);
+            // If we have a handler to show directly, we could use it, or just notify via log
+            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Портрет ${name} добавлен в галерею.`, type: 'system' });
+
+        } catch(e: any) {
+            alert("Ошибка: " + e.message);
+        }
+    };
+
     const filteredLore = lore.filter(region => 
         region.name.toLowerCase().includes(handbookSearch.toLowerCase()) ||
         region.locations.some(l => l.name.toLowerCase().includes(handbookSearch.toLowerCase()))
@@ -297,13 +427,33 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
     return (
         <div className="h-full flex gap-4 relative">
             
+            {/* Breach Loading Overlay */}
+            {breachLoading && (
+                <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center animate-in fade-in duration-500">
+                    <div className="relative w-64 h-64 flex items-center justify-center mb-8">
+                        <div className="absolute inset-0 border-4 border-indigo-600 rounded-full animate-ping opacity-20"></div>
+                        <div className="absolute inset-4 border-4 border-purple-600 rounded-full animate-spin opacity-40" style={{animationDuration: '3s'}}></div>
+                        <div className="absolute inset-8 border-2 border-white rounded-full animate-pulse opacity-10"></div>
+                        <Globe className="w-32 h-32 text-indigo-400 animate-pulse" />
+                    </div>
+                    <h2 className="text-3xl font-serif font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-600 mb-4 animate-pulse">
+                        ПРОКОЛ РЕАЛЬНОСТИ
+                    </h2>
+                    <div className="space-y-2 text-center font-mono text-sm text-indigo-300">
+                        <p className="animate-in slide-in-from-bottom-2 duration-700 delay-100">[СИСТЕМА] Обнаружен внешний сигнал...</p>
+                        <p className="animate-in slide-in-from-bottom-2 duration-700 delay-500 text-purple-300">[КОВЧЕГ] Синхронизация констант...</p>
+                        <p className="animate-in slide-in-from-bottom-2 duration-700 delay-1000 text-white">Стабилизация Слепой Зоны...</p>
+                    </div>
+                </div>
+            )}
+
             {/* Handbook Sidebar */}
-            <div className={`fixed md:static inset-y-0 left-0 z-20 w-80 bg-gray-900 border-r border-gray-700 transform transition-transform duration-300 flex flex-col ${showHandbook ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
+            <div className={`fixed xl:static inset-y-0 left-0 z-30 w-80 bg-gray-900 border-r border-gray-700 transform transition-transform duration-300 flex flex-col ${showHandbook ? 'translate-x-0' : '-translate-x-full'} xl:translate-x-0`}>
                 <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-dnd-darker">
                     <h2 className="font-serif font-bold text-gold-500 flex items-center gap-2">
                         <BookOpen className="w-5 h-5"/> Справочник
                     </h2>
-                    <button onClick={() => setShowHandbook(false)} className="md:hidden text-gray-400"><ArrowRight /></button>
+                    <button onClick={() => setShowHandbook(false)} className="xl:hidden text-gray-400"><ArrowRight /></button>
                 </div>
                 
                 <div className="p-2">
@@ -367,11 +517,10 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
             {/* Main Content */}
             <div className="flex-1 flex flex-col h-full overflow-hidden w-full bg-dnd-dark relative">
                 
-                {/* Mobile Toggle */}
                 {!showHandbook && (
                     <button 
                         onClick={() => setShowHandbook(true)}
-                        className="md:hidden absolute top-4 left-4 z-10 bg-gray-800 p-2 rounded border border-gray-600 text-white shadow-lg"
+                        className="xl:hidden absolute top-2 left-2 z-10 bg-gray-800 p-2 rounded border border-gray-600 text-white shadow-lg opacity-80 hover:opacity-100"
                     >
                         <Menu className="w-5 h-5" />
                     </button>
@@ -502,10 +651,30 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
                                         </div>
                                     </section>
 
-                                    {/* Generators */}
+                                    {/* Project Ark Generators */}
+                                    <section className="bg-indigo-900/20 border border-indigo-500/30 p-4 rounded-lg">
+                                        <h3 className="text-xl font-bold text-indigo-300 mb-4 flex items-center gap-2">
+                                            <Hexagon className="w-5 h-5 text-indigo-400"/> Проект «Ковчег»
+                                        </h3>
+                                        <div className="flex flex-col sm:flex-row gap-3">
+                                             <button 
+                                                disabled={loading || breachLoading}
+                                                onClick={handleGenerateBreach}
+                                                className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white p-4 rounded-lg flex flex-col items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-900/50 group"
+                                            >
+                                                <Globe className="w-8 h-8 group-hover:scale-110 transition-transform duration-300"/>
+                                                <div>
+                                                    <div className="font-bold text-lg">Вызвать Разлом</div>
+                                                    <div className="text-xs opacity-80 font-normal">Слияние Мультивселенных</div>
+                                                </div>
+                                            </button>
+                                        </div>
+                                    </section>
+
+                                    {/* Standard Generators */}
                                     <section>
                                         <h3 className="text-xl font-bold text-gray-200 mb-4 flex items-center gap-2">
-                                            <Sparkles className="w-5 h-5 text-purple-400"/> Создать новое место (AI)
+                                            <Sparkles className="w-5 h-5 text-purple-400"/> Обычные локации (AI)
                                         </h3>
                                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
                                             <button 
@@ -526,7 +695,31 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
                                             </button>
                                             <button 
                                                 disabled={loading}
-                                                onClick={() => handleGenerateLocation('Древние руины')}
+                                                onClick={() => handleGenerateLocation('Таверна/Постоялый двор')}
+                                                className="bg-gray-800 border border-gray-700 p-3 rounded-lg hover:bg-gray-700 flex flex-col items-center gap-2 transition-colors disabled:opacity-50 text-sm group"
+                                            >
+                                                <Beer className="w-6 h-6 text-yellow-500 group-hover:scale-110 transition-transform"/>
+                                                <span className="font-bold">Таверна</span>
+                                            </button>
+                                            <button 
+                                                disabled={loading}
+                                                onClick={() => handleGenerateLocation('Древний Храм/Святилище')}
+                                                className="bg-gray-800 border border-gray-700 p-3 rounded-lg hover:bg-gray-700 flex flex-col items-center gap-2 transition-colors disabled:opacity-50 text-sm group"
+                                            >
+                                                <Church className="w-6 h-6 text-indigo-300 group-hover:scale-110 transition-transform"/>
+                                                <span className="font-bold">Храм</span>
+                                            </button>
+                                            <button 
+                                                disabled={loading}
+                                                onClick={() => handleGenerateLocation('Башня Мага/Обсерватория')}
+                                                className="bg-gray-800 border border-gray-700 p-3 rounded-lg hover:bg-gray-700 flex flex-col items-center gap-2 transition-colors disabled:opacity-50 text-sm group"
+                                            >
+                                                <Building className="w-6 h-6 text-purple-400 group-hover:scale-110 transition-transform"/>
+                                                <span className="font-bold">Башня</span>
+                                            </button>
+                                            <button 
+                                                disabled={loading}
+                                                onClick={() => handleGenerateLocation('Древние руины/Замок')}
                                                 className="bg-gray-800 border border-gray-700 p-3 rounded-lg hover:bg-gray-700 flex flex-col items-center gap-2 transition-colors disabled:opacity-50 text-sm group"
                                             >
                                                 <Castle className="w-6 h-6 text-gray-400 group-hover:scale-110 transition-transform"/>
@@ -537,16 +730,8 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
                                                 onClick={() => handleGenerateLocation('Подземелье/Пещера')}
                                                 className="bg-gray-800 border border-gray-700 p-3 rounded-lg hover:bg-gray-700 flex flex-col items-center gap-2 transition-colors disabled:opacity-50 text-sm group"
                                             >
-                                                <LandPlot className="w-6 h-6 text-stone-500 group-hover:scale-110 transition-transform"/>
+                                                <Mountain className="w-6 h-6 text-stone-500 group-hover:scale-110 transition-transform"/>
                                                 <span className="font-bold">Подземелье</span>
-                                            </button>
-                                            <button 
-                                                disabled={loading}
-                                                onClick={() => handleGenerateLocation('Таверна/Постоялый двор')}
-                                                className="bg-gray-800 border border-gray-700 p-3 rounded-lg hover:bg-gray-700 flex flex-col items-center gap-2 transition-colors disabled:opacity-50 text-sm group"
-                                            >
-                                                <Beer className="w-6 h-6 text-amber-500 group-hover:scale-110 transition-transform"/>
-                                                <span className="font-bold">Таверна</span>
                                             </button>
                                             <button 
                                                 disabled={loading}
@@ -558,40 +743,24 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
                                             </button>
                                             <button 
                                                 disabled={loading}
-                                                onClick={() => handleGenerateLocation('Лагерь/Стоянка')}
+                                                onClick={() => handleGenerateLocation('Лагерь бандитов/Военный лагерь')}
                                                 className="bg-gray-800 border border-gray-700 p-3 rounded-lg hover:bg-gray-700 flex flex-col items-center gap-2 transition-colors disabled:opacity-50 text-sm group"
                                             >
-                                                <Tent className="w-6 h-6 text-orange-500 group-hover:scale-110 transition-transform"/>
+                                                <Tent className="w-6 h-6 text-orange-400 group-hover:scale-110 transition-transform"/>
                                                 <span className="font-bold">Лагерь</span>
                                             </button>
                                             <button 
                                                 disabled={loading}
-                                                onClick={() => handleGenerateLocation('Дорога/Тракт')}
+                                                onClick={() => handleGenerateLocation('Кладбище/Склеп/Некрополь')}
                                                 className="bg-gray-800 border border-gray-700 p-3 rounded-lg hover:bg-gray-700 flex flex-col items-center gap-2 transition-colors disabled:opacity-50 text-sm group"
                                             >
-                                                <Footprints className="w-6 h-6 text-yellow-700 group-hover:scale-110 transition-transform"/>
-                                                <span className="font-bold">Дорога</span>
-                                            </button>
-                                            <button 
-                                                disabled={loading}
-                                                onClick={() => handleGenerateLocation('Крепость/Форпост')}
-                                                className="bg-gray-800 border border-gray-700 p-3 rounded-lg hover:bg-gray-700 flex flex-col items-center gap-2 transition-colors disabled:opacity-50 text-sm group"
-                                            >
-                                                <ShieldAlert className="w-6 h-6 text-red-500 group-hover:scale-110 transition-transform"/>
-                                                <span className="font-bold">Крепость</span>
-                                            </button>
-                                            <button 
-                                                disabled={loading}
-                                                onClick={() => handleGenerateLocation('Аномалия/Мистическое место')}
-                                                className="bg-gray-800 border border-gray-700 p-3 rounded-lg hover:bg-gray-700 flex flex-col items-center gap-2 transition-colors disabled:opacity-50 text-sm group"
-                                            >
-                                                <Ghost className="w-6 h-6 text-purple-400 group-hover:scale-110 transition-transform"/>
-                                                <span className="font-bold">Тайна</span>
+                                                <Ghost className="w-6 h-6 text-teal-200 group-hover:scale-110 transition-transform"/>
+                                                <span className="font-bold">Кладбище</span>
                                             </button>
                                         </div>
                                         {loading && (
                                             <div className="mt-4 text-center text-gold-500 animate-pulse flex items-center justify-center gap-2">
-                                                <Loader className="animate-spin w-5 h-5"/> Создаем уникальное место в {selectedRegion.name}...
+                                                <Loader className="animate-spin w-5 h-5"/> Создаем локацию в {selectedRegion.name}...
                                             </div>
                                         )}
                                     </section>
@@ -607,67 +776,159 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
                     )
                 ) : (
                     // Location Details View
-                    <div className="flex-1 flex flex-col gap-4 overflow-hidden h-full animate-in fade-in">
-                        {/* Header */}
-                        <div className="bg-dnd-card p-5 rounded-lg border border-gray-700 flex flex-col md:flex-row justify-between gap-4 shrink-0">
-                            <div>
-                                <div className="flex items-center gap-3 mb-1">
-                                    <h1 className="text-3xl font-serif font-bold text-gold-500">{location.name}</h1>
-                                    <span className="bg-gray-800 text-gray-400 text-xs px-2 py-0.5 rounded border border-gray-700">{location.type || 'Локация'}</span>
+                    // UPDATED: Unified Scroll Container
+                    <div className="flex-1 overflow-y-auto h-full animate-in fade-in custom-scrollbar p-4 space-y-4 pb-20">
+                        
+                        {/* Compact Header */}
+                        <div className={`px-4 py-3 rounded-lg border shrink-0 shadow-md ${location.originWorld ? 'bg-indigo-950/30 border-indigo-500' : 'bg-dnd-card border-gray-700'}`}>
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-3 overflow-hidden">
+                                    <h1 className="text-2xl font-serif font-bold text-gold-500 truncate">{location.name}</h1>
+                                    {location.originWorld ? (
+                                        <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded border border-indigo-400 hidden sm:inline-block shrink-0 animate-pulse">
+                                            Разлом: {location.originWorld}
+                                        </span>
+                                    ) : (
+                                        <span className="bg-gray-800 text-gray-400 text-xs px-2 py-0.5 rounded border border-gray-700 hidden sm:inline-block shrink-0">{location.type || 'Локация'}</span>
+                                    )}
                                 </div>
-                                <p className="text-gray-300 italic border-l-2 border-gold-600 pl-3 py-1 mb-2">{location.atmosphere}</p>
-                                <p className="text-sm text-gray-400">{location.description}</p>
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <button 
+                                        onClick={handleGenerateLocationImage}
+                                        disabled={imageLoading}
+                                        className="text-gold-500 hover:text-white p-2 bg-gray-800 rounded-full"
+                                        title="Визуализировать локацию"
+                                    >
+                                        {imageLoading ? <Loader className="w-4 h-4 animate-spin"/> : <ImageIcon className="w-4 h-4"/>}
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            setLocation(null);
+                                        }}
+                                        className="text-gray-400 hover:text-white p-2 bg-gray-800 rounded-full"
+                                    >
+                                        <Map className="w-4 h-4" />
+                                    </button>
+                                    <button 
+                                        onClick={handleSaveLocationToHandbook}
+                                        className="text-green-400 hover:text-white p-2 bg-gray-800 rounded-full"
+                                        title="Сохранить"
+                                    >
+                                        <Save className="w-4 h-4" />
+                                    </button>
+                                </div>
                             </div>
-                            <div className="flex flex-col gap-2 min-w-[180px]">
-                                <button 
-                                    onClick={handleSaveLocationToHandbook}
-                                    className="bg-green-800 hover:bg-green-700 text-white px-4 py-2 rounded border border-green-600 text-sm flex items-center gap-2 font-bold shadow-md"
-                                    title="Сохранить текущее состояние локации в справочник региона"
-                                >
-                                    <Save className="w-4 h-4" /> Сохранить
+                            
+                            {/* Image Preview if exists */}
+                            {locationImage && (
+                                <div className="w-full h-64 md:h-80 rounded-lg overflow-hidden mb-4 relative group border border-gray-600 shadow-lg animate-in fade-in zoom-in duration-300">
+                                    <img src={locationImage.url} alt={location.name} className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+                                    
+                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity gap-2">
+                                        <a href={locationImage.url} target="_blank" rel="noopener noreferrer" className="bg-black/50 p-2 rounded text-white hover:bg-black/80">
+                                            <ZoomIn className="w-5 h-5" />
+                                        </a>
+                                        {onShowImage && (
+                                            <button 
+                                                onClick={() => onShowImage(locationImage)}
+                                                className="bg-gold-600 text-black px-3 py-2 rounded font-bold flex items-center gap-2 hover:bg-white"
+                                            >
+                                                <Eye className="w-5 h-5" /> Показать игрокам
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex gap-2 items-start text-xs sm:text-sm text-gray-400 relative">
+                                <div className={`flex-1 italic border-l-2 pl-2 transition-all duration-300 ${descriptionExpanded ? '' : 'line-clamp-2'} ${location.originWorld ? 'border-indigo-500 text-indigo-200' : 'border-gold-600'}`}>
+                                    {location.atmosphere} <span className="not-italic text-gray-500">— {location.description}</span>
+                                </div>
+                                <button onClick={() => setDescriptionExpanded(!descriptionExpanded)} className="p-1 text-gray-500 hover:text-white">
+                                    {descriptionExpanded ? <ChevronUp className="w-4 h-4"/> : <ChevronDown className="w-4 h-4"/>}
                                 </button>
-                                <button 
-                                    onClick={() => {
-                                        setLocation(null);
-                                        // Do not show handbook automatically, go to region view
-                                    }}
-                                    className="bg-gray-800 hover:bg-gray-700 text-gold-500 hover:text-gold-400 px-4 py-2 rounded border border-gray-600 text-sm flex items-center gap-2"
-                                >
-                                    <Map className="w-4 h-4" /> К Региону
-                                </button>
+                            </div>
+
+                            {/* Special Project Ark Fields */}
+                            {(location.anomalyEffect || location.anchor) && (
+                                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                                    {location.anomalyEffect && (
+                                        <div className="bg-purple-900/30 border border-purple-600/50 p-2 rounded flex items-start gap-2">
+                                            <Zap className="w-4 h-4 text-purple-400 shrink-0"/>
+                                            <span className="text-purple-200 font-bold">{location.anomalyEffect}</span>
+                                        </div>
+                                    )}
+                                    {location.anchor && (
+                                        <div className="bg-blue-900/30 border border-blue-600/50 p-2 rounded flex items-start gap-2">
+                                            <Anchor className="w-4 h-4 text-blue-400 shrink-0"/>
+                                            <span className="text-blue-200">Якорь: {location.anchor}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-3 gap-2 mt-3">
                                 <button 
                                     onClick={generateAtmosphere}
-                                    className="bg-gray-800 hover:bg-gray-700 text-gray-200 px-4 py-2 rounded border border-gray-600 text-sm flex items-center gap-2"
+                                    className="bg-gray-800 hover:bg-gray-700 text-gray-300 py-2 rounded border border-gray-600 text-xs flex justify-center items-center gap-2"
                                 >
-                                    <Eye className="w-4 h-4" /> Описать (AI)
+                                    <Eye className="w-3 h-3" /> Описать
+                                </button>
+                                <button 
+                                    onClick={handleGenerateGlitch}
+                                    className="bg-purple-900/50 hover:bg-purple-800 text-purple-200 border border-purple-700 py-2 rounded text-xs flex justify-center items-center gap-2 font-bold"
+                                    title="Создать временную аномалию"
+                                >
+                                    {loading ? <Loader className="w-3 h-3 animate-spin"/> : <Zap className="w-3 h-3"/>}
+                                    Аномалия
                                 </button>
                                 <button 
                                     onClick={generateEncounter}
                                     disabled={encounterLoading}
-                                    className="bg-red-900/80 hover:bg-red-800 text-red-100 border border-red-700 px-4 py-2 rounded text-sm flex items-center gap-2 font-bold transition-colors disabled:opacity-50"
+                                    className="bg-red-900/80 hover:bg-red-800 text-red-100 border border-red-700 py-2 rounded text-xs flex justify-center items-center gap-2 font-bold transition-colors disabled:opacity-50"
                                 >
-                                    {encounterLoading ? <Loader className="animate-spin w-4 h-4"/> : <Skull className="w-4 h-4" />}
-                                    Энкаунтер!
+                                    {encounterLoading ? <Loader className="animate-spin w-3 h-3"/> : <Skull className="w-3 h-3" />}
+                                    Энкаунтер
                                 </button>
                             </div>
                         </div>
 
                         {/* Generated Intro Box */}
                         {encounterIntro && (
-                            <div className="bg-red-950/40 border-l-4 border-red-600 p-4 rounded-r-lg animate-in fade-in slide-in-from-top-2 shrink-0">
+                            <div className="bg-red-950/40 border-l-4 border-red-600 p-4 rounded-r-lg animate-in fade-in slide-in-from-top-2 shrink-0 max-h-40 overflow-y-auto">
                                 <h4 className="text-red-400 text-xs uppercase tracking-widest mb-1 font-bold flex items-center gap-2">
                                     <Sparkles className="w-3 h-3"/> Нарратор
                                 </h4>
-                                <p className="text-gray-200 font-serif leading-relaxed">{encounterIntro}</p>
+                                <p className="text-gray-200 font-serif leading-relaxed text-sm">{encounterIntro}</p>
+                            </div>
+                        )}
+
+                        {/* Breach Event Box (Dynamic Quest) */}
+                        {location.breachEvent && (
+                            <div className="bg-orange-900/20 border border-orange-500/50 rounded-lg p-4 animate-in fade-in shrink-0">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Flame className="w-5 h-5 text-orange-500 animate-pulse"/>
+                                    <h3 className="font-bold text-orange-300 uppercase tracking-wider text-sm">Активное событие: {location.breachEvent.title}</h3>
+                                </div>
+                                <p className="text-sm text-gray-300 mb-2 italic">{location.breachEvent.description}</p>
+                                <div className="flex flex-wrap gap-2 mb-2">
+                                    {location.breachEvent.threats?.map((threat, i) => (
+                                        <span key={i} className="text-xs bg-red-900/40 text-red-300 px-2 py-0.5 rounded border border-red-800">{threat}</span>
+                                    ))}
+                                </div>
+                                <div className="bg-gray-900/50 p-2 rounded border-l-2 border-orange-500 text-xs text-gray-400">
+                                    <span className="font-bold text-orange-400">Цель:</span> {location.breachEvent.goal}
+                                </div>
                             </div>
                         )}
 
                         {/* Details Grid */}
-                        <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-4 pb-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-4">
                             
                             {/* NPCs */}
                             <div className="space-y-3">
-                                <div className="flex justify-between items-center border-b border-gray-700 pb-1">
+                                <div className="flex justify-between items-center border-b border-gray-700 pb-1 sticky top-0 bg-dnd-dark z-10 pt-2">
                                     <h3 className="font-serif font-bold text-gray-400 uppercase text-sm flex items-center gap-2">
                                         <Users className="w-4 h-4"/> Обитатели
                                     </h3>
@@ -680,8 +941,8 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
                                     </button>
                                 </div>
 
-                                {location.npcs.length === 0 && <p className="text-gray-600 text-sm italic">Нет важных NPC.</p>}
-                                {location.npcs.map((npc, i) => (
+                                {(location.npcs || []).length === 0 && <p className="text-gray-600 text-sm italic">Нет важных NPC.</p>}
+                                {(location.npcs || []).map((npc, i) => (
                                     <div key={i} className="bg-gray-800/50 p-3 rounded border border-gray-700 hover:border-gray-600 transition-colors group relative">
                                         <div className="flex justify-between pr-12">
                                             <span className="font-bold text-gold-500">{npc.name}</span>
@@ -692,15 +953,22 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
                                         
                                         <div className="absolute top-2 right-2 flex gap-1">
                                             <button 
+                                                onClick={() => handleGenerateNpcImage(npc.name, npc.description)}
+                                                className="p-1.5 bg-purple-900 text-purple-200 rounded hover:bg-purple-800"
+                                                title="Нарисовать"
+                                            >
+                                                <ImageIcon className="w-3 h-3" />
+                                            </button>
+                                            <button 
                                                 onClick={() => openDetailModal('npc', npc.name)}
-                                                className="p-1.5 bg-blue-900 text-blue-200 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-800"
+                                                className="p-1.5 bg-blue-900 text-blue-200 rounded hover:bg-blue-800"
                                                 title="Подробнее (AI)"
                                             >
                                                 <Info className="w-3 h-3" />
                                             </button>
                                             <button 
                                                 onClick={() => handleCopyToLog('NPC', `${npc.name} (${npc.race}): ${npc.description}`)}
-                                                className="p-1.5 bg-gray-700 text-gray-300 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-600 hover:text-white"
+                                                className="p-1.5 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 hover:text-white"
                                                 title="Копировать в лог"
                                             >
                                                 <Copy className="w-3 h-3" />
@@ -713,7 +981,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
                             {/* Secrets & Loot & Quests */}
                             <div className="space-y-4">
                                 <div>
-                                    <div className="flex justify-between items-center border-b border-gray-700 pb-1 mb-2">
+                                    <div className="flex justify-between items-center border-b border-gray-700 pb-1 mb-2 sticky top-0 bg-dnd-dark z-10 pt-2">
                                         <h3 className="font-serif font-bold text-gray-400 uppercase text-sm flex items-center gap-2">
                                             <Sparkles className="w-4 h-4"/> Квесты
                                         </h3>
@@ -725,23 +993,23 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
                                             {generatingSection === 'quest' ? <Loader className="w-3 h-3 animate-spin"/> : <Plus className="w-3 h-3"/>} AI
                                         </button>
                                     </div>
-                                    {(!location.quests || location.quests.length === 0) && <p className="text-gray-600 text-sm italic">Нет квестов.</p>}
+                                    {(!(location.quests || []) || (location.quests || []).length === 0) && <p className="text-gray-600 text-sm italic">Нет квестов.</p>}
                                     <ul className="space-y-2">
-                                        {location.quests && location.quests.map((q, i) => (
+                                        {(location.quests || []).map((q, i) => (
                                             <li key={i} className="text-sm bg-indigo-900/20 p-2 rounded border border-indigo-900/40 group relative pr-14">
                                                 <div className="font-bold text-indigo-300">{q.title}</div>
                                                 <div className="text-gray-400">{q.description}</div>
                                                 <div className="absolute top-2 right-2 flex gap-1">
                                                     <button 
                                                         onClick={() => openDetailModal('quest', q.title)}
-                                                        className="p-1.5 bg-indigo-800 text-indigo-100 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-indigo-700"
+                                                        className="p-1.5 bg-indigo-800 text-indigo-100 rounded hover:bg-indigo-700"
                                                         title="Подробнее (AI)"
                                                     >
                                                         <Info className="w-3 h-3" />
                                                     </button>
                                                     <button 
                                                         onClick={() => handleCopyToLog('Квест', `${q.title}: ${q.description}`)}
-                                                        className="p-1.5 bg-indigo-900 text-indigo-200 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-indigo-800"
+                                                        className="p-1.5 bg-indigo-900 text-indigo-200 rounded hover:bg-indigo-800"
                                                         title="Копировать в лог"
                                                     >
                                                         <Copy className="w-3 h-3" />
@@ -753,7 +1021,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
                                 </div>
 
                                 <div>
-                                    <div className="flex justify-between items-center border-b border-gray-700 pb-1 mb-2">
+                                    <div className="flex justify-between items-center border-b border-gray-700 pb-1 mb-2 sticky top-0 bg-dnd-dark z-10">
                                         <h3 className="font-serif font-bold text-gray-400 uppercase text-sm flex items-center gap-2">
                                             <Eye className="w-4 h-4"/> Тайны
                                         </h3>
@@ -766,20 +1034,20 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
                                         </button>
                                     </div>
                                     <ul className="list-disc list-inside text-sm text-gray-400 space-y-1">
-                                        {location.secrets.map((s, i) => (
+                                        {(location.secrets || []).map((s, i) => (
                                             <li key={i} className="group flex justify-between items-start py-1 hover:bg-gray-800/50 rounded px-2 -ml-2 transition-colors">
                                                 <span>{s}</span>
                                                 <div className="flex gap-1 ml-2">
                                                     <button 
                                                         onClick={() => openDetailModal('secret', s)}
-                                                        className="p-1 text-blue-400 hover:text-blue-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        className="p-1 text-blue-400 hover:text-blue-300"
                                                         title="Подробнее"
                                                     >
                                                         <Info className="w-3 h-3" />
                                                     </button>
                                                     <button 
                                                         onClick={() => handleCopyToLog('Тайна', s)}
-                                                        className="p-1 text-gray-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        className="p-1 text-gray-500 hover:text-white"
                                                         title="Копировать в лог"
                                                     >
                                                         <Copy className="w-3 h-3" />
@@ -787,12 +1055,12 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
                                                 </div>
                                             </li>
                                         ))}
-                                        {location.secrets.length === 0 && <li className="text-gray-600 italic list-none">Нет тайн.</li>}
+                                        {(location.secrets || []).length === 0 && <li className="text-gray-600 italic list-none">Нет тайн.</li>}
                                     </ul>
                                 </div>
 
                                 <div>
-                                    <div className="flex justify-between items-center border-b border-gray-700 pb-1 mb-2">
+                                    <div className="flex justify-between items-center border-b border-gray-700 pb-1 mb-2 sticky top-0 bg-dnd-dark z-10">
                                         <h3 className="font-serif font-bold text-gray-400 uppercase text-sm flex items-center gap-2">
                                             <Sparkles className="w-4 h-4"/> Ценности
                                         </h3>
@@ -805,7 +1073,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
                                         </button>
                                     </div>
                                     <div className="flex flex-wrap gap-2">
-                                        {location.loot.map((l, i) => (
+                                        {(location.loot || []).map((l, i) => (
                                             <div key={i} className="relative group inline-flex">
                                                 <span 
                                                     onClick={() => openDetailModal('loot', l)}
@@ -822,7 +1090,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote })
                                                 </button>
                                             </div>
                                         ))}
-                                        {location.loot.length === 0 && <span className="text-gray-600 italic text-sm">Пусто.</span>}
+                                        {(location.loot || []).length === 0 && <span className="text-gray-600 italic text-sm">Пусто.</span>}
                                     </div>
                                 </div>
                             </div>
