@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
-import { FullQuest, QuestObjective, Combatant, EntityType } from '../types';
-import { generateFullQuestTracker, parseQuestFromText } from '../services/polzaService';
+import React, { useState, useEffect, useRef } from 'react';
+import { FullQuest, QuestObjective, Combatant, EntityType, QuestTrackerProps } from '../types';
+import { generateFullQuestTracker, parseQuestFromText, enhanceQuest } from '../services/polzaService';
 import { searchMonsters, getMonsterDetails } from '../services/dndApiService';
 import { 
     ScrollText, Plus, Trash2, CheckCircle, Circle, Save, 
@@ -9,7 +9,7 @@ import {
     ChevronDown, ChevronUp, Wand2
 } from 'lucide-react';
 
-const QuestTracker: React.FC = () => {
+const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
     const [quests, setQuests] = useState<FullQuest[]>(() => {
         const saved = localStorage.getItem('dmc_quests');
         return saved ? JSON.parse(saved) : [];
@@ -17,6 +17,7 @@ const QuestTracker: React.FC = () => {
     const [activeQuestId, setActiveQuestId] = useState<string | null>(null);
     const [isMobileList, setIsMobileList] = useState(true); // Mobile master/detail view
     const [loading, setLoading] = useState(false);
+    const [enhancing, setEnhancing] = useState(false); // Specific loading state for enhancing
     
     // AI Inputs
     const [showAiModal, setShowAiModal] = useState(false);
@@ -36,6 +37,19 @@ const QuestTracker: React.FC = () => {
         if (activeQuestId) setIsMobileList(false);
     }, [activeQuestId]);
 
+    // Listen for external updates (App.tsx handles the "Add" logic now)
+    useEffect(() => {
+        const handleUpdateQuests = () => {
+            const saved = localStorage.getItem('dmc_quests');
+            if (saved) {
+                setQuests(JSON.parse(saved));
+            }
+        };
+
+        window.addEventListener('dmc-update-quests', handleUpdateQuests);
+        return () => window.removeEventListener('dmc-update-quests', handleUpdateQuests);
+    }, []);
+
     const createQuest = () => {
         const newQuest: FullQuest = {
             id: Date.now().toString(),
@@ -50,10 +64,32 @@ const QuestTracker: React.FC = () => {
         };
         setQuests([newQuest, ...quests]);
         setActiveQuestId(newQuest.id);
+        addLog({
+            id: Date.now().toString(),
+            timestamp: Date.now(),
+            text: `[Квест] Создан новый квест: "${newQuest.title}"`,
+            type: 'story'
+        });
     };
 
     const updateQuest = (id: string, updates: Partial<FullQuest>) => {
-        setQuests(prev => prev.map(q => q.id === id ? { ...q, ...updates } : q));
+        const prev = quests.find(q => q.id === id);
+        setQuests(prevs => prevs.map(q => q.id === id ? { ...q, ...updates } : q));
+        
+        // Log status changes
+        if (prev && updates.status && updates.status !== prev.status) {
+            let statusText = "";
+            if (updates.status === 'completed') statusText = "завершен";
+            else if (updates.status === 'failed') statusText = "провален";
+            else if (updates.status === 'active') statusText = "активирован";
+            
+            addLog({
+                id: Date.now().toString(),
+                timestamp: Date.now(),
+                text: `[Квест] "${prev.title}" ${statusText}.`,
+                type: 'story'
+            });
+        }
     };
 
     const deleteQuest = (id: string) => {
@@ -73,7 +109,25 @@ const QuestTracker: React.FC = () => {
     };
 
     const toggleObjective = (questId: string, objId: string) => {
-        const updated = (activeQuest?.objectives || []).map(o => o.id === objId ? { ...o, completed: !o.completed } : o);
+        const quest = quests.find(q => q.id === questId);
+        if (!quest) return;
+        
+        const updated = quest.objectives.map(o => {
+            if (o.id === objId) {
+                const newState = !o.completed;
+                // Log objective completion
+                if (newState) {
+                    addLog({
+                        id: Date.now().toString(),
+                        timestamp: Date.now(),
+                        text: `[Квест] Цель выполнена: ${o.text} (Квест: ${quest.title})`,
+                        type: 'story'
+                    });
+                }
+                return { ...o, completed: newState };
+            }
+            return o;
+        });
         updateQuest(questId, { objectives: updated });
     };
 
@@ -125,12 +179,6 @@ const QuestTracker: React.FC = () => {
                 let init = 10;
                 let notes = '';
 
-                // Simple check for common names or API lookup could be here
-                // For speed/reliability we try a quick search or fallback
-                // Note: searchMonsters returns summaries. We need details for HP/AC.
-                // Doing full API calls for every monster might be slow. We'll try best effort.
-                
-                // Minimal mock logic for demo + API attempt
                 try {
                     const searchResults = await searchMonsters(threatName);
                     if (searchResults.length > 0) {
@@ -164,6 +212,13 @@ const QuestTracker: React.FC = () => {
             
             // Dispatch custom event so CombatTracker can update if mounted
             window.dispatchEvent(new Event('dmc-update-combat'));
+            
+            addLog({
+                id: Date.now().toString(),
+                timestamp: Date.now(),
+                text: `[Бой] Угрозы из квеста "${activeQuest?.title}" добавлены в трекер.`,
+                type: 'system'
+            });
             
             alert("Существа добавлены в Боевой Трекер!");
 
@@ -207,6 +262,14 @@ const QuestTracker: React.FC = () => {
 
             setQuests([newQuest, ...quests]);
             setActiveQuestId(newQuest.id);
+            
+            addLog({
+                id: Date.now().toString(),
+                timestamp: Date.now(),
+                text: `[Квест] AI сгенерировал квест: "${newQuest.title}"`,
+                type: 'story'
+            });
+
             setShowAiModal(false);
             setAiText('');
         } catch (e: any) {
@@ -216,60 +279,92 @@ const QuestTracker: React.FC = () => {
         }
     };
 
+    const handleEnhanceQuest = async () => {
+        if (!activeQuest) return;
+        setEnhancing(true);
+        try {
+            const result = await enhanceQuest(activeQuest);
+            
+            // Update the quest in the list
+            setQuests(prevs => prevs.map(q => q.id === result.id ? result : q));
+            
+            addLog({
+                id: Date.now().toString(),
+                timestamp: Date.now(),
+                text: `[Квест] AI улучшил детали квеста: "${result.title}"`,
+                type: 'system'
+            });
+        } catch (e: any) {
+            alert(`Ошибка улучшения: ${e.message}`);
+        } finally {
+            setEnhancing(false);
+        }
+    };
+
+    // Auto-resize textarea helper
+    const adjustTextareaHeight = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        e.target.style.height = 'auto';
+        e.target.style.height = e.target.scrollHeight + 'px';
+    };
+
     return (
         <div className="h-full flex gap-4 relative">
             {/* --- AI Modal --- */}
             {showAiModal && (
                 <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-                    <div className="bg-dnd-card border border-gold-600 w-full max-w-md rounded-lg shadow-2xl p-6">
-                        <h3 className="text-xl font-serif font-bold text-gold-500 mb-4 flex items-center gap-2">
-                            <Sparkles className="w-5 h-5"/> AI Мастер Квестов
-                        </h3>
-                        
-                        <div className="flex bg-gray-900 rounded p-1 mb-4">
-                            <button 
-                                onClick={() => setAiMode('generate')}
-                                className={`flex-1 py-1 text-sm rounded transition-colors ${aiMode === 'generate' ? 'bg-gray-700 text-white font-bold' : 'text-gray-400 hover:text-gray-200'}`}
-                            >
-                                Генерация
-                            </button>
-                            <button 
-                                onClick={() => setAiMode('parse')}
-                                className={`flex-1 py-1 text-sm rounded transition-colors ${aiMode === 'parse' ? 'bg-gray-700 text-white font-bold' : 'text-gray-400 hover:text-gray-200'}`}
-                            >
-                                Импорт текста
-                            </button>
+                    <div className="bg-dnd-card border border-gold-600 w-full max-w-md rounded-lg shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+                        <div className="p-6 pb-2 shrink-0 border-b border-gray-800">
+                            <h3 className="text-xl font-serif font-bold text-gold-500 mb-4 flex items-center gap-2">
+                                <Sparkles className="w-5 h-5"/> AI Мастер Квестов
+                            </h3>
+                            
+                            <div className="flex bg-gray-900 rounded p-1">
+                                <button 
+                                    onClick={() => setAiMode('generate')}
+                                    className={`flex-1 py-1 text-sm rounded transition-colors ${aiMode === 'generate' ? 'bg-gray-700 text-white font-bold' : 'text-gray-400 hover:text-gray-200'}`}
+                                >
+                                    Генерация
+                                </button>
+                                <button 
+                                    onClick={() => setAiMode('parse')}
+                                    className={`flex-1 py-1 text-sm rounded transition-colors ${aiMode === 'parse' ? 'bg-gray-700 text-white font-bold' : 'text-gray-400 hover:text-gray-200'}`}
+                                >
+                                    Импорт текста
+                                </button>
+                            </div>
                         </div>
 
-                        {aiMode === 'generate' ? (
-                            <div className="space-y-3">
-                                <div>
-                                    <label className="text-xs text-gray-500 uppercase">Уровень группы</label>
-                                    <input type="number" className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white" value={aiLevel} onChange={e => setAiLevel(Number(e.target.value))} />
+                        <div className="px-6 py-4 flex-1 overflow-y-auto custom-scrollbar">
+                            {aiMode === 'generate' ? (
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-xs text-gray-500 uppercase font-bold block mb-1">Уровень группы</label>
+                                        <input type="number" className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white focus:border-gold-500 outline-none" value={aiLevel} onChange={e => setAiLevel(Number(e.target.value))} />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-gray-500 uppercase font-bold block mb-1">Тема / Тип</label>
+                                        <input className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white focus:border-gold-500 outline-none" placeholder="Напр. Убийство дракона, Интрига" value={aiTheme} onChange={e => setAiTheme(e.target.value)} />
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="text-xs text-gray-500 uppercase">Тема / Тип</label>
-                                    <input className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white" placeholder="Напр. Убийство дракона, Интрига" value={aiTheme} onChange={e => setAiTheme(e.target.value)} />
+                            ) : (
+                                <div className="h-full flex flex-col">
+                                    <label className="text-xs text-gray-500 uppercase font-bold block mb-1">Текст источника</label>
+                                    <textarea 
+                                        className="w-full flex-1 bg-gray-800 border border-gray-600 rounded p-2 text-white text-sm resize-none focus:border-gold-500 outline-none min-h-[150px]"
+                                        placeholder="Вставьте диалог NPC или текст из модуля..."
+                                        value={aiText}
+                                        onChange={e => setAiText(e.target.value)}
+                                    />
                                 </div>
-                            </div>
-                        ) : (
-                            <div>
-                                <label className="text-xs text-gray-500 uppercase">Текст источника</label>
-                                <textarea 
-                                    className="w-full h-32 bg-gray-800 border border-gray-600 rounded p-2 text-white text-sm resize-none"
-                                    placeholder="Вставьте диалог NPC или текст из модуля..."
-                                    value={aiText}
-                                    onChange={e => setAiText(e.target.value)}
-                                />
-                            </div>
-                        )}
+                            )}
+                        </div>
 
-                        <div className="flex gap-2 mt-6">
-                            <button onClick={() => setShowAiModal(false)} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded">Отмена</button>
+                        <div className="p-6 pt-4 shrink-0 flex gap-2 border-t border-gray-700/50 bg-dnd-card">
+                            <button onClick={() => setShowAiModal(false)} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded transition-colors">Отмена</button>
                             <button 
                                 onClick={handleAiAction} 
                                 disabled={loading}
-                                className="flex-1 bg-gold-600 hover:bg-gold-500 text-black font-bold py-2 rounded flex justify-center items-center gap-2"
+                                className="flex-1 bg-gold-600 hover:bg-gold-500 text-black font-bold py-2 rounded flex justify-center items-center gap-2 transition-colors shadow-lg"
                             >
                                 {loading ? <Loader className="animate-spin w-4 h-4"/> : <Wand2 className="w-4 h-4"/>} 
                                 {aiMode === 'generate' ? 'Создать' : 'Разобрать'}
@@ -286,18 +381,18 @@ const QuestTracker: React.FC = () => {
                         <h2 className="font-serif font-bold text-2xl text-gold-500 flex items-center gap-2">
                             <ScrollText className="w-6 h-6"/> Квесты
                         </h2>
-                        <button onClick={() => setShowAiModal(true)} className="text-indigo-400 hover:text-indigo-300 p-2 bg-indigo-900/30 rounded border border-indigo-800/50" title="AI Инструменты">
+                        <button onClick={() => setShowAiModal(true)} className="text-indigo-400 hover:text-indigo-300 p-2 bg-indigo-900/30 rounded border border-indigo-800/50 transition-colors" title="AI Инструменты">
                             <Sparkles className="w-5 h-5"/>
                         </button>
                     </div>
                     <button 
                         onClick={createQuest}
-                        className="w-full bg-gray-800 hover:bg-gray-700 text-white py-2 rounded border border-gray-600 flex items-center justify-center gap-2 font-bold text-sm"
+                        className="w-full bg-gray-800 hover:bg-gray-700 text-white py-2 rounded border border-gray-600 flex items-center justify-center gap-2 font-bold text-sm transition-colors"
                     >
                         <Plus className="w-4 h-4"/> Новый квест
                     </button>
                 </div>
-                <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
                     {quests.map(q => (
                         <div 
                             key={q.id}
@@ -327,28 +422,41 @@ const QuestTracker: React.FC = () => {
                 {activeQuest ? (
                     <>
                         {/* Header */}
-                        <div className="p-4 bg-dnd-card border-b border-gray-700 flex justify-between items-start gap-4">
-                            <button onClick={() => setIsMobileList(true)} className="lg:hidden text-gray-400 mr-2"><ArrowLeft className="w-6 h-6"/></button>
-                            <div className="flex-1">
-                                <input 
-                                    className="w-full bg-transparent text-2xl font-serif font-bold text-gold-500 outline-none placeholder-gray-600"
-                                    value={activeQuest.title}
-                                    onChange={e => updateQuest(activeQuest.id, { title: e.target.value })}
-                                    placeholder="Название квеста..."
-                                />
-                                <div className="flex gap-2 mt-2">
-                                    <select 
-                                        className="bg-gray-900 border border-gray-700 rounded text-xs text-gray-300 px-2 py-1 outline-none"
-                                        value={activeQuest.status}
-                                        onChange={e => updateQuest(activeQuest.id, { status: e.target.value as any })}
+                        <div className="p-4 bg-dnd-card border-b border-gray-700 flex flex-col gap-2 shrink-0">
+                            <div className="flex justify-between items-start gap-4">
+                                <button onClick={() => setIsMobileList(true)} className="lg:hidden text-gray-400 mr-2"><ArrowLeft className="w-6 h-6"/></button>
+                                <div className="flex-1">
+                                    <input 
+                                        className="w-full bg-transparent text-2xl font-serif font-bold text-gold-500 outline-none placeholder-gray-600"
+                                        value={activeQuest.title}
+                                        onChange={e => updateQuest(activeQuest.id, { title: e.target.value })}
+                                        placeholder="Название квеста..."
+                                    />
+                                </div>
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={handleEnhanceQuest}
+                                        disabled={enhancing}
+                                        className="p-2 bg-indigo-900/50 text-indigo-200 hover:bg-indigo-800 rounded border border-indigo-800 transition-colors disabled:opacity-50"
+                                        title="Улучшить с помощью AI"
                                     >
-                                        <option value="active">Активен</option>
-                                        <option value="completed">Завершен</option>
-                                        <option value="failed">Провален</option>
-                                    </select>
+                                        {enhancing ? <Loader className="w-5 h-5 animate-spin"/> : <Wand2 className="w-5 h-5"/>}
+                                    </button>
+                                    <button onClick={() => deleteQuest(activeQuest.id)} className="text-gray-500 hover:text-red-500 p-2 transition-colors"><Trash2 className="w-5 h-5"/></button>
                                 </div>
                             </div>
-                            <button onClick={() => deleteQuest(activeQuest.id)} className="text-gray-500 hover:text-red-500 p-2"><Trash2 className="w-5 h-5"/></button>
+                            
+                            <div className="flex gap-2">
+                                <select 
+                                    className="bg-gray-900 border border-gray-700 rounded text-xs text-gray-300 px-2 py-1 outline-none focus:border-gold-500"
+                                    value={activeQuest.status}
+                                    onChange={e => updateQuest(activeQuest.id, { status: e.target.value as any })}
+                                >
+                                    <option value="active">Активен</option>
+                                    <option value="completed">Завершен</option>
+                                    <option value="failed">Провален</option>
+                                </select>
+                            </div>
                         </div>
 
                         {/* Content */}
@@ -383,16 +491,27 @@ const QuestTracker: React.FC = () => {
                                 </div>
                                 <div className="space-y-2">
                                     {(activeQuest.objectives || []).map(obj => (
-                                        <div key={obj.id} className="flex items-center gap-3 p-2 bg-gray-900/30 rounded group">
-                                            <button onClick={() => toggleObjective(activeQuest.id, obj.id)} className={`shrink-0 ${obj.completed ? 'text-green-500' : 'text-gray-600'}`}>
+                                        <div key={obj.id} className="flex items-start gap-3 p-2 bg-gray-900/30 rounded group">
+                                            <button onClick={() => toggleObjective(activeQuest.id, obj.id)} className={`shrink-0 mt-1 ${obj.completed ? 'text-green-500' : 'text-gray-600'}`}>
                                                 {obj.completed ? <CheckCircle className="w-5 h-5"/> : <Circle className="w-5 h-5"/>}
                                             </button>
-                                            <input 
-                                                className={`flex-1 bg-transparent outline-none text-sm ${obj.completed ? 'text-gray-500 line-through' : 'text-gray-200'}`}
+                                            <textarea
+                                                ref={el => { 
+                                                    if(el) { 
+                                                        el.style.height = 'auto'; 
+                                                        el.style.height = el.scrollHeight + 'px'; 
+                                                    }
+                                                }}
+                                                className={`flex-1 bg-transparent outline-none text-sm w-full overflow-hidden resize-none py-1 ${obj.completed ? 'text-gray-500 line-through' : 'text-gray-200'}`}
                                                 value={obj.text}
-                                                onChange={e => updateObjectiveText(activeQuest.id, obj.id, e.target.value)}
+                                                onChange={e => {
+                                                    updateObjectiveText(activeQuest.id, obj.id, e.target.value);
+                                                    e.target.style.height = 'auto';
+                                                    e.target.style.height = e.target.scrollHeight + 'px';
+                                                }}
+                                                rows={1}
                                             />
-                                            <button onClick={() => deleteObjective(activeQuest.id, obj.id)} className="text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100"><X className="w-4 h-4"/></button>
+                                            <button onClick={() => deleteObjective(activeQuest.id, obj.id)} className="text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 mt-0.5"><X className="w-4 h-4"/></button>
                                         </div>
                                     ))}
                                     {(activeQuest.objectives || []).length === 0 && <p className="text-gray-600 text-xs italic">Список целей пуст.</p>}
@@ -403,7 +522,7 @@ const QuestTracker: React.FC = () => {
                             <div className="bg-gray-900/50 p-4 rounded border border-gray-700">
                                 <label className="text-xs text-gray-500 uppercase font-bold block mb-2">Описание и Заметки мастера</label>
                                 <textarea 
-                                    className="w-full bg-transparent text-sm text-gray-300 outline-none h-32 resize-y leading-relaxed font-mono"
+                                    className="w-full bg-transparent text-sm text-gray-300 outline-none h-64 resize-y leading-relaxed font-mono"
                                     placeholder="Подробности, скрытые мотивы, HTML поддерживается..."
                                     value={activeQuest.description}
                                     onChange={e => updateQuest(activeQuest.id, { description: e.target.value })}

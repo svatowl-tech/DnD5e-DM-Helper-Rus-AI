@@ -5,6 +5,13 @@ export enum EntityType {
   MONSTER = 'MONSTER'
 }
 
+export interface CampaignSettings {
+  worldName: string;
+  tone: string;
+  partyLevel: number;
+  activeQuestsSummary?: string;
+}
+
 export interface Condition {
   id: string;
   name: string;
@@ -22,6 +29,7 @@ export interface Combatant {
   ac: number;
   conditions: Condition[];
   notes: string;
+  xp?: number; // Added for difficulty calculation
   hidden?: boolean; // Hidden from player view if connected to a VTT
 }
 
@@ -38,6 +46,7 @@ export interface PartyMember {
   race: string;
   class: string;
   level: number;
+  xp: number; // Added XP tracking
   maxHp: number;
   ac: number;
   passivePerception: number;
@@ -62,6 +71,17 @@ export interface NpcData {
   secret?: string;
   voice?: string;
   hook?: string;
+}
+
+// Detailed NPC for the Tracker
+export interface CampaignNpc extends NpcData {
+    id: string;
+    location: string; // Current location name
+    status: 'alive' | 'dead' | 'missing';
+    attitude: 'friendly' | 'neutral' | 'hostile';
+    notes: string;
+    faction?: string;
+    imageUrl?: string;
 }
 
 // Legacy simple quest data for locations
@@ -149,6 +169,7 @@ export enum Tab {
   DASHBOARD = 'dashboard',
   LOCATION = 'location',
   QUESTS = 'quests',
+  NPCS = 'npcs', // NEW TAB
   PARTY = 'party',
   COMBAT = 'combat',
   NOTES = 'notes',
@@ -163,6 +184,25 @@ export interface LocationTrackerProps {
     onSaveNote: (note: Note) => void;
     onImageGenerated?: (image: SavedImage) => void;
     onShowImage?: (image: SavedImage) => void;
+}
+
+export interface GeneratorsProps {
+    addLog: (entry: LogEntry) => void;
+    onImageGenerated?: (image: SavedImage) => void;
+    onShowImage?: (image: SavedImage) => void;
+}
+
+export interface QuestTrackerProps {
+    addLog: (entry: LogEntry) => void;
+}
+
+export interface PartyManagerProps {
+    addLog?: (entry: LogEntry) => void;
+}
+
+export interface NpcTrackerProps {
+    addLog: (entry: LogEntry) => void;
+    onImageGenerated?: (image: SavedImage) => void;
 }
 
 export interface RuleSection {

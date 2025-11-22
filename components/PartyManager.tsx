@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { PartyMember, InventoryItem } from '../types';
-import { Users, Shield, Heart, Eye, Trash2, Edit2, Plus, Save, X, CheckCircle, Circle, Backpack } from 'lucide-react';
+import { PartyMember, InventoryItem, PartyManagerProps } from '../types';
+import { Users, Shield, Heart, Eye, Trash2, Edit2, Plus, Save, X, CheckCircle, Circle, Backpack, Star, TrendingUp } from 'lucide-react';
 
-const PartyManager: React.FC = () => {
+const PartyManager: React.FC<PartyManagerProps> = ({ addLog }) => {
   const [party, setParty] = useState<PartyMember[]>(() => {
     const saved = localStorage.getItem('dmc_party');
     return saved ? JSON.parse(saved) : [];
@@ -15,9 +15,23 @@ const PartyManager: React.FC = () => {
   const [showInventoryId, setShowInventoryId] = useState<string | null>(null);
   const [newItem, setNewItem] = useState('');
 
+  // Auto-save to local storage
   useEffect(() => {
     localStorage.setItem('dmc_party', JSON.stringify(party));
   }, [party]);
+
+  // Listen for external party updates (e.g. XP from global handler)
+  useEffect(() => {
+      const handleUpdateParty = () => {
+          const saved = localStorage.getItem('dmc_party');
+          if (saved) {
+              setParty(JSON.parse(saved));
+          }
+      };
+
+      window.addEventListener('dmc-update-party', handleUpdateParty);
+      return () => window.removeEventListener('dmc-update-party', handleUpdateParty);
+  }, []);
 
   const handleDelete = (id: string) => {
     if (window.confirm('Удалить персонажа из кампании?')) {
@@ -50,6 +64,7 @@ const PartyManager: React.FC = () => {
       race: editForm.race || '',
       class: editForm.class || '',
       level: Number(editForm.level) || 1,
+      xp: Number(editForm.xp) || 0,
       maxHp: Number(editForm.maxHp) || 10,
       ac: Number(editForm.ac) || 10,
       passivePerception: Number(editForm.passivePerception) || 10,
@@ -89,6 +104,17 @@ const PartyManager: React.FC = () => {
         }
         return p;
     }));
+  };
+
+  // Helper for XP bar (visual only)
+  const XP_TABLE: Record<number, number> = {
+    1: 0, 2: 300, 3: 900, 4: 2700, 5: 6500, 6: 14000, 7: 23000, 8: 34000, 9: 48000, 10: 64000,
+    11: 85000, 12: 100000, 13: 120000, 14: 140000, 15: 165000, 16: 195000, 17: 225000, 18: 265000, 19: 305000, 20: 355000
+  };
+
+  const getNextLevelXp = (level: number) => {
+      if (level >= 20) return 355000;
+      return XP_TABLE[level + 1] || 0;
   };
 
   return (
@@ -131,12 +157,19 @@ const PartyManager: React.FC = () => {
                                 value={editForm.class || ''} onChange={e => setEditForm({...editForm, class: e.target.value})} />
                         </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                         <div>
-                            <label className="text-xs text-gray-500">Ур.</label>
+                            <label className="text-xs text-gray-500">Уровень</label>
                             <input type="number" className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white" 
                                 value={editForm.level || ''} onChange={e => setEditForm({...editForm, level: Number(e.target.value)})} />
                         </div>
+                        <div className="col-span-2">
+                            <label className="text-xs text-gray-500">Опыт (XP)</label>
+                            <input type="number" className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white" 
+                                value={editForm.xp || 0} onChange={e => setEditForm({...editForm, xp: Number(e.target.value)})} />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
                         <div>
                             <label className="text-xs text-gray-500">Макс ХП</label>
                             <input type="number" className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white" 
@@ -167,7 +200,12 @@ const PartyManager: React.FC = () => {
         )}
 
         {/* Player Cards */}
-        {party.map(p => (
+        {party.map(p => {
+            const nextLevelXp = getNextLevelXp(p.level);
+            const prevLevelXp = XP_TABLE[p.level];
+            const progress = Math.min(100, Math.max(0, ((p.xp || 0) - prevLevelXp) / (nextLevelXp - prevLevelXp) * 100));
+
+            return (
             <div key={p.id} className={`bg-dnd-card rounded-lg border transition-all relative group ${p.active ? 'border-gold-600 shadow-md shadow-gold-900/20' : 'border-gray-700 opacity-75 grayscale-[50%]'}`}>
                 {/* Active Toggle */}
                 <div className="absolute top-3 right-3 z-10">
@@ -188,6 +226,17 @@ const PartyManager: React.FC = () => {
                         <div>
                             <h3 className="font-bold text-white text-lg leading-none">{p.name}</h3>
                             <p className="text-xs text-gray-400">{p.race} {p.class} • Ур. {p.level}</p>
+                        </div>
+                    </div>
+
+                    {/* XP Bar */}
+                    <div className="mb-3">
+                        <div className="flex justify-between text-[10px] text-gray-500 mb-0.5">
+                            <span>{p.xp || 0} XP</span>
+                            <span>{nextLevelXp} XP</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden border border-gray-700">
+                            <div className="h-full bg-blue-500" style={{ width: `${progress}%` }}></div>
                         </div>
                     </div>
 
@@ -252,7 +301,8 @@ const PartyManager: React.FC = () => {
                     </div>
                 </div>
             </div>
-        ))}
+            );
+        })}
       </div>
     </div>
   );

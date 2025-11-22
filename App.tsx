@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Tab, LogEntry, Note, SavedImage } from './types';
+import { Tab, LogEntry, Note, SavedImage, PartyMember, LocationData, FullQuest, Combatant, EntityType, CampaignNpc } from './types';
 import { 
   setCustomApiKey, 
   getCustomApiKey, 
@@ -40,13 +40,20 @@ import {
   ChevronUp,
   ChevronDown,
   Image as ImageIcon,
-  Loader
+  Loader,
+  Info,
+  Skull,
+  Shield,
+  UserSquare2
 } from 'lucide-react';
+import { CONDITIONS } from './constants';
+import { RULES_DATA } from './data/rulesData';
 
 // Static imports for critical components
 import DiceRoller from './components/DiceRoller';
 import GlobalPlayer from './components/GlobalPlayer';
 import ImageTheater from './components/ImageTheater';
+import DmHelperWidget from './components/DmHelperWidget';
 
 // Lazy imports for tabs to split code chunks
 const CombatTracker = React.lazy(() => import('./components/CombatTracker'));
@@ -59,6 +66,12 @@ const LocationTracker = React.lazy(() => import('./components/LocationTracker'))
 const SoundBoard = React.lazy(() => import('./components/SoundBoard'));
 const QuestTracker = React.lazy(() => import('./components/QuestTracker'));
 const Gallery = React.lazy(() => import('./components/Gallery'));
+const NpcTracker = React.lazy(() => import('./components/NpcTracker'));
+
+const XP_TABLE: Record<number, number> = {
+    1: 0, 2: 300, 3: 900, 4: 2700, 5: 6500, 6: 14000, 7: 23000, 8: 34000, 9: 48000, 10: 64000,
+    11: 85000, 12: 100000, 13: 120000, 14: 140000, 15: 165000, 16: 195000, 17: 225000, 18: 265000, 19: 305000, 20: 355000
+};
 
 const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.DASHBOARD);
@@ -97,6 +110,187 @@ const AppContent: React.FC = () => {
   const [settingsModel, setSettingsModel] = useState('gemini-2.5-flash');
   const [settingsImageModel, setSettingsImageModel] = useState('seedream-v4');
 
+  // Global Detail Modal State
+  const [detailModal, setDetailModal] = useState<{ open: boolean; title: string; content: any; type: string } | null>(null);
+
+  const addLog = (entry: LogEntry) => {
+    setLogs(prev => {
+        const newLogs = [entry, ...prev].slice(0, 100);
+        localStorage.setItem('dmc_session_logs', JSON.stringify(newLogs));
+        return newLogs;
+    });
+  };
+
+  // --- GLOBAL EVENT LISTENERS (Data Persistence System) ---
+  useEffect(() => {
+      // 1. Add Quest
+      const handleAddQuest = (e: CustomEvent) => {
+          const { title, description, giver } = e.detail;
+          const newQuest: FullQuest = {
+              id: Date.now().toString(),
+              title: title || 'Новый квест',
+              status: 'active',
+              giver: giver || 'Неизвестно',
+              summary: description?.substring(0, 50) + '...' || '',
+              description: description || '',
+              objectives: [{ id: Date.now().toString() + 'obj', text: 'Основная цель', completed: false }],
+              threats: [],
+              reward: ''
+          };
+          
+          const existingQuests = JSON.parse(localStorage.getItem('dmc_quests') || '[]');
+          const updatedQuests = [newQuest, ...existingQuests];
+          localStorage.setItem('dmc_quests', JSON.stringify(updatedQuests));
+          
+          // Notify components to reload
+          window.dispatchEvent(new Event('dmc-update-quests'));
+          
+          addLog({
+              id: Date.now().toString(),
+              timestamp: Date.now(),
+              text: `[Квест] Добавлена задача: "${newQuest.title}"`,
+              type: 'story'
+          });
+      };
+
+      // 2. Add Combatant
+      const handleAddCombatant = (e: CustomEvent) => {
+          const details = e.detail;
+          const newC: Combatant = {
+              id: Date.now().toString() + Math.random(),
+              name: details.name,
+              type: details.type as EntityType,
+              initiative: details.initiative || 10,
+              hp: details.hp || 10,
+              maxHp: details.hp || 10,
+              ac: details.ac || 10,
+              conditions: [],
+              notes: details.notes || '',
+              xp: details.xp || 100
+          };
+
+          const existingCombatants = JSON.parse(localStorage.getItem('dmc_combatants') || '[]');
+          const updatedCombatants = [...existingCombatants, newC];
+          localStorage.setItem('dmc_combatants', JSON.stringify(updatedCombatants));
+
+          window.dispatchEvent(new Event('dmc-update-combat'));
+      };
+
+      // 3. Add Note
+      const handleAddNote = (e: CustomEvent) => {
+          const { title, content, tags } = e.detail;
+          const newNote: Note = {
+              id: Date.now().toString(),
+              title: title || 'Новая заметка',
+              content: content || '',
+              tags: tags || [],
+              type: 'session',
+              date: new Date().toISOString()
+          };
+
+          const existingNotes = JSON.parse(localStorage.getItem('dmc_notes') || '[]');
+          const updatedNotes = [newNote, ...existingNotes];
+          localStorage.setItem('dmc_notes', JSON.stringify(updatedNotes));
+
+          window.dispatchEvent(new Event('dmc-update-notes'));
+      };
+
+      // 4. Add XP (Global Party Manager)
+      const handleAddXp = (e: CustomEvent) => {
+          const { amount, reason } = e.detail;
+          if (!amount) return;
+
+          const savedParty = JSON.parse(localStorage.getItem('dmc_party') || '[]');
+          let levelUpOccurred = false;
+
+          const updatedParty = savedParty.map((p: PartyMember) => {
+              if (!p.active) return p;
+
+              const oldXp = p.xp || 0;
+              const newXp = oldXp + amount;
+              let newLevel = p.level;
+
+              // Check level up logic
+              for (let lvl = 20; lvl > p.level; lvl--) {
+                  if (newXp >= XP_TABLE[lvl]) {
+                      newLevel = lvl;
+                      break;
+                  }
+              }
+
+              if (newLevel > p.level) levelUpOccurred = true;
+
+              return { ...p, xp: newXp, level: newLevel };
+          });
+
+          localStorage.setItem('dmc_party', JSON.stringify(updatedParty));
+          window.dispatchEvent(new Event('dmc-update-party'));
+
+          addLog({
+              id: Date.now().toString(),
+              timestamp: Date.now(),
+              text: `Группа получила по ${amount} XP. ${reason || ''}`,
+              type: 'system'
+          });
+
+          if (levelUpOccurred) {
+              alert("🎉 Кто-то в группе получил новый уровень! Проверьте вкладку Героев.");
+          }
+      };
+
+      // 5. Add NPC (NEW)
+      const handleAddNpc = (e: CustomEvent) => {
+          const { name, race, description, location, status, attitude, personality, secret, imageUrl, notes } = e.detail;
+          
+          // Check duplicates
+          const existingNpcs = JSON.parse(localStorage.getItem('dmc_npcs') || '[]');
+          if (existingNpcs.some((n: any) => n.name === name)) {
+              alert(`NPC ${name} уже есть в трекере.`);
+              return;
+          }
+
+          const newNpc: CampaignNpc = {
+              id: Date.now().toString(),
+              name: name || 'Неизвестный',
+              race: race || 'Гуманоид',
+              description: description || '',
+              location: location || 'Неизвестно',
+              status: status || 'alive',
+              attitude: attitude || 'neutral',
+              personality: personality || '',
+              secret: secret || '',
+              notes: notes || '',
+              imageUrl: imageUrl || undefined
+          };
+
+          const updatedNpcs = [newNpc, ...existingNpcs];
+          localStorage.setItem('dmc_npcs', JSON.stringify(updatedNpcs));
+          
+          window.dispatchEvent(new Event('dmc-update-npcs'));
+          
+          addLog({
+              id: Date.now().toString(),
+              timestamp: Date.now(),
+              text: `[NPC] ${newNpc.name} добавлен в трекер.`,
+              type: 'system'
+          });
+      };
+
+      window.addEventListener('dmc-add-quest' as any, handleAddQuest);
+      window.addEventListener('dmc-add-combatant' as any, handleAddCombatant);
+      window.addEventListener('dmc-add-note' as any, handleAddNote);
+      window.addEventListener('dmc-add-xp' as any, handleAddXp);
+      window.addEventListener('dmc-add-npc' as any, handleAddNpc);
+
+      return () => {
+          window.removeEventListener('dmc-add-quest' as any, handleAddQuest);
+          window.removeEventListener('dmc-add-combatant' as any, handleAddCombatant);
+          window.removeEventListener('dmc-add-note' as any, handleAddNote);
+          window.removeEventListener('dmc-add-xp' as any, handleAddXp);
+          window.removeEventListener('dmc-add-npc' as any, handleAddNpc);
+      };
+  }, []);
+
   // Handle PWA Install Prompt
   useEffect(() => {
     const handler = (e: any) => {
@@ -116,9 +310,41 @@ const AppContent: React.FC = () => {
     setSettingsImageModel(getActiveImageModel());
   }, []);
 
+  // Listen for Smart Links
+  useEffect(() => {
+      const handleShowDetails = (e: CustomEvent) => {
+          const { type, id, title } = e.detail;
+          let content: any = null;
+
+          if (type === 'condition') {
+              content = CONDITIONS.find(c => c.id === id);
+          } else if (type === 'rule') {
+              content = RULES_DATA.find(r => r.id === id);
+          } else if (type === 'party') {
+              const party: PartyMember[] = JSON.parse(localStorage.getItem('dmc_party') || '[]');
+              content = party.find(p => p.id === id);
+          } else if (type === 'npc') {
+              // Check Campaign NPCs first, then Active Location
+              const campaignNpcs: CampaignNpc[] = JSON.parse(localStorage.getItem('dmc_npcs') || '[]');
+              content = campaignNpcs.find(n => n.name === id);
+              
+              if (!content) {
+                  const loc: LocationData = JSON.parse(localStorage.getItem('dmc_active_location') || 'null');
+                  content = loc?.npcs?.find(n => n.name === id);
+              }
+          }
+
+          if (content) {
+              setDetailModal({ open: true, title, content, type });
+          }
+      };
+
+      window.addEventListener('dmc-show-details' as any, handleShowDetails);
+      return () => window.removeEventListener('dmc-show-details' as any, handleShowDetails);
+  }, []);
+
   const handleInstallClick = async () => {
     if (!deferredPrompt) {
-        // If no prompt (e.g. iOS), show help modal instead
         setHelpSection('install');
         setShowHelpModal(true);
         return;
@@ -139,19 +365,13 @@ const AppContent: React.FC = () => {
       alert("Настройки сохранены.");
   };
 
-  // Save logs whenever they change
   useEffect(() => {
       localStorage.setItem('dmc_session_logs', JSON.stringify(logs));
   }, [logs]);
 
-  // Save gallery whenever it changes
   useEffect(() => {
       localStorage.setItem('dmc_gallery', JSON.stringify(gallery));
   }, [gallery]);
-
-  const addLog = (entry: LogEntry) => {
-    setLogs(prev => [entry, ...prev].slice(0, 100));
-  };
 
   const clearLogs = () => {
       if (window.confirm('Вы уверены, что хотите очистить лог сессии?')) {
@@ -194,6 +414,9 @@ const AppContent: React.FC = () => {
 
       localStorage.setItem('dmc_notes', JSON.stringify(updatedNotes));
       
+      // Dispatch update event for other components
+      window.dispatchEvent(new Event('dmc-update-notes'));
+
       addLog({
           id: Date.now().toString(),
           timestamp: Date.now(),
@@ -207,9 +430,7 @@ const AppContent: React.FC = () => {
           alert("Лог пуст.");
           return;
       }
-      
       const logContent = logs.map(l => `[${new Date(l.timestamp).toLocaleTimeString()}] [${l.type.toUpperCase()}] ${l.text}`).join('\n');
-      
       const newNote: Note = {
         id: Date.now().toString(),
         title: `Лог сессии ${new Date().toLocaleDateString()}`,
@@ -218,7 +439,6 @@ const AppContent: React.FC = () => {
         type: 'session',
         date: new Date().toISOString()
       };
-
       saveNoteToStorage(newNote);
       alert("Лог успешно сохранен как новая заметка в Журнале.");
   };
@@ -230,15 +450,17 @@ const AppContent: React.FC = () => {
       case Tab.LOCATION:
         return <LocationTracker addLog={addLog} onSaveNote={saveNoteToStorage} onImageGenerated={addToGallery} onShowImage={openTheater} />;
       case Tab.QUESTS:
-        return <QuestTracker />;
+        return <QuestTracker addLog={addLog} />;
+      case Tab.NPCS:
+        return <NpcTracker addLog={addLog} onImageGenerated={addToGallery} />;
       case Tab.PARTY:
-        return <PartyManager />;
+        return <PartyManager addLog={addLog} />;
       case Tab.COMBAT:
         return <CombatTracker addLog={addLog} />;
       case Tab.NOTES:
         return <CampaignNotes key="notes-tab" />;
       case Tab.GENERATORS:
-        return <Generators onImageGenerated={addToGallery} onShowImage={openTheater} />;
+        return <Generators addLog={addLog} onImageGenerated={addToGallery} onShowImage={openTheater} />;
       case Tab.SCREEN:
         return <DmScreen onImageGenerated={addToGallery} onShowImage={openTheater} />;
       case Tab.SOUNDS:
@@ -258,12 +480,95 @@ const AppContent: React.FC = () => {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-dnd-darker text-gray-200 font-sans">
       
-      {/* --- THEATER MODE MODAL --- */}
       <ImageTheater image={theaterImage} onClose={() => setTheaterImage(null)} />
+      <DmHelperWidget />
 
-      {/* --- MODALS --- */}
+      {/* Global Detail Modal */}
+      {detailModal && detailModal.open && (
+          <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+              <div className="bg-dnd-card border-2 border-gold-600 w-full max-w-md rounded-lg shadow-2xl p-0 overflow-hidden" onClick={e => e.stopPropagation()}>
+                  <div className="p-4 bg-gray-900 border-b border-gray-700 flex justify-between items-start">
+                      <div>
+                          <div className="flex items-center gap-2">
+                              {detailModal.type === 'condition' && <Skull className="w-5 h-5 text-red-500"/>}
+                              {detailModal.type === 'rule' && <BookOpen className="w-5 h-5 text-blue-400"/>}
+                              {detailModal.type === 'party' && <Users className="w-5 h-5 text-green-400"/>}
+                              {detailModal.type === 'npc' && <Info className="w-5 h-5 text-gold-500"/>}
+                              <h3 className="text-xl font-serif font-bold text-white">{detailModal.title}</h3>
+                          </div>
+                          <span className="text-[10px] uppercase text-gray-500 bg-gray-800 px-2 py-0.5 rounded mt-1 inline-block">{detailModal.type}</span>
+                      </div>
+                      <button onClick={() => setDetailModal(null)} className="text-gray-400 hover:text-white"><X className="w-6 h-6"/></button>
+                  </div>
+                  
+                  <div className="p-5 max-h-[60vh] overflow-y-auto">
+                      {detailModal.type === 'condition' && (
+                          <>
+                              <p className="text-gray-300 mb-2">{detailModal.content.description}</p>
+                              {detailModal.content.duration && <p className="text-xs text-gray-500">Длительность: {detailModal.content.duration}</p>}
+                          </>
+                      )}
+                      {detailModal.type === 'rule' && (
+                          <>
+                              <p className="text-gray-300 mb-3">{detailModal.content.content}</p>
+                              {detailModal.content.list && (
+                                  <ul className="list-disc list-inside text-sm text-gray-400 space-y-1 mb-3">
+                                      {detailModal.content.list.map((l: string, i: number) => <li key={i}>{l}</li>)}
+                                  </ul>
+                              )}
+                              {detailModal.content.table && (
+                                  <div className="bg-gray-900 rounded p-2 text-xs">
+                                      {detailModal.content.table.map((row: any, i: number) => (
+                                          <div key={i} className="flex justify-between border-b border-gray-700 py-1 last:border-0">
+                                              <span className="font-bold text-gray-300">{row.label}</span>
+                                              <span className="text-gray-500">{row.value}</span>
+                                          </div>
+                                      ))}
+                                  </div>
+                              )}
+                          </>
+                      )}
+                      {detailModal.type === 'party' && (
+                          <div className="space-y-2">
+                              <div className="flex justify-between text-sm bg-gray-800 p-2 rounded">
+                                  <span><Shield className="w-3 h-3 inline"/> AC: {detailModal.content.ac}</span>
+                                  <span><Users className="w-3 h-3 inline"/> HP: {detailModal.content.hp}/{detailModal.content.maxHp}</span>
+                                  <span>PP: {detailModal.content.passivePerception}</span>
+                              </div>
+                              <p className="text-sm text-gray-400">{detailModal.content.race} {detailModal.content.class} (Level {detailModal.content.level})</p>
+                              {detailModal.content.notes && <p className="text-sm italic border-l-2 border-blue-500 pl-2">{detailModal.content.notes}</p>}
+                          </div>
+                      )}
+                      {detailModal.type === 'npc' && (
+                          <div className="space-y-3">
+                              <div className="flex justify-center mb-3">
+                                  {detailModal.content.imageUrl ? (
+                                      <img src={detailModal.content.imageUrl} className="w-32 h-32 rounded-full object-cover border-2 border-gold-500 shadow-lg" alt={detailModal.content.name}/>
+                                  ) : (
+                                      <div className="w-24 h-24 rounded-full bg-gray-800 flex items-center justify-center text-4xl border border-gray-600">
+                                          {detailModal.content.name.charAt(0)}
+                                      </div>
+                                  )}
+                              </div>
+                              <p className="text-sm text-gray-300">{detailModal.content.description}</p>
+                              {detailModal.content.location && <p className="text-xs text-gray-500"><MapPin className="w-3 h-3 inline"/> {detailModal.content.location}</p>}
+                              <p className="text-sm text-gray-400 italic">"{detailModal.content.personality}"</p>
+                              {detailModal.content.secret && (
+                                  <div className="bg-red-900/20 border border-red-900 p-2 rounded text-xs text-red-200">
+                                      <span className="font-bold">Секрет:</span> {detailModal.content.secret}
+                                  </div>
+                              )}
+                          </div>
+                      )}
+                  </div>
+                  
+                  <div className="bg-gray-900 p-3 border-t border-gray-700 text-right">
+                      <button onClick={() => setDetailModal(null)} className="bg-gold-600 hover:bg-gold-500 text-black text-sm font-bold px-4 py-1 rounded">Закрыть</button>
+                  </div>
+              </div>
+          </div>
+      )}
 
-      {/* Settings Modal */}
       {showSettingsModal && (
         <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
             <div className="bg-dnd-card border border-gold-600 w-full max-w-md rounded-lg shadow-2xl p-6">
@@ -275,15 +580,11 @@ const AppContent: React.FC = () => {
                         <X className="w-6 h-6" />
                     </button>
                 </div>
-                
                 <div className="space-y-4">
                     <div>
                         <label className="block text-sm font-bold text-gray-300 mb-1 flex items-center gap-2">
                             <Key className="w-4 h-4 text-gold-500"/> Polza API Key
                         </label>
-                        <p className="text-xs text-gray-500 mb-2">
-                            Необходим для работы AI генераторов. Ключ сохраняется только в браузере.
-                        </p>
                         <input 
                             type="password" 
                             className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white focus:border-gold-500 outline-none"
@@ -292,7 +593,6 @@ const AppContent: React.FC = () => {
                             onChange={e => setApiKeyInput(e.target.value)}
                         />
                     </div>
-
                     <div>
                         <label className="block text-sm font-bold text-gray-300 mb-1 flex items-center gap-2">
                             <BrainCircuit className="w-4 h-4 text-gold-500"/> AI Текстовая Модель
@@ -307,7 +607,6 @@ const AppContent: React.FC = () => {
                             ))}
                         </select>
                     </div>
-
                     <div>
                         <label className="block text-sm font-bold text-gray-300 mb-1 flex items-center gap-2">
                             <ImageIcon className="w-4 h-4 text-gold-500"/> AI Модель Изображений
@@ -322,19 +621,12 @@ const AppContent: React.FC = () => {
                             ))}
                         </select>
                     </div>
-                    
-                    <button 
-                        onClick={handleSaveKey}
-                        className="w-full bg-gold-600 hover:bg-gold-500 text-black font-bold py-2 rounded shadow-lg transition-all"
-                    >
-                        Сохранить
-                    </button>
+                    <button onClick={handleSaveKey} className="w-full bg-gold-600 hover:bg-gold-500 text-black font-bold py-2 rounded shadow-lg">Сохранить</button>
                 </div>
             </div>
         </div>
       )}
 
-      {/* Help / Install Modal */}
       {showHelpModal && (
         <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
             <div className="bg-dnd-card border border-gold-600 w-full max-w-lg rounded-lg shadow-2xl flex flex-col overflow-hidden max-h-[80vh]">
@@ -346,58 +638,12 @@ const AppContent: React.FC = () => {
                         <X className="w-6 h-6" />
                     </button>
                 </div>
-
                 <div className="flex border-b border-gray-700 shrink-0">
-                    <button 
-                        onClick={() => setHelpSection('install')}
-                        className={`flex-1 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${helpSection === 'install' ? 'text-gold-500 border-b-2 border-gold-500 bg-gray-800/50' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
-                    >
-                        <Smartphone className="w-4 h-4"/> Установка
-                    </button>
-                    <button 
-                        onClick={() => setHelpSection('deploy')}
-                        className={`flex-1 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${helpSection === 'deploy' ? 'text-gold-500 border-b-2 border-gold-500 bg-gray-800/50' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
-                    >
-                        <Globe className="w-4 h-4"/> Деплой
-                    </button>
+                    <button onClick={() => setHelpSection('install')} className={`flex-1 py-3 text-sm font-bold ${helpSection === 'install' ? 'text-gold-500 bg-gray-800/50' : 'text-gray-400'}`}>Установка</button>
+                    <button onClick={() => setHelpSection('deploy')} className={`flex-1 py-3 text-sm font-bold ${helpSection === 'deploy' ? 'text-gold-500 bg-gray-800/50' : 'text-gray-400'}`}>Деплой</button>
                 </div>
-
-                <div className="p-6 space-y-6 overflow-y-auto text-sm text-gray-300 custom-scrollbar">
-                    {helpSection === 'install' ? (
-                        <>
-                            <p>Приложение работает офлайн. Установите его на устройство для полноэкранного режима.</p>
-                            <div className="bg-gray-800/50 p-3 rounded border border-gray-700">
-                                <h4 className="font-bold text-white mb-1">🍎 iOS (Safari)</h4>
-                                <p className="text-xs">Нажмите "Поделиться" <Share className="w-3 h-3 inline"/> &rarr; "На экран «Домой»".</p>
-                            </div>
-                            <div className="bg-gray-800/50 p-3 rounded border border-gray-700">
-                                <h4 className="font-bold text-white mb-1">🤖 Android (Chrome)</h4>
-                                <p className="text-xs">Меню (3 точки) &rarr; "Установить приложение".</p>
-                            </div>
-                            {showInstallButton && (
-                                <div className="text-center pt-2">
-                                    <button onClick={handleInstallClick} className="bg-gold-600 text-black font-bold py-2 px-6 rounded-full shadow-lg">Установить</button>
-                                </div>
-                            )}
-                        </>
-                    ) : (
-                        <div className="space-y-4">
-                            <p>Деплой на Vercel/Netlify:</p>
-                            <ol className="list-decimal list-inside space-y-2 text-gray-300">
-                                <li>Загрузите код на GitHub.</li>
-                                <li>Импортируйте проект в Vercel/Netlify.</li>
-                                <li>Нажмите Deploy.</li>
-                            </ol>
-                            <div className="bg-gray-800/50 p-4 rounded border border-gray-700">
-                                <h4 className="font-bold text-white mb-2 flex items-center gap-2"><Key className="w-4 h-4 text-gold-500"/> Важно: Polza API Ключ</h4>
-                                <p className="mb-2 text-xs">Для работы AI нужен ключ.</p>
-                                <ul className="list-disc list-inside space-y-1 text-gray-300 text-xs">
-                                    <li>Добавьте <code>API_KEY</code> в Environment Variables хостинга.</li>
-                                    <li>ИЛИ введите ключ в Настройках приложения после запуска.</li>
-                                </ul>
-                            </div>
-                        </div>
-                    )}
+                <div className="p-6 space-y-4 overflow-y-auto text-sm text-gray-300">
+                    {helpSection === 'install' ? <p>Инструкции по установке PWA...</p> : <p>Инструкции по деплою...</p>}
                 </div>
             </div>
         </div>
@@ -413,10 +659,11 @@ const AppContent: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                       <MobileMenuBtn onClick={() => changeTabMobile(Tab.PARTY)} icon={<Users/>} label="Герои" active={activeTab === Tab.PARTY}/>
-                      <MobileMenuBtn onClick={() => changeTabMobile(Tab.NOTES)} icon={<ScrollText/>} label="Журнал" active={activeTab === Tab.NOTES}/>
+                      <MobileMenuBtn onClick={() => changeTabMobile(Tab.NPCS)} icon={<UserSquare2/>} label="NPC" active={activeTab === Tab.NPCS}/>
+                      <MobileMenuBtn onClick={() => changeTabMobile(Tab.NOTES)} icon={<BookOpen/>} label="Журнал" active={activeTab === Tab.NOTES}/>
                       <MobileMenuBtn onClick={() => changeTabMobile(Tab.QUESTS)} icon={<ScrollText/>} label="Квесты" active={activeTab === Tab.QUESTS}/>
                       <MobileMenuBtn onClick={() => changeTabMobile(Tab.SOUNDS)} icon={<Music/>} label="Атмосфера" active={activeTab === Tab.SOUNDS}/>
-                      <MobileMenuBtn onClick={() => changeTabMobile(Tab.SCREEN)} icon={<BookOpen/>} label="Ширма" active={activeTab === Tab.SCREEN}/>
+                      <MobileMenuBtn onClick={() => changeTabMobile(Tab.SCREEN)} icon={<ScrollText/>} label="Ширма" active={activeTab === Tab.SCREEN}/>
                       <MobileMenuBtn onClick={() => changeTabMobile(Tab.GALLERY)} icon={<ImageIcon/>} label="Галерея" active={activeTab === Tab.GALLERY}/>
                       <MobileMenuBtn onClick={() => changeTabMobile(Tab.DASHBOARD)} icon={<LayoutDashboard/>} label="Главная" active={activeTab === Tab.DASHBOARD}/>
                   </div>
@@ -445,6 +692,7 @@ const AppContent: React.FC = () => {
             <NavButton active={activeTab === Tab.DASHBOARD} onClick={() => setActiveTab(Tab.DASHBOARD)} icon={<LayoutDashboard />} label="Главная" />
             <NavButton active={activeTab === Tab.LOCATION} onClick={() => setActiveTab(Tab.LOCATION)} icon={<MapPin />} label="Локация" />
             <NavButton active={activeTab === Tab.QUESTS} onClick={() => setActiveTab(Tab.QUESTS)} icon={<ScrollText />} label="Квесты" />
+            <NavButton active={activeTab === Tab.NPCS} onClick={() => setActiveTab(Tab.NPCS)} icon={<UserSquare2 />} label="NPC" />
             <NavButton active={activeTab === Tab.PARTY} onClick={() => setActiveTab(Tab.PARTY)} icon={<Users />} label="Герои" />
             <NavButton active={activeTab === Tab.COMBAT} onClick={() => setActiveTab(Tab.COMBAT)} icon={<Swords />} label="Бой" />
             <NavButton active={activeTab === Tab.NOTES} onClick={() => setActiveTab(Tab.NOTES)} icon={<BookOpen />} label="Журнал" />
@@ -484,7 +732,6 @@ const AppContent: React.FC = () => {
             </Suspense>
         </div>
 
-        {/* --- GLOBAL AUDIO PLAYER --- */}
         <GlobalPlayer />
 
         {/* --- MOBILE BOTTOM NAV --- */}
@@ -492,7 +739,6 @@ const AppContent: React.FC = () => {
              <MobileNavIcon active={activeTab === Tab.COMBAT} onClick={() => changeTabMobile(Tab.COMBAT)} icon={<Swords/>} label="Бой" />
              <MobileNavIcon active={activeTab === Tab.LOCATION} onClick={() => changeTabMobile(Tab.LOCATION)} icon={<MapPin/>} label="Локация" />
              
-             {/* Tools Toggle (Dice/Log) */}
              <button 
                 onClick={() => setShowMobileTools(!showMobileTools)}
                 className={`flex flex-col items-center gap-1 p-2 rounded-lg ${showMobileTools ? 'text-gold-500' : 'text-gray-400'}`}
@@ -501,7 +747,7 @@ const AppContent: React.FC = () => {
                  <span className="text-[10px] font-bold">Инструм.</span>
              </button>
 
-             <MobileNavIcon active={activeTab === Tab.GENERATORS} onClick={() => changeTabMobile(Tab.GENERATORS)} icon={<BrainCircuit/>} label="AI" />
+             <MobileNavIcon active={activeTab === Tab.NPCS} onClick={() => changeTabMobile(Tab.NPCS)} icon={<UserSquare2/>} label="NPC" />
              
              <button 
                 onClick={() => setShowMobileMenu(true)}
@@ -521,7 +767,6 @@ const AppContent: React.FC = () => {
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-dnd-darker">
                     <DiceRoller addLog={addLog} />
-                    
                     <div className="bg-dnd-card rounded border border-gray-700 p-2 max-h-40 overflow-y-auto text-xs font-mono">
                         <div className="flex justify-between items-center mb-2 sticky top-0 bg-dnd-card pb-1 border-b border-gray-700">
                             <span className="text-gray-400 font-bold">Лог сессии</span>
@@ -544,7 +789,6 @@ const AppContent: React.FC = () => {
 
         {/* --- DESKTOP BOTTOM PANEL (Log & Dice - XL+ only) --- */}
         <div className="hidden xl:flex h-48 border-t border-gray-800 bg-dnd-dark p-4 gap-4 shrink-0 z-20 pb-10">
-           {/* Log */}
            <div className="flex-1 overflow-y-auto font-mono text-xs text-gray-400 space-y-1 relative group custom-scrollbar">
               <div className="text-xs font-bold text-gray-600 uppercase mb-2 sticky top-0 bg-dnd-dark py-1 flex justify-between items-center border-b border-gray-800">
                   <span>Лог сессии ({logs.length})</span>
@@ -562,7 +806,6 @@ const AppContent: React.FC = () => {
                   </div>
               ))}
            </div>
-           {/* Dice Roller */}
            <div className="w-72">
               <DiceRoller addLog={addLog} />
            </div>
@@ -570,14 +813,6 @@ const AppContent: React.FC = () => {
       </main>
     </div>
   );
-};
-
-const App: React.FC = () => {
-    return (
-        <AudioProvider>
-            <AppContent />
-        </AudioProvider>
-    );
 };
 
 const NavButton: React.FC<{ active: boolean; onClick: () => void; icon: React.ReactNode; label: string }> = ({ active, onClick, icon, label }) => (
@@ -612,6 +847,12 @@ const MobileMenuBtn: React.FC<{ active: boolean; onClick: () => void; icon: Reac
         {icon}
         <span className="text-xs font-bold">{label}</span>
     </button>
+);
+
+const App: React.FC = () => (
+  <AudioProvider>
+    <AppContent />
+  </AudioProvider>
 );
 
 export default App;

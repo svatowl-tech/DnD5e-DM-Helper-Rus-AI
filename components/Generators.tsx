@@ -15,7 +15,7 @@ import {
     getActiveModel,
     setActiveModel,
 } from '../services/polzaService';
-import { NpcData, SavedImage } from '../types';
+import { NpcData, SavedImage, GeneratorsProps } from '../types';
 import { 
     Sparkles, 
     Loader, 
@@ -31,8 +31,13 @@ import {
     HelpCircle,
     Bot,
     Image as ImageIcon,
-    ZoomIn
+    ZoomIn,
+    Save,
+    FileText,
+    Swords,
+    UserPlus
 } from 'lucide-react';
+import SmartText from './SmartText';
 
 type ToolType = 'npc' | 'loot' | 'trinket' | 'desc' | 'shop' | 'quest' | 'location' | 'board' | 'puzzle';
 
@@ -48,12 +53,7 @@ const TOOLS = [
     { id: 'puzzle', label: 'Загадка', icon: <FileQuestion className="w-4 h-4"/> },
 ];
 
-interface GeneratorsProps {
-    onImageGenerated?: (image: SavedImage) => void;
-    onShowImage?: (image: SavedImage) => void;
-}
-
-const Generators: React.FC<GeneratorsProps> = ({ onImageGenerated, onShowImage }) => {
+const Generators: React.FC<GeneratorsProps> = ({ onImageGenerated, onShowImage, addLog }) => {
   const [loading, setLoading] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
   const [activeTool, setActiveTool] = useState<ToolType>('npc');
@@ -137,6 +137,99 @@ const Generators: React.FC<GeneratorsProps> = ({ onImageGenerated, onShowImage }
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const saveToLog = () => {
+      if (generatedNpc) {
+          addLog({
+              id: Date.now().toString(),
+              timestamp: Date.now(),
+              text: `[NPC] Создан: ${generatedNpc.name} (${generatedNpc.race} ${generatedNpc.class})`,
+              type: 'story'
+          });
+          alert("NPC сохранен в лог сессии.");
+      } else if (generatedText) {
+          let prefix = "[Инфо]";
+          if (activeTool === 'loot') prefix = "[Лут]";
+          if (activeTool === 'location') prefix = "[Локация]";
+          if (activeTool === 'quest') prefix = "[Квест]";
+          
+          // Strip HTML for log
+          const cleanText = generatedText.replace(/<[^>]*>?/gm, ' ').substring(0, 200) + "...";
+          
+          addLog({
+              id: Date.now().toString(),
+              timestamp: Date.now(),
+              text: `${prefix} Сгенерировано: ${cleanText}`,
+              type: 'story'
+          });
+          alert("Информация сохранена в лог сессии.");
+      }
+  };
+
+  const saveToNpcTracker = () => {
+      if (!generatedNpc) return;
+      const event = new CustomEvent('dmc-add-npc', {
+          detail: {
+              ...generatedNpc,
+              imageUrl: generatedImage?.url, // Pass the image URL to the tracker
+              location: 'Неизвестно',
+              status: 'alive',
+              attitude: 'neutral'
+          }
+      });
+      window.dispatchEvent(event);
+      alert(`${generatedNpc.name} сохранен в Трекере NPC.`);
+  };
+
+  const saveToNotes = () => {
+      let title = "Новая заметка";
+      let content = "";
+      let tags: string[] = ['AI'];
+
+      if (generatedNpc) {
+          title = `NPC: ${generatedNpc.name}`;
+          content = `
+            <h3>${generatedNpc.name}</h3>
+            <p><strong>Раса/Класс:</strong> ${generatedNpc.race} ${generatedNpc.class}</p>
+            <p><strong>Описание:</strong> ${generatedNpc.description}</p>
+            <p><strong>Характер:</strong> ${generatedNpc.personality}</p>
+            <p><strong>Голос:</strong> ${generatedNpc.voice}</p>
+            <p><strong>Секрет:</strong> ${generatedNpc.secret}</p>
+            <p><strong>Квест:</strong> ${generatedNpc.hook}</p>
+          `;
+          tags.push('npc');
+      } else if (generatedText) {
+          title = `AI ${TOOLS.find(t => t.id === activeTool)?.label || 'Генерация'}`;
+          content = generatedText;
+          tags.push(activeTool);
+      }
+
+      const event = new CustomEvent('dmc-add-note', { 
+          detail: {
+              title,
+              content,
+              tags
+          } 
+      });
+      window.dispatchEvent(event);
+      addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Заметка "${title}" сохранена.`, type: 'system' });
+  };
+
+  const sendNpcToCombat = () => {
+      if (!generatedNpc) return;
+      const event = new CustomEvent('dmc-add-combatant', {
+          detail: {
+              name: generatedNpc.name,
+              type: 'MONSTER',
+              notes: `${generatedNpc.race} ${generatedNpc.class}. ${generatedNpc.description}`,
+              hp: 20, // Default generic stats
+              ac: 12,
+              initiative: 10
+          }
+      });
+      window.dispatchEvent(event);
+      addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `${generatedNpc.name} добавлен в бой.`, type: 'combat' });
   };
 
   return (
@@ -305,6 +398,18 @@ const Generators: React.FC<GeneratorsProps> = ({ onImageGenerated, onShowImage }
                  <div className="flex justify-between items-start">
                     <h3 className="text-2xl font-serif text-gold-500 font-bold">{generatedNpc.name}</h3>
                     <div className="flex gap-2">
+                        <button onClick={saveToNpcTracker} className="text-indigo-400 hover:text-white" title="Сохранить в Трекер NPC">
+                            <UserPlus className="w-5 h-5"/>
+                        </button>
+                        <button onClick={saveToNotes} className="text-green-400 hover:text-white" title="Сохранить в Заметки">
+                            <FileText className="w-5 h-5"/>
+                        </button>
+                        <button onClick={sendNpcToCombat} className="text-red-400 hover:text-white" title="В бой">
+                            <Swords className="w-5 h-5"/>
+                        </button>
+                        <button onClick={saveToLog} className="text-blue-400 hover:text-white" title="Добавить в Лог">
+                            <Save className="w-5 h-5"/>
+                        </button>
                         <button 
                             onClick={handleGenerateNpcPortrait} 
                             disabled={imageLoading}
@@ -342,11 +447,11 @@ const Generators: React.FC<GeneratorsProps> = ({ onImageGenerated, onShowImage }
                  <div className="grid gap-4 md:grid-cols-2">
                     <div className="bg-gray-800 p-3 rounded border border-gray-700">
                         <span className="text-xs text-gray-500 uppercase tracking-widest block mb-1">Внешность</span>
-                        <p className="text-sm">{generatedNpc.description}</p>
+                        <SmartText content={generatedNpc.description} className="text-sm" />
                     </div>
                     <div className="bg-gray-800 p-3 rounded border border-gray-700">
                         <span className="text-xs text-gray-500 uppercase tracking-widest block mb-1">Личность</span>
-                        <p className="text-sm">{generatedNpc.personality}</p>
+                        <SmartText content={generatedNpc.personality} className="text-sm" />
                     </div>
                  </div>
 
@@ -370,12 +475,18 @@ const Generators: React.FC<GeneratorsProps> = ({ onImageGenerated, onShowImage }
 
          {generatedText && !errorText && (
              <div className="animate-in fade-in text-sm text-gray-300 [&_h1]:text-gold-500 [&_h1]:text-2xl [&_h1]:font-serif [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-gold-500 [&_h2]:text-xl [&_h2]:font-serif [&_h2]:font-bold [&_h2]:mb-3 [&_h2]:mt-5 [&_h3]:text-gold-500 [&_h3]:font-serif [&_h3]:text-lg [&_h3]:font-bold [&_h3]:mb-2 [&_h3]:mt-4 [&_h3:first-child]:mt-0 [&_h4]:text-gold-400 [&_h4]:font-bold [&_h4]:mb-2 [&_strong]:text-white [&_strong]:font-bold [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mb-1 [&_p]:mb-3 [&_table]:w-full [&_table]:border-collapse [&_th]:text-left [&_th]:p-2 [&_th]:border-b [&_th]:border-gray-700 [&_td]:p-2 [&_td]:border-b [&_td]:border-gray-800">
-                 <div className="flex justify-end mb-2 sticky top-0 bg-gray-900 py-2 z-10 border-b border-gray-800">
+                 <div className="flex justify-end gap-2 mb-2 sticky top-0 bg-gray-900 py-2 z-10 border-b border-gray-800">
+                    <button onClick={saveToNotes} className="text-green-400 hover:text-white flex items-center gap-1 text-xs uppercase font-bold">
+                        <FileText className="w-3 h-3"/> Заметка
+                    </button>
+                    <button onClick={saveToLog} className="text-blue-400 hover:text-white flex items-center gap-1 text-xs uppercase font-bold">
+                        <Save className="w-3 h-3"/> В лог
+                    </button>
                     <button onClick={() => copyToClipboard(generatedText)} className="text-gray-400 hover:text-white flex items-center gap-1 text-xs uppercase font-bold">
                         {copied ? <Check className="w-3 h-3"/> : <Copy className="w-3 h-3"/>} Копировать
                     </button>
                  </div>
-                 <div dangerouslySetInnerHTML={{__html: generatedText}} />
+                 <SmartText content={generatedText} />
              </div>
          )}
 

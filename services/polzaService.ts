@@ -1,4 +1,6 @@
 
+import { CampaignSettings, FullQuest, CampaignNpc } from "../types";
+
 // Available models per user request
 export const AVAILABLE_MODELS = [
   { id: 'deepseek/deepseek-v3.2-exp', name: 'DeepSeek V3.2' },
@@ -55,6 +57,18 @@ export const getActiveImageModel = () => {
 
 export const setActiveImageModel = (modelId: string) => {
     localStorage.setItem(STORAGE_KEY_IMG_MODEL, modelId);
+};
+
+// Helper to get global campaign settings context
+const getCampaignContext = (): string => {
+    try {
+        const saved = localStorage.getItem('dmc_campaign_settings');
+        if (!saved) return "";
+        const s: CampaignSettings = JSON.parse(saved);
+        return `КОНТЕКСТ КАМПАНИИ: Мир: "${s.worldName}". Тон игры: "${s.tone}". Уровень группы: ${s.partyLevel}. Учитывай это при генерации.`;
+    } catch (e) {
+        return "";
+    }
 };
 
 // Helper to clean text from Markdown code blocks
@@ -135,29 +149,24 @@ async function initiateImageGeneration(prompt: string, requestedSize: string = "
     // Parameter mapping based on model requirements
     const body: any = {
         model: model,
-        prompt: prompt
+        prompt: prompt 
     };
 
     // Handle Ratios and specific model params
     if (model === 'gpt4o-image') {
-        // GPT-4o supports: 1:1, 2:3, 3:2
         let size = "1:1";
-        if (requestedSize === "16:9") size = "3:2"; // Closest mapping
+        if (requestedSize === "16:9") size = "3:2"; 
         else if (requestedSize === "9:16") size = "2:3";
-        else if (requestedSize === "4:3") size = "1:1"; // Fallback
-        else if (requestedSize === "3:4") size = "2:3"; // Fallback
+        else if (requestedSize === "4:3") size = "1:1"; 
+        else if (requestedSize === "3:4") size = "2:3"; 
         body.size = size;
-        // No imageResolution for GPT-4o
     } 
     else if (model === 'seedream-v4') {
-        // Supports: 1:1, 4:3, 3:4, 16:9, 9:16, 4k
         body.size = requestedSize;
-        body.imageResolution = "1K"; // Seedream specific
+        body.imageResolution = "1K"; 
     } 
     else if (model === 'nano-banana') {
-        // Supports: auto, 1:1, 3:4, 9:16, 4:3, 16:9
         body.size = requestedSize;
-        // No imageResolution
     }
 
     const response = await fetch(`${BASE_API_URL}/images/generations`, {
@@ -194,12 +203,9 @@ async function checkImageStatus(requestId: string): Promise<any> {
 }
 
 export const generateImage = async (prompt: string, aspectRatio: string = "1:1"): Promise<string> => {
-    // 1. Start generation
     const requestId = await initiateImageGeneration(prompt, aspectRatio);
     console.log(`Image generation started. ID: ${requestId}`);
     
-    // 2. Poll for status
-    // Increased timeout to 5 minutes (150 attempts * 2 seconds)
     const maxAttempts = 150; 
     const delayMs = 2000;
     let attempts = 0;
@@ -209,36 +215,24 @@ export const generateImage = async (prompt: string, aspectRatio: string = "1:1")
         
         try {
             const result = await checkImageStatus(requestId);
-            
-            // Normalize status check (case insensitive)
             const status = (result.status || result.state || '').toLowerCase();
             console.log(`Polling image ${requestId}: status=${status}`, result);
 
-            // Success check
             if (status === 'completed' || status === 'succeeded' || status === 'success' || status === 'done' || status === 'finished' || status === 'ready' || status === 'generated') {
-                // Normalization of different API responses
                 if (Array.isArray(result.output) && result.output.length > 0) return result.output[0];
                 if (result.url) return result.url;
                 if (result.image) return result.image;
-                // Sometimes output is just a string property "output"
                 if (typeof result.output === 'string') return result.output;
                 
-                console.error("Image generation done but no URL field found in:", result);
-                // Don't throw here immediately, maybe it appears in next poll? Unlikely if status is done.
-                // Throwing to stop the loop
                 throw new Error("API вернуло успех, но ссылка на изображение не найдена.");
             } else if (status === 'failed' || status === 'error') {
                 throw new Error(`Генерация не удалась: ${result.error || 'Неизвестная ошибка'}`);
             }
-            // If 'processing', 'pending', 'queued', 'in-progress' -> continue loop
         } catch (e: any) {
-            console.warn("Polling warning:", e.message);
             if (e.message.includes('Генерация не удалась') || e.message.includes('ссылка на изображение не найдена')) {
                 throw e;
             }
-            // For network glitches in polling, we continue
         }
-        
         attempts++;
     }
     throw new Error("Тайм-аут: Изображение генерируется слишком долго (5+ мин).");
@@ -249,8 +243,9 @@ export const generateImage = async (prompt: string, aspectRatio: string = "1:1")
 
 export const generateItemCustomization = async (itemName: string, itemType: string, userContext?: string): Promise<any> => {
     const contextPrompt = userContext ? `Пожелания пользователя: "${userContext}".` : "";
-    
-    const systemPrompt = `Ты — легендарный кузнец и знаток артефактов D&D 5e.
+    const context = getCampaignContext();
+
+    const systemPrompt = `Ты — легендарный кузнец и знаток артефактов D&D 5e. ${context}
     Твоя задача — создать уникальное описание предмета в формате JSON.
     Структура JSON:
     {
@@ -274,7 +269,8 @@ export const generateItemCustomization = async (itemName: string, itemType: stri
 };
 
 export const generateNpc = async (keywords: string): Promise<any> => {
-  const systemPrompt = `Ты помощник Мастера Подземелий. Генерируй NPC для D&D 5e в формате JSON.
+  const context = getCampaignContext();
+  const systemPrompt = `Ты помощник Мастера Подземелий. Генерируй NPC для D&D 5e в формате JSON. ${context}
   Структура JSON:
   {
       "name": "Имя",
@@ -297,8 +293,78 @@ export const generateNpc = async (keywords: string): Promise<any> => {
   });
 };
 
+export const parseNpcFromText = async (text: string): Promise<any> => {
+    const systemPrompt = `Ты аналитик текста D&D. Извлеки данные NPC из текста и верни JSON.
+    Структура JSON:
+    {
+        "name": "Имя",
+        "race": "Раса",
+        "class": "Класс/Роль",
+        "description": "Описание внешности",
+        "personality": "Характер",
+        "secret": "Секрет (если есть)",
+        "hook": "Зацепка (если есть)"
+    }
+    Если каких-то данных нет, придумай подходящие по смыслу или оставь пустую строку.`;
+
+    return withRetry(async () => {
+      const resp = await makeRequest([
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Текст: "${text.substring(0, 4000)}"` }
+      ], true);
+      return JSON.parse(cleanText(resp));
+    });
+};
+
+export const enhanceNpc = async (npcData: CampaignNpc): Promise<CampaignNpc> => {
+    const context = getCampaignContext();
+    const systemPrompt = `Ты опытный Dungeon Master. Твоя задача — улучшить и детализировать существующего NPC. ${context}
+    Используй текущие данные, но сделай персонажа глубже, добавь деталей внешности и характера.
+    Структура JSON (верни обновленный объект):
+    {
+      "name": "Имя (можно уточнить)",
+      "race": "Раса",
+      "class": "Класс",
+      "description": "Детальное художественное описание внешности",
+      "personality": "Глубокий психологический портрет, привычки",
+      "voice": "Описание голоса и манеры речи",
+      "secret": "Интересная тайна",
+      "hook": "Конкретный квестовый крючок",
+      "notes": "Дополнительные мастерские заметки"
+    }
+    Отвечай ТОЛЬКО валидным JSON.`;
+
+    const inputData = {
+        name: npcData.name,
+        race: npcData.race,
+        class: npcData.class,
+        description: npcData.description,
+        personality: npcData.personality,
+        notes: npcData.notes
+    };
+
+    return withRetry(async () => {
+        const text = await makeRequest([
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Улучши этого NPC: ${JSON.stringify(inputData)}` }
+        ], true);
+        
+        const enhancedData = JSON.parse(cleanText(text));
+        
+        return {
+            ...npcData,
+            ...enhancedData,
+            id: npcData.id, // Preserve ID
+            location: npcData.location, // Preserve state
+            status: npcData.status,
+            attitude: npcData.attitude
+        };
+    });
+};
+
 export const generateLoot = async (level: number, type: string): Promise<string> => {
-  const systemPrompt = `Ты помощник ДМ. Генерируй списки лута в формате HTML (<ul>, <li>, <strong>). Без JSON, просто красивый HTML текст.`;
+  const context = getCampaignContext();
+  const systemPrompt = `Ты помощник ДМ. Генерируй списки лута в формате HTML (<ul>, <li>, <strong>). Без JSON, просто красивый HTML текст. ${context}`;
   const userPrompt = `Сгенерируй список добычи для группы уровня ${level}. Контекст: ${type}. 
   Включи стоимость в золоте и 1 интересный магический предмет (с описанием), если уместно.`;
 
@@ -312,7 +378,8 @@ export const generateLoot = async (level: number, type: string): Promise<string>
 };
 
 export const generateCombatLoot = async (monsters: string[], avgLevel: number): Promise<string> => {
-  const systemPrompt = `Ты помощник ДМ. Генерируй списки боевой добычи в формате HTML. Кратко и по делу.`;
+  const context = getCampaignContext();
+  const systemPrompt = `Ты помощник ДМ. Генерируй списки боевой добычи в формате HTML. Кратко и по делу. ${context}`;
   const userPrompt = `Бой завершен. Побеждены враги: ${monsters.join(', ')}. Средний уровень группы: ${avgLevel}.
   Сгенерируй список добычи (монеты, трофеи, расходники).`;
 
@@ -326,7 +393,8 @@ export const generateCombatLoot = async (monsters: string[], avgLevel: number): 
 };
 
 export const generateTrinket = async (type: string): Promise<string> => {
-    const systemPrompt = `Ты генератор атмосферных мелочей для D&D. Формат ответа: HTML список.`;
+    const context = getCampaignContext();
+    const systemPrompt = `Ты генератор атмосферных мелочей для D&D. Формат ответа: HTML список. ${context}`;
     const userPrompt = `Сгенерируй 5 предметов "карманного лута" или безделушек, которые можно найти: ${type}.`;
 
     return withRetry(async () => {
@@ -339,7 +407,8 @@ export const generateTrinket = async (type: string): Promise<string> => {
 };
 
 export const generateScenarioDescription = async (context: string): Promise<string> => {
-    const systemPrompt = `Ты профессиональный рассказчик (Нарратор). Твоя задача — описывать сцены для игроков D&D.`;
+    const campContext = getCampaignContext();
+    const systemPrompt = `Ты профессиональный рассказчик (Нарратор). Твоя задача — описывать сцены для игроков D&D. ${campContext}`;
     const userPrompt = `Напиши короткий, атмосферный текст (до 100 слов) для сцены: "${context}". 
     Сфокусируйся на чувствах (запах, звук, свет). Русский язык.`;
 
@@ -353,7 +422,8 @@ export const generateScenarioDescription = async (context: string): Promise<stri
 };
 
 export const generateQuest = async (level: string, context: string): Promise<string> => {
-    const systemPrompt = `Ты генератор квестов. Формат: HTML (<h3>, <p>).`;
+    const campContext = getCampaignContext();
+    const systemPrompt = `Ты генератор квестов. Формат: HTML (<h3>, <p>). ${campContext}`;
     const userPrompt = `Придумай короткий побочный квест для D&D. Уровень: ${level}. Контекст: ${context}.
     Включи: Название, Завязку, Цель, Твист, Награду.`;
 
@@ -367,7 +437,8 @@ export const generateQuest = async (level: string, context: string): Promise<str
 };
 
 export const generateFullQuestTracker = async (level: number, theme: string): Promise<any> => {
-    const systemPrompt = `Ты мастер квестов. Создай структуру квеста в формате JSON.
+    const context = getCampaignContext();
+    const systemPrompt = `Ты мастер квестов. Создай структуру квеста в формате JSON. ${context}
     Структура:
     {
       "title": "Название",
@@ -388,6 +459,57 @@ export const generateFullQuestTracker = async (level: number, theme: string): Pr
             { role: "user", content: userPrompt }
         ], true);
         return JSON.parse(cleanText(text));
+    });
+};
+
+export const enhanceQuest = async (questData: FullQuest): Promise<FullQuest> => {
+    const context = getCampaignContext();
+    const systemPrompt = `Ты опытный Dungeon Master. Твоя задача — улучшить и детализировать существующий набросок квеста. ${context}
+    Используй текущие данные, но распиши их подробнее, добавь драмы и конкретики.
+    Структура JSON (верни обновленный объект):
+    {
+      "title": "Название (можно улучшить)",
+      "giver": "Заказчик",
+      "summary": "Краткая суть (1 предложение)",
+      "description": "Детальное художественное описание для мастера (HTML, добавь атмосферы)",
+      "objectives": ["Список конкретных шагов/целей (3-5 шагов)"],
+      "threats": ["Список конкретных монстров, подходящих по смыслу"],
+      "reward": "Награда (золото + предмет)"
+    }
+    Отвечай ТОЛЬКО валидным JSON.`;
+
+    // Create a stripped down version to save tokens, removing IDs and UI state
+    const inputData = {
+        title: questData.title,
+        description: questData.description,
+        giver: questData.giver,
+        summary: questData.summary
+    };
+
+    const userPrompt = `Улучши этот квест: ${JSON.stringify(inputData)}`;
+
+    return withRetry(async () => {
+        const text = await makeRequest([
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+        ], true);
+        
+        const enhancedData = JSON.parse(cleanText(text));
+        
+        // Merge back, preserving ID and status
+        return {
+            ...questData,
+            title: enhancedData.title || questData.title,
+            giver: enhancedData.giver || questData.giver,
+            summary: enhancedData.summary || questData.summary,
+            description: enhancedData.description || questData.description,
+            reward: enhancedData.reward || questData.reward,
+            // Convert plain strings back to Objective objects if returned as strings
+            objectives: Array.isArray(enhancedData.objectives) 
+                ? enhancedData.objectives.map((txt: string) => ({ id: Date.now().toString() + Math.random(), text: txt, completed: false }))
+                : questData.objectives,
+            threats: enhancedData.threats || questData.threats
+        };
     });
 };
 
@@ -415,12 +537,13 @@ export const parseQuestFromText = async (inputText: string): Promise<any> => {
 };
 
 export const generateShop = async (shopType: string, location: string): Promise<string> => {
+    const context = getCampaignContext();
     const userPrompt = `Создай магазин для D&D. Тип: ${shopType}. Место: ${location}.
     Включи: Название, Владельца (с характером), Описание интерьера, Список 5-7 товаров с ценами (HTML таблица).`;
 
     return withRetry(async () => {
         const text = await makeRequest([
-            { role: "system", content: "Ты генератор магазинов D&D. Используй HTML." },
+            { role: "system", content: `Ты генератор магазинов D&D. Используй HTML. ${context}` },
             { role: "user", content: userPrompt }
         ]);
         return cleanText(text);
@@ -428,11 +551,12 @@ export const generateShop = async (shopType: string, location: string): Promise<
 };
 
 export const generateMinorLocation = async (type: string): Promise<string> => {
+    const context = getCampaignContext();
     const userPrompt = `Сгенерируй интересную "проходную" локацию: ${type}. Опиши внешний вид и одну интересную деталь/энкаунтер. Формат HTML.`;
 
     return withRetry(async () => {
         const text = await makeRequest([
-            { role: "system", content: "Ты помощник ДМ." },
+            { role: "system", content: `Ты помощник ДМ. ${context}` },
             { role: "user", content: userPrompt }
         ]);
         return cleanText(text);
@@ -440,11 +564,12 @@ export const generateMinorLocation = async (type: string): Promise<string> => {
 };
 
 export const generateJobBoard = async (setting: string): Promise<string> => {
+    const context = getCampaignContext();
     const userPrompt = `Создай "Доску объявлений" для поселения: ${setting}. 4 объявления разного типа. Оформи как записки в HTML.`;
 
     return withRetry(async () => {
         const text = await makeRequest([
-            { role: "system", content: "Ты помощник ДМ." },
+            { role: "system", content: `Ты помощник ДМ. ${context}` },
             { role: "user", content: userPrompt }
         ]);
         return cleanText(text);
@@ -488,7 +613,8 @@ export const parseLoreFromText = async (rawText: string): Promise<any> => {
 };
 
 export const generateFullLocation = async (regionName: string, locationType: string): Promise<any> => {
-    const systemPrompt = `Ты создатель миров D&D. Создай детальную локацию в JSON.
+    const context = getCampaignContext();
+    const systemPrompt = `Ты создатель миров D&D. Создай детальную локацию в JSON. ${context}
     Структура JSON:
     {
       "name": "Название",
@@ -515,7 +641,8 @@ export const generateFullLocation = async (regionName: string, locationType: str
 };
 
 export const generateLocationContent = async (locationName: string, category: 'npc' | 'secret' | 'loot' | 'quest'): Promise<any[]> => {
-    let systemPrompt = "Отвечай ТОЛЬКО валидным JSON массивом.";
+    const context = getCampaignContext();
+    let systemPrompt = `Отвечай ТОЛЬКО валидным JSON массивом. ${context}`;
     let userPrompt = "";
 
     if (category === 'npc') {
@@ -538,12 +665,13 @@ export const generateLocationContent = async (locationName: string, category: 'n
 };
 
 export const generateEncounterIntro = async (monsters: string[], location: string): Promise<string> => {
+   const context = getCampaignContext();
    const userPrompt = `Группа героев в локации "${location}". Начинается бой с: ${monsters.join(', ')}.
    Напиши короткое, динамичное вступление (нарратив) к бою. Русский язык.`;
    
    return withRetry(async () => {
        const text = await makeRequest([
-           { role: "system", content: "Ты нарратор боевых сцен D&D." },
+           { role: "system", content: `Ты нарратор боевых сцен D&D. ${context}` },
            { role: "user", content: userPrompt }
        ]);
        return cleanText(text);
@@ -551,7 +679,8 @@ export const generateEncounterIntro = async (monsters: string[], location: strin
 };
 
 export const generateExtendedDetails = async (category: string, name: string, locationContext: string): Promise<string> => {
-    const systemPrompt = "Ты Мастер Подземелий. Дай детальную справку в формате HTML.";
+    const context = getCampaignContext();
+    const systemPrompt = `Ты Мастер Подземелий. Дай детальную справку в формате HTML. ${context}`;
     let userPrompt = "";
     
     switch (category) {

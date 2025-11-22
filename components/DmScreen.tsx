@@ -220,7 +220,7 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
         {spellModalOpen && (
             <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
                 <div className="bg-dnd-card border-2 border-indigo-600 w-full max-w-2xl max-h-[80vh] rounded-lg shadow-2xl flex flex-col relative overflow-hidden">
-                    <div className="p-4 bg-gray-900 border-b border-gray-700 flex justify-between items-center">
+                    <div className="p-4 bg-gray-900 border-b border-gray-700 flex justify-between items-center shrink-0">
                         <h3 className="text-xl font-serif font-bold text-indigo-400 flex items-center gap-2">
                             <Sparkles className="w-5 h-5"/> {selectedSpell}
                         </h3>
@@ -228,7 +228,7 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
                             <X className="w-6 h-6" />
                         </button>
                     </div>
-                    <div className="flex-1 overflow-y-auto p-6 bg-gray-900/50">
+                    <div className="flex-1 overflow-y-auto p-6 bg-gray-900/50 custom-scrollbar">
                         {loadingContent ? (
                             <div className="flex flex-col items-center justify-center h-40 text-indigo-400 gap-3">
                                 <Loader className="w-8 h-8 animate-spin" />
@@ -238,7 +238,7 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
                             <div className="text-sm text-gray-300 [&_h1]:text-indigo-400 [&_h1]:text-2xl [&_h1]:font-serif [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-indigo-400 [&_h2]:text-xl [&_h2]:font-serif [&_h2]:font-bold [&_h2]:mb-3 [&_h2]:mt-5 [&_h3]:text-indigo-400 [&_h3]:font-serif [&_h3]:text-lg [&_h3]:font-bold [&_h3]:mb-2 [&_h3]:mt-4 [&_h3:first-child]:mt-0 [&_h4]:text-indigo-300 [&_h4]:font-bold [&_h4]:mb-2 [&_strong]:text-white [&_strong]:font-bold [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mb-1 [&_p]:mb-3" dangerouslySetInnerHTML={{__html: modalContent}} />
                         )}
                     </div>
-                    <div className="p-3 bg-gray-900 border-t border-gray-700 flex justify-end">
+                    <div className="p-3 bg-gray-900 border-t border-gray-700 flex justify-end shrink-0">
                         <button 
                             onClick={() => setSpellModalOpen(false)}
                             className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm font-bold"
@@ -254,7 +254,7 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
         {itemModalOpen && selectedItem && (
             <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
                 <div className="bg-dnd-card border-2 border-gold-600 w-full max-w-lg max-h-[90vh] rounded-lg shadow-2xl flex flex-col relative overflow-hidden">
-                    <div className="p-4 bg-gray-900 border-b border-gray-700 flex justify-between items-center">
+                    <div className="p-4 bg-gray-900 border-b border-gray-700 flex justify-between items-center shrink-0">
                         <h3 className="text-xl font-serif font-bold text-gold-500 flex items-center gap-2">
                             {selectedItem.name}
                         </h3>
@@ -272,7 +272,7 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
                             </button>
                         </div>
                     </div>
-                    <div className="flex-1 overflow-y-auto p-6 bg-gray-900/50 space-y-6">
+                    <div className="flex-1 overflow-y-auto p-6 bg-gray-900/50 space-y-6 custom-scrollbar">
                         
                         {itemImage && (
                             <div className="w-full h-48 bg-black/50 rounded border border-gray-600 flex items-center justify-center overflow-hidden relative group">
@@ -383,7 +383,7 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
                         </div>
 
                     </div>
-                    <div className="p-3 bg-gray-900 border-t border-gray-700 flex justify-end">
+                    <div className="p-3 bg-gray-900 border-t border-gray-700 flex justify-end shrink-0">
                         <button 
                             onClick={() => setItemModalOpen(false)}
                             className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm font-bold"

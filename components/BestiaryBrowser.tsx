@@ -1,7 +1,9 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Skull, Plus, Loader, X, Shield, Heart, Zap, Star, Bookmark, Filter } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Skull, Plus, Loader, X, Shield, Heart, Zap, Star, Bookmark } from 'lucide-react';
 import { searchMonsters, getMonsterDetails, ApiMonsterSummary, ApiMonsterDetails } from '../services/dndApiService';
+import { calculateEncounterDifficulty, EncounterResult } from '../services/encounterService';
+import { PartyMember, EntityType } from '../types';
 
 interface BestiaryBrowserProps {
   onClose: () => void;
@@ -38,7 +40,7 @@ const RU_TO_EN_MAP: Record<string, string> = {
 
 const CATEGORIES = [
     { id: 'humanoid', label: 'Гуманоиды', search: 'humanoid', icon: '👤' },
-    { id: 'undead', label: 'Нежить', search: 'zombie', icon: '💀' }, // SRD search is name-based, so we use common terms
+    { id: 'undead', label: 'Нежить', search: 'zombie', icon: '💀' },
     { id: 'dragon', label: 'Драконы', search: 'dragon', icon: '🐲' },
     { id: 'beast', label: 'Звери', search: 'wolf', icon: '🐾' },
     { id: 'fiend', label: 'Исчадия', search: 'demon', icon: '🔥' },
@@ -58,26 +60,51 @@ const BestiaryBrowser: React.FC<BestiaryBrowserProps> = ({ onClose, onAddMonster
   const [selectedMonster, setSelectedMonster] = useState<ApiMonsterDetails | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [count, setCount] = useState(1);
+  
+  // Encounter Calculation
+  const [difficulty, setDifficulty] = useState<EncounterResult | null>(null);
+  const [party, setParty] = useState<PartyMember[]>([]);
 
-  // Save favorites
+  useEffect(() => {
+      const saved = localStorage.getItem('dmc_party');
+      if (saved) setParty(JSON.parse(saved));
+  }, []);
+
   useEffect(() => {
       localStorage.setItem('dmc_bestiary_favorites', JSON.stringify(favorites));
   }, [favorites]);
 
-  // Debounce search
+  // Calc difficulty when selection changes
+  useEffect(() => {
+      if (!selectedMonster || party.length === 0) {
+          setDifficulty(null);
+          return;
+      }
+      
+      // Mock combatants for calculation
+      const mockMonsters = Array(count).fill(null).map(() => ({
+          id: 'mock',
+          name: selectedMonster.name,
+          type: EntityType.MONSTER,
+          hp: selectedMonster.hit_points,
+          maxHp: selectedMonster.hit_points,
+          ac: 10, initiative: 10, conditions: [], notes: '',
+          xp: selectedMonster.xp
+      }));
+
+      const res = calculateEncounterDifficulty(party, mockMonsters);
+      setDifficulty(res);
+
+  }, [selectedMonster, count, party]);
+
   useEffect(() => {
     const timer = setTimeout(async () => {
       if (query.length >= 2) {
         setLoading(true);
-        // Check translation
         let searchTerm = query.toLowerCase();
-        
-        // Check direct translation map
         const mapped = RU_TO_EN_MAP[searchTerm];
-        if (mapped) {
-            searchTerm = mapped;
-        } else {
-            // Partial match in russian keys?
+        if (mapped) searchTerm = mapped;
+        else {
             const foundKey = Object.keys(RU_TO_EN_MAP).find(k => k.startsWith(searchTerm));
             if (foundKey) searchTerm = RU_TO_EN_MAP[foundKey];
         }
@@ -96,6 +123,7 @@ const BestiaryBrowser: React.FC<BestiaryBrowserProps> = ({ onClose, onAddMonster
   const handleSelect = async (summary: ApiMonsterSummary) => {
     setDetailsLoading(true);
     setSelectedMonster(null);
+    setCount(1);
     try {
         const details = await getMonsterDetails(summary.index);
         setSelectedMonster(details);
@@ -110,7 +138,6 @@ const BestiaryBrowser: React.FC<BestiaryBrowserProps> = ({ onClose, onAddMonster
     if (selectedMonster) {
       onAddMonster(selectedMonster, count);
       setCount(1);
-      // Optional: Visual feedback
     }
   };
 
@@ -126,7 +153,6 @@ const BestiaryBrowser: React.FC<BestiaryBrowserProps> = ({ onClose, onAddMonster
 
   const isFavorite = (index: string) => favorites.some(f => f.index === index);
 
-  // Helper to parse AC
   const getAc = (m: ApiMonsterDetails) => {
     if (Array.isArray(m.armor_class)) {
       return m.armor_class[0]?.value || 10;
@@ -135,7 +161,7 @@ const BestiaryBrowser: React.FC<BestiaryBrowserProps> = ({ onClose, onAddMonster
   };
 
   const applyCategory = (search: string) => {
-      setQuery(''); // Clear input to avoid confusion
+      setQuery(''); 
       setLoading(true);
       searchMonsters(search).then(data => {
           setResults(data);
@@ -144,6 +170,17 @@ const BestiaryBrowser: React.FC<BestiaryBrowserProps> = ({ onClose, onAddMonster
   };
 
   const displayList = activeTab === 'favorites' ? favorites : results;
+
+  const getDifficultyColor = (diff?: string) => {
+      switch(diff) {
+          case 'Trivial': return 'text-gray-400';
+          case 'Easy': return 'text-green-400';
+          case 'Medium': return 'text-yellow-400';
+          case 'Hard': return 'text-orange-500';
+          case 'Deadly': return 'text-red-500 font-bold';
+          default: return 'text-gray-400';
+      }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 animate-in fade-in duration-200">
@@ -181,7 +218,6 @@ const BestiaryBrowser: React.FC<BestiaryBrowserProps> = ({ onClose, onAddMonster
                 </button>
             </div>
 
-            {/* Search Controls (Only visible in Search Tab) */}
             {activeTab === 'search' && (
                 <div className="p-3 border-b border-gray-700 space-y-3">
                     <div className="relative">
@@ -195,7 +231,6 @@ const BestiaryBrowser: React.FC<BestiaryBrowserProps> = ({ onClose, onAddMonster
                         />
                     </div>
                     
-                    {/* Quick Categories */}
                     <div className="flex flex-wrap gap-2">
                         {CATEGORIES.map(cat => (
                             <button
@@ -210,7 +245,6 @@ const BestiaryBrowser: React.FC<BestiaryBrowserProps> = ({ onClose, onAddMonster
                 </div>
             )}
 
-            {/* Results List */}
             <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
               {loading && <div className="text-center py-4 text-gray-500 flex flex-col items-center gap-2"><Loader className="w-5 h-5 animate-spin"/><span>Ищем в архивах...</span></div>}
               
@@ -303,21 +337,32 @@ const BestiaryBrowser: React.FC<BestiaryBrowserProps> = ({ onClose, onAddMonster
                 </div>
 
                 {/* Footer Action */}
-                <div className="p-4 bg-gray-900 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
-                   <div className="flex items-center gap-3 w-full sm:w-auto justify-center">
-                      <label className="text-sm text-gray-400 font-bold">Количество:</label>
-                      <div className="flex items-center bg-gray-800 rounded border border-gray-700">
-                        <button onClick={() => setCount(Math.max(1, count - 1))} className="px-3 py-2 hover:bg-gray-700 text-gold-500 font-bold text-lg">-</button>
-                        <span className="px-3 font-bold min-w-[2.5rem] text-center text-white">{count}</span>
-                        <button onClick={() => setCount(count + 1)} className="px-3 py-2 hover:bg-gray-700 text-gold-500 font-bold text-lg">+</button>
-                      </div>
+                <div className="p-4 bg-gray-900 border-t border-gray-800 flex flex-col gap-3 shrink-0">
+                   
+                   {/* Difficulty Prediction */}
+                   {difficulty && (
+                       <div className="flex justify-between items-center bg-gray-800 p-2 rounded border border-gray-700">
+                           <span className="text-xs text-gray-400">Сложность для группы:</span>
+                           <span className={`text-sm font-bold ${getDifficultyColor(difficulty.difficulty)} uppercase`}>{difficulty.difficulty === 'Deadly' ? 'Смертельно' : difficulty.difficulty === 'Hard' ? 'Сложно' : difficulty.difficulty === 'Medium' ? 'Средне' : 'Легко'}</span>
+                       </div>
+                   )}
+
+                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                       <div className="flex items-center gap-3 w-full sm:w-auto justify-center">
+                          <label className="text-sm text-gray-400 font-bold">Количество:</label>
+                          <div className="flex items-center bg-gray-800 rounded border border-gray-700">
+                            <button onClick={() => setCount(Math.max(1, count - 1))} className="px-3 py-2 hover:bg-gray-700 text-gold-500 font-bold text-lg">-</button>
+                            <span className="px-3 font-bold min-w-[2.5rem] text-center text-white">{count}</span>
+                            <button onClick={() => setCount(count + 1)} className="px-3 py-2 hover:bg-gray-700 text-gold-500 font-bold text-lg">+</button>
+                          </div>
+                       </div>
+                       <button 
+                          onClick={handleAdd}
+                          className="w-full sm:w-auto bg-dnd-red hover:bg-red-700 text-white px-6 py-3 rounded font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-red-900/20 active:scale-95"
+                       >
+                          <Plus className="w-5 h-5" /> Добавить в бой
+                       </button>
                    </div>
-                   <button 
-                      onClick={handleAdd}
-                      className="w-full sm:w-auto bg-dnd-red hover:bg-red-700 text-white px-6 py-3 rounded font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-red-900/20 active:scale-95"
-                   >
-                      <Plus className="w-5 h-5" /> Добавить в бой
-                   </button>
                 </div>
               </div>
             ) : (

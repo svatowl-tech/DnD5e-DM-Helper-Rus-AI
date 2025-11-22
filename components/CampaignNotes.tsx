@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Note } from '../types';
-import { FileText, Save, Plus, Trash2, Check, Clock, Eye, Edit, ArrowLeft } from 'lucide-react';
+import { FileText, Plus, Trash2, Check, Clock, Eye, Edit, ArrowLeft } from 'lucide-react';
+import SmartText from './SmartText';
 
 const CampaignNotes: React.FC = () => {
     const [notes, setNotes] = useState<Note[]>(() => {
@@ -12,22 +13,33 @@ const CampaignNotes: React.FC = () => {
     const [savedIndicator, setSavedIndicator] = useState(false);
     const [isViewMode, setIsViewMode] = useState(true);
     const [showListMobile, setShowListMobile] = useState(true);
-
+    
     useEffect(() => {
         localStorage.setItem('dmc_notes', JSON.stringify(notes));
-        // Blink saved indicator
         setSavedIndicator(true);
         const timer = setTimeout(() => setSavedIndicator(false), 1000);
         return () => clearTimeout(timer);
     }, [notes]);
 
-    // Switch to view mode when changing notes
     useEffect(() => {
         if (activeNoteId) {
             setIsViewMode(true);
-            setShowListMobile(false); // Switch to detail view on mobile
+            setShowListMobile(false);
         }
     }, [activeNoteId]);
+
+    // Listen for external updates
+    useEffect(() => {
+        const handleUpdateNotes = () => {
+            const saved = localStorage.getItem('dmc_notes');
+            if (saved) {
+                setNotes(JSON.parse(saved));
+            }
+        };
+
+        window.addEventListener('dmc-update-notes', handleUpdateNotes);
+        return () => window.removeEventListener('dmc-update-notes', handleUpdateNotes);
+    }, []);
 
     const activeNote = notes.find(n => n.id === activeNoteId);
 
@@ -42,7 +54,7 @@ const CampaignNotes: React.FC = () => {
         };
         setNotes([newNote, ...notes]);
         setActiveNoteId(newNote.id);
-        setIsViewMode(false); // Auto switch to edit for new notes
+        setIsViewMode(false);
         setShowListMobile(false);
     };
 
@@ -63,7 +75,7 @@ const CampaignNotes: React.FC = () => {
 
     return (
         <div className="h-full flex gap-4">
-            {/* Sidebar List (Hidden on mobile if note active) */}
+            {/* Sidebar List */}
             <div className={`w-full lg:w-1/3 border-r border-gray-700 flex flex-col ${showListMobile ? 'flex' : 'hidden lg:flex'}`}>
                 <div className="mb-4 flex items-center justify-between">
                      <button 
@@ -99,12 +111,11 @@ const CampaignNotes: React.FC = () => {
                 </div>
             </div>
 
-            {/* Editor Area (Hidden on mobile if no note active) */}
+            {/* Editor Area */}
             <div className={`flex-1 flex flex-col bg-dnd-card/30 rounded-lg border border-gray-800 overflow-hidden relative ${!showListMobile ? 'flex' : 'hidden lg:flex'}`}>
                 {activeNote ? (
                     <>
                         <div className="p-4 border-b border-gray-700 bg-gray-900/50 flex justify-between items-start gap-4">
-                            {/* Mobile Back Button */}
                             <button onClick={() => setShowListMobile(true)} className="lg:hidden text-gold-500 p-1 -ml-2">
                                 <ArrowLeft className="w-6 h-6"/>
                             </button>
@@ -134,10 +145,9 @@ const CampaignNotes: React.FC = () => {
                         </div>
 
                         {isViewMode ? (
-                            <div 
-                                className="flex-1 bg-transparent p-4 md:p-6 text-gray-300 leading-relaxed overflow-y-auto custom-scrollbar [&_h1]:text-gold-500 [&_h1]:text-2xl [&_h1]:font-serif [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-gold-500 [&_h2]:text-xl [&_h2]:font-serif [&_h2]:font-bold [&_h2]:mb-3 [&_h2]:mt-5 [&_h3]:text-gold-500 [&_h3]:font-serif [&_h3]:text-lg [&_h3]:font-bold [&_h3]:mb-2 [&_h3]:mt-4 [&_h3:first-child]:mt-0 [&_h4]:text-gold-400 [&_h4]:font-bold [&_h4]:mb-2 [&_strong]:text-white [&_strong]:font-bold [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mb-1 [&_p]:mb-3 [&_table]:w-full [&_table]:border-collapse [&_th]:text-left [&_th]:p-2 [&_th]:border-b [&_th]:border-gray-700 [&_td]:p-2 [&_td]:border-b [&_td]:border-gray-800"
-                                dangerouslySetInnerHTML={{ __html: activeNote.content || '<p class="text-gray-500 italic">Нет содержимого...</p>' }}
-                            />
+                            <div className="flex-1 bg-transparent p-4 md:p-6 text-gray-300 leading-relaxed overflow-y-auto custom-scrollbar [&_h1]:text-gold-500 [&_h1]:text-2xl [&_h1]:font-serif [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-gold-500 [&_h2]:text-xl [&_h2]:font-serif [&_h2]:font-bold [&_h2]:mb-3 [&_h2]:mt-5 [&_h3]:text-gold-500 [&_h3]:font-serif [&_h3]:text-lg [&_h3]:font-bold [&_h3]:mb-2 [&_h3]:mt-4 [&_h3:first-child]:mt-0 [&_h4]:text-gold-400 [&_h4]:font-bold [&_h4]:mb-2 [&_strong]:text-white [&_strong]:font-bold [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mb-1 [&_p]:mb-3 [&_table]:w-full [&_table]:border-collapse [&_th]:text-left [&_th]:p-2 [&_th]:border-b [&_th]:border-gray-700 [&_td]:p-2 [&_td]:border-b [&_td]:border-gray-800">
+                                <SmartText content={activeNote.content || '<p class="text-gray-500 italic">Нет содержимого...</p>'} />
+                            </div>
                         ) : (
                             <textarea 
                                 className="flex-1 bg-black/20 p-4 md:p-6 text-gray-300 leading-relaxed outline-none resize-none font-mono text-sm"
