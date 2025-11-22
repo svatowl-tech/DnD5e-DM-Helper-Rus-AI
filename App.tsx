@@ -364,11 +364,11 @@ const AppContent: React.FC = () => {
                             <p>Приложение работает офлайн. Установите его на устройство для полноэкранного режима.</p>
                             <div className="bg-gray-800/50 p-3 rounded border border-gray-700">
                                 <h4 className="font-bold text-white mb-1">🍎 iOS (Safari)</h4>
-                                <p className="text-xs">Нажмите "Поделиться" <Share className="w-3 h-3 inline"/> -> "На экран «Домой»".</p>
+                                <p className="text-xs">Нажмите "Поделиться" <Share className="w-3 h-3 inline"/> &rarr; "На экран «Домой»".</p>
                             </div>
                             <div className="bg-gray-800/50 p-3 rounded border border-gray-700">
                                 <h4 className="font-bold text-white mb-1">🤖 Android (Chrome)</h4>
-                                <p className="text-xs">Меню (3 точки) -> "Установить приложение".</p>
+                                <p className="text-xs">Меню (3 точки) &rarr; "Установить приложение".</p>
                             </div>
                             {showInstallButton && (
                                 <div className="text-center pt-2">

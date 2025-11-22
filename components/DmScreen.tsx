@@ -4,7 +4,7 @@ import { CONDITIONS } from '../constants';
 import { RULES_DATA } from '../data/rulesData';
 import { EQUIPMENT_DB, EquipmentItem } from '../data/equipmentData';
 import { RuleSection, SavedImage } from '../types';
-import { Search, Sword, Map, Users, Crown, Zap, Skull, BookOpen, X, ChevronDown, ChevronUp, Sparkles, Loader, Shield, Backpack, PenTool, Hammer, Image as ImageIcon, ZoomIn, Eye } from 'lucide-react';
+import { Search, Sword, Map, Users, Crown, Zap, Skull, BookOpen, X, ChevronDown, ChevronUp, Sparkles, Loader, Shield, Backpack, PenTool, Hammer, Image as ImageIcon, ZoomIn, Eye, FlaskConical } from 'lucide-react';
 import { generateExtendedDetails, generateItemCustomization, generateImage } from '../services/polzaService';
 
 interface DmScreenProps {
@@ -12,7 +12,7 @@ interface DmScreenProps {
     onShowImage?: (image: SavedImage) => void;
 }
 
-type Category = 'all' | 'combat' | 'exploration' | 'social' | 'magic' | 'dm' | 'conditions' | 'spells' | 'equipment';
+type Category = 'all' | 'combat' | 'exploration' | 'social' | 'magic' | 'dm' | 'conditions' | 'spells' | 'equipment' | 'alchemy';
 
 const RuleCard: React.FC<{ rule: RuleSection, onSpellClick?: (spell: string) => void }> = ({ rule, onSpellClick }) => {
     const [expanded, setExpanded] = useState(false);
@@ -28,6 +28,7 @@ const RuleCard: React.FC<{ rule: RuleSection, onSpellClick?: (spell: string) => 
                     {rule.title}
                     {rule.category === 'conditions' && <Skull className="w-4 h-4 text-red-900/50"/>}
                     {rule.category === 'spells' && <Sparkles className="w-4 h-4 text-purple-900/50"/>}
+                    {rule.category === 'alchemy' && <FlaskConical className="w-4 h-4 text-green-900/50"/>}
                 </h3>
             </div>
             
@@ -137,6 +138,7 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
 
   const categories: { id: Category; label: string; icon: React.ReactNode }[] = [
       { id: 'all', label: 'Все', icon: <BookOpen className="w-4 h-4"/> },
+      { id: 'alchemy', label: 'Алхимия', icon: <FlaskConical className="w-4 h-4"/> },
       { id: 'equipment', label: 'Снаряжение', icon: <Backpack className="w-4 h-4"/> },
       { id: 'combat', label: 'Бой', icon: <Sword className="w-4 h-4"/> },
       { id: 'exploration', label: 'Мир', icon: <Map className="w-4 h-4"/> },

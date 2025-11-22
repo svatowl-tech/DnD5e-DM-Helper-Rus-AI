@@ -168,7 +168,7 @@ export interface LocationTrackerProps {
 export interface RuleSection {
   id: string;
   title: string;
-  category: 'combat' | 'exploration' | 'social' | 'magic' | 'dm' | 'conditions' | 'spells' | 'equipment';
+  category: 'combat' | 'exploration' | 'social' | 'magic' | 'dm' | 'conditions' | 'spells' | 'equipment' | 'alchemy';
   content?: string;
   table?: { label: string; value: string }[];
   list?: string[];
