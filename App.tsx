@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { Tab, LogEntry, Note, SavedImage } from './types';
 import { 
   setCustomApiKey, 
@@ -39,22 +39,26 @@ import {
   MoreHorizontal,
   ChevronUp,
   ChevronDown,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Loader
 } from 'lucide-react';
 
-import CombatTracker from './components/CombatTracker';
+// Static imports for critical components
 import DiceRoller from './components/DiceRoller';
-import Generators from './components/Generators';
-import DmScreen from './components/DmScreen';
-import CampaignNotes from './components/CampaignNotes';
-import Dashboard from './components/Dashboard';
-import PartyManager from './components/PartyManager';
-import LocationTracker from './components/LocationTracker';
-import SoundBoard from './components/SoundBoard';
-import QuestTracker from './components/QuestTracker';
 import GlobalPlayer from './components/GlobalPlayer';
-import Gallery from './components/Gallery';
 import ImageTheater from './components/ImageTheater';
+
+// Lazy imports for tabs to split code chunks
+const CombatTracker = React.lazy(() => import('./components/CombatTracker'));
+const Generators = React.lazy(() => import('./components/Generators'));
+const DmScreen = React.lazy(() => import('./components/DmScreen'));
+const CampaignNotes = React.lazy(() => import('./components/CampaignNotes'));
+const Dashboard = React.lazy(() => import('./components/Dashboard'));
+const PartyManager = React.lazy(() => import('./components/PartyManager'));
+const LocationTracker = React.lazy(() => import('./components/LocationTracker'));
+const SoundBoard = React.lazy(() => import('./components/SoundBoard'));
+const QuestTracker = React.lazy(() => import('./components/QuestTracker'));
+const Gallery = React.lazy(() => import('./components/Gallery'));
 
 const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.DASHBOARD);
@@ -222,7 +226,7 @@ const AppContent: React.FC = () => {
   const renderContent = () => {
     switch (activeTab) {
       case Tab.DASHBOARD:
-        return <Dashboard onChangeTab={(t) => setActiveTab(t)} />;
+        return <Dashboard onChangeTab={(t: any) => setActiveTab(t)} />;
       case Tab.LOCATION:
         return <LocationTracker addLog={addLog} onSaveNote={saveNoteToStorage} onImageGenerated={addToGallery} onShowImage={openTheater} />;
       case Tab.QUESTS:
@@ -475,7 +479,9 @@ const AppContent: React.FC = () => {
       {/* --- MAIN CONTENT AREA --- */}
       <main className="flex-1 flex flex-col h-full overflow-hidden relative bg-dnd-darker">
         <div className="flex-1 p-3 md:p-6 overflow-y-auto pb-32 xl:pb-20 custom-scrollbar">
-            {renderContent()}
+            <Suspense fallback={<div className="flex h-full items-center justify-center text-gold-500"><Loader className="w-12 h-12 animate-spin"/></div>}>
+                {renderContent()}
+            </Suspense>
         </div>
 
         {/* --- GLOBAL AUDIO PLAYER --- */}
