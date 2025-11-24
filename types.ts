@@ -244,6 +244,8 @@ export interface AudioContextType {
     addTrackToPlaylist: (playlistId: string, track: Track) => void;
     removeTrackFromPlaylist: (playlistId: string, trackId: string) => void;
     importLocalTracks: (playlistId: string, files: File[]) => void;
+    playSfx: (url: string) => void;
+    stopAllSfx: () => void;
 }
 
 export enum Tab {

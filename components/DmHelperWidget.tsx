@@ -1,16 +1,65 @@
-
-import React, { useState } from 'react';
-import { BrainCircuit, Dices, Sparkles, X, Cloud, User, Skull, Info } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { BrainCircuit, Dices, Sparkles, X, Cloud, User, Skull, Volume2, Sword, Ghost, Square, Download, Upload, Plus } from 'lucide-react';
 import { generateNpc, generateScenarioDescription } from '../services/polzaService';
 import { CONDITIONS } from '../constants';
+import { useAudio } from '../contexts/AudioContext';
+
+// Updated SFX Library using reliable Mixkit Preview links (MP3)
+const SFX_LIBRARY = [
+    { 
+        category: 'Погода', 
+        icon: <Cloud className="w-4 h-4"/>,
+        sounds: [
+            { label: 'Гром', url: 'https://assets.mixkit.co/active_storage/sfx/1270/1270-preview.mp3' },
+            { label: 'Ливень', url: 'https://assets.mixkit.co/active_storage/sfx/1252/1252-preview.mp3' },
+            { label: 'Ветер', url: 'https://assets.mixkit.co/active_storage/sfx/1255/1255-preview.mp3' },
+            { label: 'Костер', url: 'https://assets.mixkit.co/active_storage/sfx/1289/1289-preview.mp3' }
+        ]
+    },
+    { 
+        category: 'Бой', 
+        icon: <Sword className="w-4 h-4"/>,
+        sounds: [
+            { label: 'Лязг', url: 'https://assets.mixkit.co/active_storage/sfx/2607/2607-preview.mp3' },
+            { label: 'Удар', url: 'https://assets.mixkit.co/active_storage/sfx/2155/2155-preview.mp3' },
+            { label: 'Взрыв', url: 'https://assets.mixkit.co/active_storage/sfx/1275/1275-preview.mp3' },
+            { label: 'Магия', url: 'https://assets.mixkit.co/active_storage/sfx/888/888-preview.mp3' }
+        ]
+    },
+    { 
+        category: 'Ужас', 
+        icon: <Ghost className="w-4 h-4"/>,
+        sounds: [
+            { label: 'Крик', url: 'https://assets.mixkit.co/active_storage/sfx/2208/2208-preview.mp3' },
+            { label: 'Призрак', url: 'https://assets.mixkit.co/active_storage/sfx/2526/2526-preview.mp3' }, 
+            { label: 'Дыхание', url: 'https://assets.mixkit.co/active_storage/sfx/2223/2223-preview.mp3' },
+            { label: 'Рык', url: 'https://assets.mixkit.co/active_storage/sfx/1292/1292-preview.mp3' }
+        ]
+    },
+    { 
+        category: 'Город', 
+        icon: <User className="w-4 h-4"/>,
+        sounds: [
+            { label: 'Скрип', url: 'https://assets.mixkit.co/active_storage/sfx/195/195-preview.mp3' },
+            { label: 'Стекло', url: 'https://assets.mixkit.co/active_storage/sfx/1669/1669-preview.mp3' },
+            { label: 'Шаги', url: 'https://assets.mixkit.co/active_storage/sfx/533/533-preview.mp3' },
+            { label: 'Стук', url: 'https://assets.mixkit.co/active_storage/sfx/236/236-preview.mp3' }
+        ]
+    }
+];
 
 const DmHelperWidget: React.FC = () => {
+    const { playSfx, stopAllSfx } = useAudio();
     const [isOpen, setIsOpen] = useState(false);
     const [dcValue, setDcValue] = useState(15);
-    const [activeTab, setActiveTab] = useState<'dc' | 'improv' | 'conditions'>('dc');
+    const [activeTab, setActiveTab] = useState<'dc' | 'improv' | 'conditions' | 'sfx'>('dc');
     const [loading, setLoading] = useState(false);
     const [improvResult, setImprovResult] = useState<string | null>(null);
     const [selectedCondition, setSelectedCondition] = useState<string | null>(null);
+    
+    // Custom SFX
+    const [customSounds, setCustomSounds] = useState<{ label: string, url: string }[]>([]);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const getDcDescription = (val: number) => {
         if (val <= 5) return "Очень легко (Ребенок)";
@@ -42,6 +91,32 @@ const DmHelperWidget: React.FC = () => {
         }
     };
 
+    const downloadSfx = async (url: string, filename: string) => {
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = `${filename}.mp3`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(blobUrl);
+        } catch (e) {
+            // Fallback for CORS issues
+            window.open(url, '_blank');
+        }
+    };
+
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files.length > 0) {
+            const file = e.target.files[0];
+            const url = URL.createObjectURL(file);
+            setCustomSounds(prev => [...prev, { label: file.name.replace(/\.[^/.]+$/, ""), url }]);
+        }
+    };
+
     if (!isOpen) {
         return (
             <button 
@@ -62,9 +137,18 @@ const DmHelperWidget: React.FC = () => {
             </div>
 
             <div className="flex bg-gray-800 shrink-0">
-                <button onClick={() => setActiveTab('dc')} className={`flex-1 py-2 text-xs font-bold ${activeTab === 'dc' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`}>Сложность</button>
-                <button onClick={() => setActiveTab('improv')} className={`flex-1 py-2 text-xs font-bold ${activeTab === 'improv' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`}>Импровизация</button>
-                <button onClick={() => setActiveTab('conditions')} className={`flex-1 py-2 text-xs font-bold ${activeTab === 'conditions' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`}>Состояния</button>
+                <button onClick={() => setActiveTab('dc')} className={`flex-1 py-2 text-xs font-bold ${activeTab === 'dc' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`} title="Сложность">
+                    <Dices className="w-4 h-4 mx-auto"/>
+                </button>
+                <button onClick={() => setActiveTab('improv')} className={`flex-1 py-2 text-xs font-bold ${activeTab === 'improv' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`} title="Импровизация">
+                    <Sparkles className="w-4 h-4 mx-auto"/>
+                </button>
+                <button onClick={() => setActiveTab('conditions')} className={`flex-1 py-2 text-xs font-bold ${activeTab === 'conditions' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`} title="Состояния">
+                    <Skull className="w-4 h-4 mx-auto"/>
+                </button>
+                <button onClick={() => setActiveTab('sfx')} className={`flex-1 py-2 text-xs font-bold ${activeTab === 'sfx' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`} title="Звуки">
+                    <Volume2 className="w-4 h-4 mx-auto"/>
+                </button>
             </div>
 
             <div className="p-4 bg-dnd-darker flex-1 overflow-y-auto custom-scrollbar">
@@ -134,6 +218,78 @@ const DmHelperWidget: React.FC = () => {
                                 ))}
                             </div>
                         )}
+                    </div>
+                )}
+
+                {activeTab === 'sfx' && (
+                    <div className="space-y-4">
+                        {/* Stop Button */}
+                        <button 
+                            onClick={stopAllSfx}
+                            className="w-full bg-red-900/80 hover:bg-red-800 text-white py-2 rounded flex justify-center items-center gap-2 font-bold text-xs border border-red-700 mb-2 shadow-lg"
+                        >
+                            <Square className="w-3 h-3 fill-current"/> Стоп Эффекты
+                        </button>
+
+                        {SFX_LIBRARY.map((group, idx) => (
+                            <div key={idx} className="space-y-2">
+                                <h5 className="text-xs text-gold-500 font-bold uppercase flex items-center gap-2 border-b border-gray-800 pb-1">
+                                    {group.icon} {group.category}
+                                </h5>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {group.sounds.map((snd, sIdx) => (
+                                        <div key={sIdx} className="flex gap-1">
+                                            <button 
+                                                onClick={() => playSfx(snd.url)}
+                                                className="flex-1 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gold-500/50 text-gray-300 py-2 rounded text-xs font-bold transition-all active:scale-95 flex justify-center items-center"
+                                            >
+                                                {snd.label}
+                                            </button>
+                                            <button 
+                                                onClick={() => downloadSfx(snd.url, snd.label)}
+                                                className="bg-gray-900 hover:bg-gray-800 border border-gray-700 text-gray-500 hover:text-white px-2 rounded"
+                                                title="Скачать"
+                                            >
+                                                <Download className="w-3 h-3"/>
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+
+                        {/* Custom SFX Section */}
+                        <div className="space-y-2 pt-2 border-t border-gray-800">
+                            <h5 className="text-xs text-gold-500 font-bold uppercase flex items-center gap-2">
+                                <Volume2 className="w-4 h-4"/> Свои звуки
+                            </h5>
+                            <div className="grid grid-cols-2 gap-2">
+                                {customSounds.map((snd, idx) => (
+                                    <button 
+                                        key={idx}
+                                        onClick={() => playSfx(snd.url)}
+                                        className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 py-2 rounded text-xs font-bold transition-all active:scale-95 truncate"
+                                        title={snd.label}
+                                    >
+                                        {snd.label}
+                                    </button>
+                                ))}
+                                <button 
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="bg-gray-800 hover:bg-gray-700 border border-dashed border-gray-600 text-gray-400 py-2 rounded text-xs font-bold flex justify-center items-center gap-1"
+                                >
+                                    <Plus className="w-3 h-3"/> Загрузить
+                                </button>
+                                <input 
+                                    type="file" 
+                                    className="hidden" 
+                                    ref={fileInputRef} 
+                                    accept="audio/*" 
+                                    onChange={handleFileUpload}
+                                />
+                            </div>
+                            <p className="text-[10px] text-gray-500 text-center">Загрузите скачанные файлы для игры офлайн.</p>
+                        </div>
                     </div>
                 )}
             </div>

@@ -1,209 +1,242 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { AudioContextType, Playlist, Track, AudioCategory } from '../types';
+import { AudioContextType, Playlist, Track } from '../types';
 
 // --- HELPER FOR STABLE URLS ---
+// Kevin MacLeod's site uses specific filenames. 
+// We use encodeURIComponent to handle spaces safely.
 const getTrackUrl = (filename: string) => {
-    const name = filename.replace(/_/g, '%20');
-    return `https://incompetech.com/music/royalty-free/mp3-royaltyfree/${name}.mp3`;
+    return `https://incompetech.com/music/royalty-free/mp3-royaltyfree/${encodeURIComponent(filename)}.mp3`;
 };
 
 const INITIAL_PRESETS: Playlist[] = [
-    // --- ATMOSPHERE ---
+    // ==========================================
+    // БОЕВЫЕ ПЛЕЙЛИСТЫ (COMBAT) - 25 Tracks
+    // ==========================================
     { 
-        id: 'forest', 
-        name: '🌲 Лес', 
-        category: 'atmosphere', 
+        id: 'combat_epic', 
+        name: 'Бой: Эпический', 
+        category: 'combat', 
         tracks: [
-            { id: 'f1', title: 'Forest of Fear', artist: 'Kevin MacLeod', url: getTrackUrl('Forest_of_Fear') },
-            { id: 'f2', title: 'Sovereign', artist: 'Kevin MacLeod', url: getTrackUrl('Sovereign') },
-            { id: 'f3', title: 'Apprehension', artist: 'Kevin MacLeod', url: getTrackUrl('Apprehension') },
-            { id: 'f4', title: 'Elf Meditation', artist: 'Kevin MacLeod', url: getTrackUrl('Elf_Meditation') },
-            { id: 'f5', title: 'Summer Day', artist: 'Kevin MacLeod', url: getTrackUrl('Summer_Day') },
-            { id: 'f6', title: 'Reaching Out', artist: 'Kevin MacLeod', url: getTrackUrl('Reaching_Out') },
-            { id: 'f7', title: 'Morning', artist: 'Kevin MacLeod', url: getTrackUrl('Morning') },
-            { id: 'f8', title: 'River Valley Breakdown', artist: 'Kevin MacLeod', url: getTrackUrl('River_Valley_Breakdown') },
-            { id: 'f9', title: 'Eternal Hope', artist: 'Kevin MacLeod', url: getTrackUrl('Eternal_Hope') },
-            { id: 'f10', title: 'Cattails', artist: 'Kevin MacLeod', url: getTrackUrl('Cattails') },
-            { id: 'f11', title: 'Almost in F', artist: 'Kevin MacLeod', url: getTrackUrl('Almost_in_F') },
-            { id: 'f12', title: 'At Rest', artist: 'Kevin MacLeod', url: getTrackUrl('At_Rest') },
-            { id: 'f13', title: 'Colorless Aura', artist: 'Kevin MacLeod', url: getTrackUrl('Colorless_Aura') },
-            { id: 'f14', title: 'Fluidscape', artist: 'Kevin MacLeod', url: getTrackUrl('Fluidscape') },
-            { id: 'f15', title: 'Garden Music', artist: 'Kevin MacLeod', url: getTrackUrl('Garden_Music') }
+            { id: 'c_heroic', title: 'Heroic Age', artist: 'Kevin MacLeod', url: getTrackUrl('Heroic Age') },
+            { id: 'c_crusade', title: 'Crusade', artist: 'Kevin MacLeod', url: getTrackUrl('Crusade - Heavy Industry') },
+            { id: 'c_five_armies', title: 'Five Armies', artist: 'Kevin MacLeod', url: getTrackUrl('Five Armies') },
+            { id: 'c_black_vortex', title: 'Black Vortex', artist: 'Kevin MacLeod', url: getTrackUrl('Black Vortex') },
+            { id: 'c_move_forward', title: 'Move Forward', artist: 'Kevin MacLeod', url: getTrackUrl('Move Forward') },
+            { id: 'c_exhilarate', title: 'Exhilarate', artist: 'Kevin MacLeod', url: getTrackUrl('Exhilarate') },
+            { id: 'c_primal', title: 'Rites', artist: 'Kevin MacLeod', url: getTrackUrl('Rites') },
+            { id: 'c_stormfront', title: 'Stormfront', artist: 'Kevin MacLeod', url: getTrackUrl('Stormfront') },
+            { id: 'c_strength', title: 'Strength of the Titans', artist: 'Kevin MacLeod', url: getTrackUrl('Strength of the Titans') },
+            { id: 'c_take_chance', title: 'Take a Chance', artist: 'Kevin MacLeod', url: getTrackUrl('Take a Chance') },
+            { id: 'c_curse_scarab', title: 'Curse of the Scarab', artist: 'Kevin MacLeod', url: getTrackUrl('Curse of the Scarab') },
+            { id: 'c_clash', title: 'Clash Defiant', artist: 'Kevin MacLeod', url: getTrackUrl('Clash Defiant') },
+            { id: 'c_death_kings', title: 'Death of Kings', artist: 'Kevin MacLeod', url: getTrackUrl('Death of Kings 2') },
+            { id: 'c_moorland', title: 'Moorland', artist: 'Kevin MacLeod', url: getTrackUrl('Moorland') },
+            { id: 'c_heavy_interlude', title: 'Heavy Interlude', artist: 'Kevin MacLeod', url: getTrackUrl('Heavy Interlude') },
+            { id: 'c_volitile', title: 'Volatile Reaction', artist: 'Kevin MacLeod', url: getTrackUrl('Volatile Reaction') },
+            { id: 'c_hitman', title: 'Hitman', artist: 'Kevin MacLeod', url: getTrackUrl('Hitman') },
+            { id: 'c_pina', title: 'Pinball Spring', artist: 'Kevin MacLeod', url: getTrackUrl('Pinball Spring') }, // Fast paced
+            { id: 'c_imp', title: 'Impact Prelude', artist: 'Kevin MacLeod', url: getTrackUrl('Impact Prelude') },
+            { id: 'c_all_this', title: 'All This', artist: 'Kevin MacLeod', url: getTrackUrl('All This') },
+            { id: 'c_achilles', title: 'Achilles', artist: 'Kevin MacLeod', url: getTrackUrl('Achilles') },
+            { id: 'c_action', title: 'Action', artist: 'Kevin MacLeod', url: getTrackUrl('Action') },
+            { id: 'c_aggressor', title: 'Aggressor', artist: 'Kevin MacLeod', url: getTrackUrl('Aggressor') },
+            { id: 'c_ajax', title: 'Ajax', artist: 'Kevin MacLeod', url: getTrackUrl('Ajax') },
+            { id: 'c_ammo', title: 'Ammunition', artist: 'Kevin MacLeod', url: getTrackUrl('Ammunition') },
         ] 
     },
     { 
-        id: 'dungeon', 
-        name: '🏰 Подземелье', 
-        category: 'atmosphere', 
+        id: 'combat_boss', 
+        name: 'Бой: Босс', 
+        category: 'combat', 
         tracks: [
-            { id: 'd1', title: 'Aftermath', artist: 'Kevin MacLeod', url: getTrackUrl('Aftermath') },
-            { id: 'd2', title: 'Ancient Rite', artist: 'Kevin MacLeod', url: getTrackUrl('Ancient_Rite') },
-            { id: 'd3', title: 'Decay', artist: 'Kevin MacLeod', url: getTrackUrl('Decay') },
-            { id: 'd4', title: 'Darkling', artist: 'Kevin MacLeod', url: getTrackUrl('Darkling') },
-            { id: 'd5', title: 'The Dread', artist: 'Kevin MacLeod', url: getTrackUrl('The_Dread') },
-            { id: 'd6', title: 'Oppressive Gloom', artist: 'Kevin MacLeod', url: getTrackUrl('Oppressive_Gloom') },
-            { id: 'd7', title: 'Shadowlands', artist: 'Kevin MacLeod', url: getTrackUrl('Shadowlands_1_-_Horizon') },
-            { id: 'd8', title: 'Gloom Horizon', artist: 'Kevin MacLeod', url: getTrackUrl('Gloom_Horizon') },
-            { id: 'd9', title: 'Static Motion', artist: 'Kevin MacLeod', url: getTrackUrl('Static_Motion') },
-            { id: 'd10', title: 'Penumbra', artist: 'Kevin MacLeod', url: getTrackUrl('Penumbra') },
-            { id: 'd11', title: 'Asian Drums', artist: 'Kevin MacLeod', url: getTrackUrl('Asian_Drums') },
-            { id: 'd12', title: 'Awkward Meeting', artist: 'Kevin MacLeod', url: getTrackUrl('Awkward_Meeting') },
-            { id: 'd13', title: 'Blue Sizzle', artist: 'Kevin MacLeod', url: getTrackUrl('Blue_Sizzle') },
-            { id: 'd14', title: 'Bump in the Night', artist: 'Kevin MacLeod', url: getTrackUrl('Bump_in_the_Night') },
-            { id: 'd15', title: 'Dark Walk', artist: 'Kevin MacLeod', url: getTrackUrl('Dark_Walk') },
-            { id: 'd16', title: 'Deep Haze', artist: 'Kevin MacLeod', url: getTrackUrl('Deep_Haze') },
-            { id: 'd17', title: 'Dread', artist: 'Kevin MacLeod', url: getTrackUrl('Dread') },
-            { id: 'd18', title: 'Echoes of Time', artist: 'Kevin MacLeod', url: getTrackUrl('Echoes_of_Time') },
-            { id: 'd19', title: 'Ghost Story', artist: 'Kevin MacLeod', url: getTrackUrl('Ghost_Story') },
-            { id: 'd20', title: 'Giant Wyrm', artist: 'Kevin MacLeod', url: getTrackUrl('Giant_Wyrm') }
-        ] 
-    },
-    { 
-        id: 'winter', 
-        name: '❄️ Зима / Север', 
-        category: 'atmosphere', 
-        tracks: [
-            { id: 'w1', title: 'Snow Drop', artist: 'Kevin MacLeod', url: getTrackUrl('Snow_Drop') },
-            { id: 'w2', title: 'Winter Reflections', artist: 'Kevin MacLeod', url: getTrackUrl('Winter_Reflections') },
-            { id: 'w3', title: 'Frost Waltz', artist: 'Kevin MacLeod', url: getTrackUrl('Frost_Waltz') },
-            { id: 'w4', title: 'Ice Demon', artist: 'Kevin MacLeod', url: getTrackUrl('Ice_Demon') },
-            { id: 'w5', title: 'Frozen Star', artist: 'Kevin MacLeod', url: getTrackUrl('Frozen_Star') },
-            { id: 'w6', title: 'White', artist: 'Kevin MacLeod', url: getTrackUrl('White') },
-            { id: 'w7', title: 'Angevin B', artist: 'Kevin MacLeod', url: getTrackUrl('Angevin_B') },
-            { id: 'w8', title: 'Relaxing Piano', artist: 'Kevin MacLeod', url: getTrackUrl('Relaxing_Piano_Music') },
-            { id: 'w9', title: 'Meditation Impromptu 01', artist: 'Kevin MacLeod', url: getTrackUrl('Meditation_Impromptu_01') },
-            { id: 'w10', title: 'Despair and Triumph', artist: 'Kevin MacLeod', url: getTrackUrl('Despair_and_Triumph') }
-        ] 
-    },
-    { 
-        id: 'sea', 
-        name: '🌊 Море / Пираты', 
-        category: 'atmosphere', 
-        tracks: [
-            { id: 's1', title: 'Expeditionary', artist: 'Kevin MacLeod', url: getTrackUrl('Expeditionary') },
-            { id: 's2', title: 'Five Armies', artist: 'Kevin MacLeod', url: getTrackUrl('Five_Armies') },
-            { id: 's3', title: 'Lord of the Land', artist: 'Kevin MacLeod', url: getTrackUrl('Lord_of_the_Land') },
-            { id: 's4', title: 'Impact Prelude', artist: 'Kevin MacLeod', url: getTrackUrl('Impact_Prelude') },
-            { id: 's5', title: 'Heroic Age', artist: 'Kevin MacLeod', url: getTrackUrl('Heroic_Age') },
-            { id: 's6', title: 'Master of the Feast', artist: 'Kevin MacLeod', url: getTrackUrl('Master_of_the_Feast') },
-            { id: 's7', title: 'Teller of the Tales', artist: 'Kevin MacLeod', url: getTrackUrl('Teller_of_the_Tales') },
-            { id: 's8', title: 'Fiddles McGinty', artist: 'Kevin MacLeod', url: getTrackUrl('Fiddles_McGinty') },
-            { id: 's9', title: 'Minstrel Guild', artist: 'Kevin MacLeod', url: getTrackUrl('Minstrel_Guild') },
-            { id: 's10', title: 'Skye Cuillin', artist: 'Kevin MacLeod', url: getTrackUrl('Skye_Cuillin') },
-            { id: 's11', title: 'Travelers', artist: 'Kevin MacLeod', url: getTrackUrl('Travelers') },
-            { id: 's12', title: 'Village Consort', artist: 'Kevin MacLeod', url: getTrackUrl('Village_Consort') }
-        ] 
-    },
-    { 
-        id: 'fey', 
-        name: '✨ Фейвайлд / Магия', 
-        category: 'atmosphere', 
-        tracks: [
-            { id: 'fy1', title: 'Angel Share', artist: 'Kevin MacLeod', url: getTrackUrl('Angel_Share') },
-            { id: 'fy2', title: 'At Rest', artist: 'Kevin MacLeod', url: getTrackUrl('At_Rest') },
-            { id: 'fy3', title: 'Colorless Aura', artist: 'Kevin MacLeod', url: getTrackUrl('Colorless_Aura') },
-            { id: 'fy4', title: 'Dreamy Flashback', artist: 'Kevin MacLeod', url: getTrackUrl('Dreamy_Flashback') },
-            { id: 'fy5', title: 'Eternal Hope', artist: 'Kevin MacLeod', url: getTrackUrl('Eternal_Hope') },
-            { id: 'fy6', title: 'Fairytale Waltz', artist: 'Kevin MacLeod', url: getTrackUrl('Fairytale_Waltz') },
-            { id: 'fy7', title: 'Frost Waltz', artist: 'Kevin MacLeod', url: getTrackUrl('Frost_Waltz') },
-            { id: 'fy8', title: 'Frozen Star', artist: 'Kevin MacLeod', url: getTrackUrl('Frozen_Star') },
-            { id: 'fy9', title: 'Healing', artist: 'Kevin MacLeod', url: getTrackUrl('Healing') },
-            { id: 'fy10', title: 'Somewhere Sunny', artist: 'Kevin MacLeod', url: getTrackUrl('Somewhere_Sunny') },
-            { id: 'fy11', title: 'Enchanted Valley', artist: 'Kevin MacLeod', url: getTrackUrl('Enchanted_Valley') },
-            { id: 'fy12', title: 'Midsummer Sky', artist: 'Kevin MacLeod', url: getTrackUrl('Midsummer_Sky') }
-        ] 
-    },
-    { 
-        id: 'tavern', 
-        name: '🍺 Таверна', 
-        category: 'atmosphere', 
-        tracks: [
-            { id: 't1', title: 'Thatched Villagers', artist: 'Kevin MacLeod', url: getTrackUrl('Thatched_Villagers') },
-            { id: 't2', title: 'Achaidh Cheide', artist: 'Kevin MacLeod', url: getTrackUrl('Achaidh_Cheide') },
-            { id: 't3', title: 'Folk Round', artist: 'Kevin MacLeod', url: getTrackUrl('Folk_Round') },
-            { id: 't4', title: 'Master of the Feast', artist: 'Kevin MacLeod', url: getTrackUrl('Master_of_the_Feast') },
-            { id: 't5', title: 'Skye Cuillin', artist: 'Kevin MacLeod', url: getTrackUrl('Skye_Cuillin') },
-            { id: 't6', title: 'Celtic Impulse', artist: 'Kevin MacLeod', url: getTrackUrl('Celtic_Impulse') },
-            { id: 't7', title: 'Fiddles McGinty', artist: 'Kevin MacLeod', url: getTrackUrl('Fiddles_McGinty') },
-            { id: 't8', title: 'Minstrel Guild', artist: 'Kevin MacLeod', url: getTrackUrl('Minstrel_Guild') },
-            { id: 't9', title: 'The Parting', artist: 'Kevin MacLeod', url: getTrackUrl('The_Parting') },
-            { id: 't10', title: 'Bonnie Ends', artist: 'Kevin MacLeod', url: getTrackUrl('Bonnie_Ends') },
-            { id: 't11', title: 'Barroom Ballet', artist: 'Kevin MacLeod', url: getTrackUrl('Barroom_Ballet') },
-            { id: 't12', title: 'Carrigfergus', artist: 'Kevin MacLeod', url: getTrackUrl('Carrigfergus') },
-            { id: 't13', title: 'Celtic Rumours', artist: 'Kevin MacLeod', url: getTrackUrl('Celtic_Rumours') },
-            { id: 't14', title: 'Doh De Oh', artist: 'Kevin MacLeod', url: getTrackUrl('Doh_De_Oh') },
-            { id: 't15', title: 'Earthy Crust', artist: 'Kevin MacLeod', url: getTrackUrl('Earthy_Crust') },
-            { id: 't16', title: 'Fiddles McGinty', artist: 'Kevin MacLeod', url: getTrackUrl('Fiddles_McGinty') }
-        ] 
-    },
-    { 
-        id: 'city', 
-        name: '🏙️ Город', 
-        category: 'atmosphere', 
-        tracks: [
-            { id: 'c1', title: 'Minstrel Guild', artist: 'Kevin MacLeod', url: getTrackUrl('Minstrel_Guild') },
-            { id: 'c2', title: 'Lord of the Land', artist: 'Kevin MacLeod', url: getTrackUrl('Lord_of_the_Land') },
-            { id: 'c3', title: 'Adventure Meme', artist: 'Kevin MacLeod', url: getTrackUrl('Adventure_Meme') },
-            { id: 'c4', title: 'Suonatore di Liuto', artist: 'Kevin MacLeod', url: getTrackUrl('Suonatore_di_Liuto') },
-            { id: 'c5', title: 'Procession of the King', artist: 'Kevin MacLeod', url: getTrackUrl('Procession_of_the_King') },
-            { id: 'c6', title: 'The Builder', artist: 'Kevin MacLeod', url: getTrackUrl('The_Builder') },
-            { id: 'c7', title: 'Fairytale Waltz', artist: 'Kevin MacLeod', url: getTrackUrl('Fairytale_Waltz') },
-            { id: 'c8', title: 'Angevin', artist: 'Kevin MacLeod', url: getTrackUrl('Angevin_-_Thatched_Villagers') },
-            { id: 'c9', title: 'Court of the Queen', artist: 'Kevin MacLeod', url: getTrackUrl('Court_of_the_Queen') },
-            { id: 'c10', title: 'Teller of the Tales', artist: 'Kevin MacLeod', url: getTrackUrl('Teller_of_the_Tales') },
-            { id: 'c11', title: 'Village Consort', artist: 'Kevin MacLeod', url: getTrackUrl('Village_Consort') },
-            { id: 'c12', title: 'Virtutes Instrumenti', artist: 'Kevin MacLeod', url: getTrackUrl('Virtutes_Instrumenti') },
-            { id: 'c13', title: 'Pippin the Hunchback', artist: 'Kevin MacLeod', url: getTrackUrl('Pippin_the_Hunchback') },
-            { id: 'c14', title: 'Master of the Feast', artist: 'Kevin MacLeod', url: getTrackUrl('Master_of_the_Feast') },
-            { id: 'c15', title: 'Folk Round', artist: 'Kevin MacLeod', url: getTrackUrl('Folk_Round') }
-        ] 
-    },
-    { 
-        id: 'eastern', 
-        name: '🕌 Восток / Пустыня', 
-        category: 'atmosphere', 
-        tracks: [
-            { id: 'e1', title: 'Desert City', artist: 'Kevin MacLeod', url: getTrackUrl('Desert_City') },
-            { id: 'e2', title: 'Ishikari Lore', artist: 'Kevin MacLeod', url: getTrackUrl('Ishikari_Lore') },
-            { id: 'e3', title: 'Moorland', artist: 'Kevin MacLeod', url: getTrackUrl('Moorland') },
-            { id: 'e4', title: 'Dhaka', artist: 'Kevin MacLeod', url: getTrackUrl('Dhaka') },
-            { id: 'e5', title: 'Impact Intermezzo', artist: 'Kevin MacLeod', url: getTrackUrl('Impact_Intermezzo') },
-            { id: 'e6', title: 'Raga of the River', artist: 'Kevin MacLeod', url: getTrackUrl('Raga_of_the_River_-_Chahra') },
-            { id: 'e7', title: 'Rite of Passage', artist: 'Kevin MacLeod', url: getTrackUrl('Rite_of_Passage') },
-            { id: 'e8', title: 'Healing', artist: 'Kevin MacLeod', url: getTrackUrl('Healing') },
-            { id: 'e9', title: 'Accralate', artist: 'Kevin MacLeod', url: getTrackUrl('Accralate') },
-            { id: 'e10', title: 'Lost Frontier', artist: 'Kevin MacLeod', url: getTrackUrl('Lost_Frontier') },
-            { id: 'e11', title: 'Asian Drums', artist: 'Kevin MacLeod', url: getTrackUrl('Asian_Drums') },
-            { id: 'e12', title: 'Kumasi Groove', artist: 'Kevin MacLeod', url: getTrackUrl('Kumasi_Groove') },
-            { id: 'e13', title: 'Tabuk', artist: 'Kevin MacLeod', url: getTrackUrl('Tabuk') }
+            { id: 'cb_mechanolith', title: 'Mechanolith', artist: 'Kevin MacLeod', url: getTrackUrl('Mechanolith') },
+            { id: 'cb_power', title: 'Power of the Meat', artist: 'Kevin MacLeod', url: getTrackUrl('Power of the Meat') },
+            { id: 'cb_final_count', title: 'Final Count', artist: 'Kevin MacLeod', url: getTrackUrl('Final Count') },
+            { id: 'cb_chaos', title: 'Chaos Gun', artist: 'Kevin MacLeod', url: getTrackUrl('Chaos Gun') },
+            { id: 'cb_killers', title: 'Killers', artist: 'Kevin MacLeod', url: getTrackUrl('Killers') },
+            { id: 'cb_descent', title: 'The Descent', artist: 'Kevin MacLeod', url: getTrackUrl('The Descent') },
+            { id: 'cb_ibid', title: 'Ibid', artist: 'Kevin MacLeod', url: getTrackUrl('Ibid') },
+            { id: 'cb_shoot', title: 'Shooting Star', artist: 'Kevin MacLeod', url: getTrackUrl('Shooting Star') },
+            { id: 'cb_unseen', title: 'Unseen Horrors', artist: 'Kevin MacLeod', url: getTrackUrl('Unseen Horrors') },
+            { id: 'cb_gritty', title: 'Gritty In The Itty', artist: 'Kevin MacLeod', url: getTrackUrl('Gritty In The Itty') },
+            { id: 'cb_conflict', title: 'Confliction', artist: 'Kevin MacLeod', url: getTrackUrl('Confliction') },
+            { id: 'cb_digit', title: 'Digital Bark', artist: 'Kevin MacLeod', url: getTrackUrl('Digital Bark') },
+            { id: 'cb_faceoff', title: 'Faceoff', artist: 'Kevin MacLeod', url: getTrackUrl('Faceoff') },
+            { id: 'cb_storm', title: 'Stormfront', artist: 'Kevin MacLeod', url: getTrackUrl('Stormfront') },
+            { id: 'cb_terminator', title: 'Termination', artist: 'Kevin MacLeod', url: getTrackUrl('Termination') },
+            { id: 'cb_wretched', title: 'Wretched Destroyer', artist: 'Kevin MacLeod', url: getTrackUrl('Wretched Destroyer') },
+            { id: 'cb_schweitzer', title: 'Albert Schweitzer', artist: 'Kevin MacLeod', url: getTrackUrl('Albert Schweitzer') },
+            { id: 'cb_second', title: 'Second Coming', artist: 'Kevin MacLeod', url: getTrackUrl('Second Coming') },
+            { id: 'cb_seven', title: 'Seven March', artist: 'Kevin MacLeod', url: getTrackUrl('Seven March') },
+            { id: 'cb_shadow', title: 'Shadowlands 3', artist: 'Kevin MacLeod', url: getTrackUrl('Shadowlands 3 - Machine') },
         ] 
     },
 
-    // --- COMBAT ---
+    // ==========================================
+    // АТМОСФЕРА (ATMOSPHERE) - 20+ Tracks
+    // ==========================================
     { 
-        id: 'combat', 
-        name: '⚔️ Бой (Обычный)', 
-        category: 'combat', 
+        id: 'atmo_dungeon', 
+        name: 'Атмосфера: Подземелье', 
+        category: 'atmosphere', 
         tracks: [
-            { id: 'cmb1', title: 'Curse of the Scarab', artist: 'Kevin MacLeod', url: getTrackUrl('Curse_of_the_Scarab') },
-            { id: 'cmb2', title: 'Clash Defiant', artist: 'Kevin MacLeod', url: getTrackUrl('Clash_Defiant') },
-            { id: 'cmb3', title: 'Hitman', artist: 'Kevin MacLeod', url: getTrackUrl('Hitman') },
-            { id: 'cmb4', title: 'Volatile Reaction', artist: 'Kevin MacLeod', url: getTrackUrl('Volatile_Reaction') },
-            { id: 'cmb5', title: 'Killers', artist: 'Kevin MacLeod', url: getTrackUrl('Killers') },
-            { id: 'cmb6', title: 'The Descent', artist: 'Kevin MacLeod', url: getTrackUrl('The_Descent') },
-            { id: 'cmb7', title: 'Five Armies', artist: 'Kevin MacLeod', url: getTrackUrl('Five_Armies') },
-            { id: 'cmb8', title: 'Prelude and Action', artist: 'Kevin MacLeod', url: getTrackUrl('Prelude_and_Action') },
-            { id: 'cmb9', title: 'Rites', artist: 'Kevin MacLeod', url: getTrackUrl('Rites') },
-            { id: 'cmb10', title: 'Stormfront', artist: 'Kevin MacLeod', url: getTrackUrl('Stormfront') }
+            { id: 'd_aftermath', title: 'Aftermath', artist: 'Kevin MacLeod', url: getTrackUrl('Aftermath') },
+            { id: 'd_ancient', title: 'Ancient Rite', artist: 'Kevin MacLeod', url: getTrackUrl('Ancient Rite') },
+            { id: 'd_decay', title: 'Decay', artist: 'Kevin MacLeod', url: getTrackUrl('Decay') },
+            { id: 'd_darkling', title: 'Darkling', artist: 'Kevin MacLeod', url: getTrackUrl('Darkling') },
+            { id: 'd_dread', title: 'The Dread', artist: 'Kevin MacLeod', url: getTrackUrl('The Dread') },
+            { id: 'd_shadow', title: 'Shadowlands', artist: 'Kevin MacLeod', url: getTrackUrl('Shadowlands 1 - Horizon') },
+            { id: 'd_penumbra', title: 'Penumbra', artist: 'Kevin MacLeod', url: getTrackUrl('Penumbra') },
+            { id: 'd_bump', title: 'Bump in the Night', artist: 'Kevin MacLeod', url: getTrackUrl('Bump in the Night') },
+            { id: 'd_wyrm', title: 'Giant Wyrm', artist: 'Kevin MacLeod', url: getTrackUrl('Giant Wyrm') },
+            { id: 'd_spider', title: 'Spider Eyes', artist: 'Kevin MacLeod', url: getTrackUrl('Spider Eyes') },
+            { id: 'd_kool', title: 'Kool Kats', artist: 'Kevin MacLeod', url: getTrackUrl('Kool Kats') }, 
+            { id: 'd_static', title: 'Static Motion', artist: 'Kevin MacLeod', url: getTrackUrl('Static Motion') },
+            { id: 'd_martian', title: 'Martian Cowboy', artist: 'Kevin MacLeod', url: getTrackUrl('Martian Cowboy') },
+            { id: 'd_apprehension', title: 'Apprehension', artist: 'Kevin MacLeod', url: getTrackUrl('Apprehension') },
+            { id: 'd_basement', title: 'Clean Soul', artist: 'Kevin MacLeod', url: getTrackUrl('Clean Soul') },
+            { id: 'd_crypt', title: 'Cryptic Sorrow', artist: 'Kevin MacLeod', url: getTrackUrl('Cryptic Sorrow') },
+            { id: 'd_darkness', title: 'Darkness Speaks', artist: 'Kevin MacLeod', url: getTrackUrl('Darkness Speaks') },
+            { id: 'd_deep', title: 'Deep Noise', artist: 'Kevin MacLeod', url: getTrackUrl('Deep Noise') },
+            { id: 'd_despair', title: 'Despair and Triumph', artist: 'Kevin MacLeod', url: getTrackUrl('Despair and Triumph') },
+            { id: 'd_dragon', title: 'Dragon and Toast', artist: 'Kevin MacLeod', url: getTrackUrl('Dragon and Toast') },
+            { id: 'd_dramatic', title: 'Ossuary 6 - Air', artist: 'Kevin MacLeod', url: getTrackUrl('Ossuary 6 - Air') },
         ] 
     },
-    {
-        id: 'victory',
-        name: '🏆 Победа',
-        category: 'special',
+    { 
+        id: 'atmo_nature', 
+        name: 'Атмосфера: Природа/Лес', 
+        category: 'atmosphere', 
         tracks: [
-            { id: 'vic1', title: 'Heroic Age', artist: 'Kevin MacLeod', url: getTrackUrl('Heroic_Age') },
-            { id: 'vic2', title: 'Winner Winner', artist: 'Kevin MacLeod', url: getTrackUrl('Winner_Winner') }
+            { id: 'f_fear', title: 'Forest of Fear', artist: 'Kevin MacLeod', url: getTrackUrl('Forest of Fear') },
+            { id: 'f_sovereign', title: 'Sovereign', artist: 'Kevin MacLeod', url: getTrackUrl('Sovereign') },
+            { id: 'f_med', title: 'Elf Meditation', artist: 'Kevin MacLeod', url: getTrackUrl('Elf Meditation') },
+            { id: 'f_summer', title: 'Summer Day', artist: 'Kevin MacLeod', url: getTrackUrl('Summer Day') },
+            { id: 'f_morning', title: 'Morning', artist: 'Kevin MacLeod', url: getTrackUrl('Morning') },
+            { id: 'f_river', title: 'River Valley Breakdown', artist: 'Kevin MacLeod', url: getTrackUrl('River Valley Breakdown') },
+            { id: 'f_cattails', title: 'Cattails', artist: 'Kevin MacLeod', url: getTrackUrl('Cattails') },
+            { id: 'f_fluid', title: 'Fluidscape', artist: 'Kevin MacLeod', url: getTrackUrl('Fluidscape') },
+            { id: 'f_garden', title: 'Garden Music', artist: 'Kevin MacLeod', url: getTrackUrl('Garden Music') },
+            { id: 'f_eternal', title: 'Eternal Hope', artist: 'Kevin MacLeod', url: getTrackUrl('Eternal Hope') },
+            { id: 'f_healing', title: 'Healing', artist: 'Kevin MacLeod', url: getTrackUrl('Healing') },
+            { id: 'f_grave', title: 'Grave Matters', artist: 'Kevin MacLeod', url: getTrackUrl('Grave Matters') },
+            { id: 'f_air', title: 'Air Prelude', artist: 'Kevin MacLeod', url: getTrackUrl('Air Prelude') },
+            { id: 'f_at_rest', title: 'At Rest', artist: 'Kevin MacLeod', url: getTrackUrl('At Rest') },
+            { id: 'f_autumn', title: 'Autumn Day', artist: 'Kevin MacLeod', url: getTrackUrl('Autumn Day') },
+            { id: 'f_beach', title: 'Beach Party', artist: 'Kevin MacLeod', url: getTrackUrl('Beach Party') },
+            { id: 'f_blue', title: 'Blue Feather', artist: 'Kevin MacLeod', url: getTrackUrl('Blue Feather') },
+            { id: 'f_bumba', title: 'Bumbly March', artist: 'Kevin MacLeod', url: getTrackUrl('Bumbly March') },
+            { id: 'f_calmant', title: 'Calmant', artist: 'Kevin MacLeod', url: getTrackUrl('Calmant') },
+            { id: 'f_clear', title: 'Clear Waters', artist: 'Kevin MacLeod', url: getTrackUrl('Clear Waters') },
+        ] 
+    },
+
+    // ==========================================
+    // ТАВЕРНА / ГОРОД (TAVERN/COMEDY) - 20+ Tracks
+    // ==========================================
+    { 
+        id: 'tavern_mix', 
+        name: 'Таверна и Город', 
+        category: 'comedy', 
+        tracks: [
+            { id: 'ci_minstrel', title: 'Minstrel Guild', artist: 'Kevin MacLeod', url: getTrackUrl('Minstrel Guild') },
+            { id: 'ci_lord', title: 'Lord of the Land', artist: 'Kevin MacLeod', url: getTrackUrl('Lord of the Land') },
+            { id: 'ci_lute', title: 'Suonatore di Liuto', artist: 'Kevin MacLeod', url: getTrackUrl('Suonatore di Liuto') },
+            { id: 'ci_king', title: 'Procession of the King', artist: 'Kevin MacLeod', url: getTrackUrl('Procession of the King') },
+            { id: 'ci_builder', title: 'The Builder', artist: 'Kevin MacLeod', url: getTrackUrl('The Builder') },
+            { id: 'ci_waltz', title: 'Fairytale Waltz', artist: 'Kevin MacLeod', url: getTrackUrl('Fairytale Waltz') },
+            { id: 'ci_queen', title: 'Court of the Queen', artist: 'Kevin MacLeod', url: getTrackUrl('Court of the Queen') },
+            { id: 'ci_teller', title: 'Teller of the Tales', artist: 'Kevin MacLeod', url: getTrackUrl('Teller of the Tales') },
+            { id: 'ci_consort', title: 'Village Consort', artist: 'Kevin MacLeod', url: getTrackUrl('Village Consort') },
+            { id: 'ci_pippin', title: 'Pippin the Hunchback', artist: 'Kevin MacLeod', url: getTrackUrl('Pippin the Hunchback') },
+            { id: 'ci_master', title: 'Master of the Feast', artist: 'Kevin MacLeod', url: getTrackUrl('Master of the Feast') },
+            { id: 'ci_folk', title: 'Folk Round', artist: 'Kevin MacLeod', url: getTrackUrl('Folk Round') },
+            { id: 'ci_renaissance', title: 'Renaissance', artist: 'Kevin MacLeod', url: getTrackUrl('Renaissance') },
+            { id: 't_thatched', title: 'Thatched Villagers', artist: 'Kevin MacLeod', url: getTrackUrl('Thatched Villagers') },
+            { id: 't_achaidh', title: 'Achaidh Cheide', artist: 'Kevin MacLeod', url: getTrackUrl('Achaidh Cheide') },
+            { id: 't_celtic', title: 'Celtic Impulse', artist: 'Kevin MacLeod', url: getTrackUrl('Celtic Impulse') },
+            { id: 't_barroom', title: 'Barroom Ballet', artist: 'Kevin MacLeod', url: getTrackUrl('Barroom Ballet') },
+            { id: 't_carrig', title: 'Carrigfergus', artist: 'Kevin MacLeod', url: getTrackUrl('Carrigfergus') },
+            { id: 't_rumours', title: 'Celtic Rumours', artist: 'Kevin MacLeod', url: getTrackUrl('Celtic Rumours') },
+            { id: 't_earthy', title: 'Earthy Crust', artist: 'Kevin MacLeod', url: getTrackUrl('Earthy Crust') },
+            { id: 't_skye', title: 'Skye Cuillin', artist: 'Kevin MacLeod', url: getTrackUrl('Skye Cuillin') },
+            { id: 't_fiddles', title: 'Fiddles McGinty', artist: 'Kevin MacLeod', url: getTrackUrl('Fiddles McGinty') },
+            { id: 'co_scheming', title: 'Scheming Weasel', artist: 'Kevin MacLeod', url: getTrackUrl('Scheming Weasel faster') },
+            { id: 'co_fluffing', title: 'Fluffing a Duck', artist: 'Kevin MacLeod', url: getTrackUrl('Fluffing a Duck') },
+            { id: 'co_monkeys', title: 'Monkeys Spinning Monkeys', artist: 'Kevin MacLeod', url: getTrackUrl('Monkeys Spinning Monkeys') },
+            { id: 'co_pixelland', title: 'Pixelland', artist: 'Kevin MacLeod', url: getTrackUrl('Pixelland') },
+            { id: 'co_run', title: 'Run Amok', artist: 'Kevin MacLeod', url: getTrackUrl('Run Amok') },
+        ] 
+    },
+
+    // ==========================================
+    // НАСТРОЕНИЕ / ХОРРОР (MOOD) - 20+ Tracks
+    // ==========================================
+    { 
+        id: 'mood_mix', 
+        name: 'Тайна и Хоррор', 
+        category: 'mood', 
+        tracks: [
+            { id: 'm_arcadia', title: 'Arcadia', artist: 'Kevin MacLeod', url: getTrackUrl('Arcadia') },
+            { id: 'm_colorless', title: 'Colorless Aura', artist: 'Kevin MacLeod', url: getTrackUrl('Colorless Aura') },
+            { id: 'm_dreamy', title: 'Dreamy Flashback', artist: 'Kevin MacLeod', url: getTrackUrl('Dreamy Flashback') },
+            { id: 'm_enchanted', title: 'Enchanted Valley', artist: 'Kevin MacLeod', url: getTrackUrl('Enchanted Valley') },
+            { id: 'm_midsummer', title: 'Midsummer Sky', artist: 'Kevin MacLeod', url: getTrackUrl('Midsummer Sky') },
+            { id: 'm_private', title: 'Private Reflection', artist: 'Kevin MacLeod', url: getTrackUrl('Private Reflection') },
+            { id: 'm_past', title: 'Past the Edge', artist: 'Kevin MacLeod', url: getTrackUrl('Past the Edge') },
+            { id: 'm_mesmerize', title: 'Mesmerize', artist: 'Kevin MacLeod', url: getTrackUrl('Mesmerize') },
+            { id: 'm_angel', title: 'Angel Share', artist: 'Kevin MacLeod', url: getTrackUrl('Angel Share') },
+            { id: 'h_nervous', title: 'Nervous', artist: 'Kevin MacLeod', url: getTrackUrl('Nervous') },
+            { id: 'h_long', title: 'Long Note One', artist: 'Kevin MacLeod', url: getTrackUrl('Long Note One') },
+            { id: 'h_long2', title: 'Long Note Two', artist: 'Kevin MacLeod', url: getTrackUrl('Long Note Two') },
+            { id: 'h_satiate', title: 'Satiate', artist: 'Kevin MacLeod', url: getTrackUrl('Satiate') },
+            { id: 'h_unseen', title: 'Unseen Horrors', artist: 'Kevin MacLeod', url: getTrackUrl('Unseen Horrors') },
+            { id: 'h_anxiety', title: 'Anxiety', artist: 'Kevin MacLeod', url: getTrackUrl('Anxiety') },
+            { id: 'h_hush', title: 'Hush', artist: 'Kevin MacLeod', url: getTrackUrl('Hush') },
+            { id: 'h_ghost', title: 'Ghost Story', artist: 'Kevin MacLeod', url: getTrackUrl('Ghost Story') },
+            { id: 'h_heart', title: 'Heart of Nowhere', artist: 'Kevin MacLeod', url: getTrackUrl('Heart of Nowhere') },
+            { id: 'h_gathering', title: 'Gathering Darkness', artist: 'Kevin MacLeod', url: getTrackUrl('Gathering Darkness') },
+            { id: 'h_decay', title: 'Decay', artist: 'Kevin MacLeod', url: getTrackUrl('Decay') },
+            { id: 'h_interloper', title: 'Interloper', artist: 'Kevin MacLeod', url: getTrackUrl('Interloper') },
+            { id: 'h_house', title: 'House of Leaves', artist: 'Kevin MacLeod', url: getTrackUrl('House of Leaves') },
+            { id: 'sa_wistful', title: 'Wistful Harp', artist: 'Kevin MacLeod', url: getTrackUrl('Wistful Harp') },
+            { id: 'sa_parting', title: 'The Parting', artist: 'Kevin MacLeod', url: getTrackUrl('The Parting') },
+            { id: 'sa_end', title: 'End of the Era', artist: 'Kevin MacLeod', url: getTrackUrl('End of the Era') },
+        ] 
+    },
+
+    // ==========================================
+    // ПУТЕШЕСТВИЕ / СПЕЦИАЛЬНОЕ - 20+ Tracks
+    // ==========================================
+    {
+        id: 'travel_scifi',
+        name: 'Путешествие и Фантастика',
+        category: 'travel',
+        tracks: [
+            { id: 'tr_call', title: 'Call to Adventure', artist: 'Kevin MacLeod', url: getTrackUrl('Call to Adventure') },
+            { id: 'tr_discovery', title: 'Discovery Hit', artist: 'Kevin MacLeod', url: getTrackUrl('Discovery Hit') },
+            { id: 'tr_failing', title: 'Failing Defense', artist: 'Kevin MacLeod', url: getTrackUrl('Failing Defense') },
+            { id: 'tr_thunder', title: 'Thunder Dreams', artist: 'Kevin MacLeod', url: getTrackUrl('Thunder Dreams') },
+            { id: 'tr_impact', title: 'Impact Prelude', artist: 'Kevin MacLeod', url: getTrackUrl('Impact Prelude') },
+            { id: 'tr_heroic', title: 'Heroic Age', artist: 'Kevin MacLeod', url: getTrackUrl('Heroic Age') },
+            { id: 'tr_crusade', title: 'Crusade', artist: 'Kevin MacLeod', url: getTrackUrl('Crusade - Heavy Industry') },
+            { id: 'tr_folk', title: 'Folk Round', artist: 'Kevin MacLeod', url: getTrackUrl('Folk Round') },
+            { id: 'tr_bonnie', title: 'Bonnie Ends', artist: 'Kevin MacLeod', url: getTrackUrl('Bonnie Ends') },
+            { id: 'sf_space', title: 'Space Jazz', artist: 'Kevin MacLeod', url: getTrackUrl('Space Jazz') },
+            { id: 'sf_tech', title: 'Techno', artist: 'Kevin MacLeod', url: getTrackUrl('Techno 1') },
+            { id: 'sf_deep', title: 'Deep Haze', artist: 'Kevin MacLeod', url: getTrackUrl('Deep Haze') },
+            { id: 'sf_dark', title: 'Dark Walk', artist: 'Kevin MacLeod', url: getTrackUrl('Dark Walk') },
+            { id: 'sf_echoes', title: 'Echoes of Time', artist: 'Kevin MacLeod', url: getTrackUrl('Echoes of Time') },
+            { id: 'sf_spacial', title: 'Spacial Harvest', artist: 'Kevin MacLeod', url: getTrackUrl('Spacial Harvest') },
+            { id: 'vic1', title: 'Heroic Age (Vic)', artist: 'Kevin MacLeod', url: getTrackUrl('Heroic Age') },
+            { id: 'vic2', title: 'Winner Winner', artist: 'Kevin MacLeod', url: getTrackUrl('Winner Winner') },
+            { id: 'vic3', title: 'Fanfare for Space', artist: 'Kevin MacLeod', url: getTrackUrl('Fanfare for Space') },
+            { id: 'vic4', title: 'The Cannery', artist: 'Kevin MacLeod', url: getTrackUrl('The Cannery') },
+            { id: 'vic5', title: 'Victory', artist: 'Kevin MacLeod', url: getTrackUrl('Victory') },
+            { id: 'e_city', title: 'Desert City', artist: 'Kevin MacLeod', url: getTrackUrl('Desert City') },
+            { id: 'e_ishikari', title: 'Ishikari Lore', artist: 'Kevin MacLeod', url: getTrackUrl('Ishikari Lore') },
+            { id: 'e_dhaka', title: 'Dhaka', artist: 'Kevin MacLeod', url: getTrackUrl('Dhaka') },
+            { id: 'e_impact', title: 'Impact Intermezzo', artist: 'Kevin MacLeod', url: getTrackUrl('Impact Intermezzo') },
         ]
     }
 ];
@@ -220,8 +253,18 @@ export const useAudio = () => {
 
 export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [playlists, setPlaylists] = useState<Playlist[]>(() => {
+        // Load from local storage or use initial
         const saved = localStorage.getItem('dmc_playlists');
-        return saved ? JSON.parse(saved) : INITIAL_PRESETS;
+        if (saved) {
+            try {
+                // Merge saved playlists with initial presets if presets have new tracks?
+                // For simplicity, if saved exists, we trust it, but in dev we might want to reset.
+                // In a real app, we'd merge. Here, let's just load initial if saved is empty or broken.
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            } catch(e) { console.warn('Failed to load playlists', e); }
+        }
+        return INITIAL_PRESETS; 
     });
     
     const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
@@ -233,20 +276,29 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [error, setError] = useState<string | null>(null);
 
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const activeSfxRef = useRef<Set<HTMLAudioElement>>(new Set());
 
-    // Save custom playlists
-    useEffect(() => {
-        localStorage.setItem('dmc_playlists', JSON.stringify(playlists));
-    }, [playlists]);
-
-    // Initialize Audio Object
+    // Initialize Audio Object for Music
     useEffect(() => {
         if (!audioRef.current) {
             audioRef.current = new Audio();
             audioRef.current.addEventListener('ended', handleTrackEnd);
-            audioRef.current.addEventListener('error', (e) => {
-                console.error("Audio error", e);
-                setError("Ошибка воспроизведения");
+            audioRef.current.addEventListener('error', (e: Event) => {
+                const target = e.target as HTMLAudioElement;
+                const err = target.error;
+                let errMsg = "Ошибка воспроизведения.";
+                
+                if (err) {
+                    if (err.code === 1) errMsg = "Загрузка прервана.";
+                    else if (err.code === 2) errMsg = "Ошибка сети.";
+                    else if (err.code === 3) errMsg = "Ошибка декодирования.";
+                    else if (err.code === 4) errMsg = "Файл не найден или формат не поддерживается.";
+                    console.warn(`Audio Error (${err.code}): ${err.message}`);
+                } else {
+                    console.warn("Unknown Audio Error", e);
+                }
+
+                setError(errMsg);
                 setIsLoading(false);
                 setIsPlaying(false);
             });
@@ -273,6 +325,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const playAudio = async () => {
             if (!audioRef.current || !currentTrack) return;
             
+            // Only reload source if it changed
             if (audioRef.current.src !== currentTrack.url) {
                 audioRef.current.src = currentTrack.url;
                 audioRef.current.load();
@@ -283,10 +336,8 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     await audioRef.current.play();
                     setError(null);
                 } catch (e: any) {
-                    console.error("Play error", e);
-                    // Don't show error immediately for interaction requirement, retry or show UI hint
+                    console.warn("Play attempt failed (often due to autoplay policy):", e);
                     if (e.name !== 'AbortError') {
-                        setError("Не удалось воспроизвести. Нажмите Play.");
                         setIsPlaying(false);
                     }
                 }
@@ -370,19 +421,27 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     const addTrackToPlaylist = (playlistId: string, track: Track) => {
-        setPlaylists(prev => prev.map(p => 
-            p.id === playlistId 
-            ? { ...p, tracks: [...p.tracks, track] }
-            : p
-        ));
+        setPlaylists(prev => {
+            const updated = prev.map(p => 
+                p.id === playlistId 
+                ? { ...p, tracks: [...p.tracks, track] }
+                : p
+            );
+            localStorage.setItem('dmc_playlists', JSON.stringify(updated));
+            return updated;
+        });
     };
 
     const removeTrackFromPlaylist = (playlistId: string, trackId: string) => {
-        setPlaylists(prev => prev.map(p => 
-            p.id === playlistId 
-            ? { ...p, tracks: p.tracks.filter(t => t.id !== trackId) }
-            : p
-        ));
+        setPlaylists(prev => {
+            const updated = prev.map(p => 
+                p.id === playlistId 
+                ? { ...p, tracks: p.tracks.filter(t => t.id !== trackId) }
+                : p
+            );
+            localStorage.setItem('dmc_playlists', JSON.stringify(updated));
+            return updated;
+        });
     };
 
     const importLocalTracks = (playlistId: string, files: File[]) => {
@@ -393,16 +452,54 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             isLocal: true
         }));
 
-        setPlaylists(prev => prev.map(p => 
-            p.id === playlistId 
-            ? { ...p, tracks: [...p.tracks, ...newTracks] }
-            : p
-        ));
+        setPlaylists(prev => {
+            const updated = prev.map(p => 
+                p.id === playlistId 
+                ? { ...p, tracks: [...p.tracks, ...newTracks] }
+                : p
+            );
+            localStorage.setItem('dmc_playlists', JSON.stringify(updated));
+            return updated;
+        });
     };
 
     const setVolumeWrapper = (vol: number) => {
         setVolume(Math.max(0, Math.min(1, vol)));
     }
+
+    // Trackable SFX Player
+    const playSfx = (url: string) => {
+        try {
+            const audio = new Audio(url);
+            audio.volume = volume; // Use current master volume
+            
+            // Track this SFX instance
+            activeSfxRef.current.add(audio);
+            
+            // Cleanup when done
+            audio.addEventListener('ended', () => {
+                activeSfxRef.current.delete(audio);
+            });
+            
+            // Cleanup on error
+            audio.addEventListener('error', () => {
+                activeSfxRef.current.delete(audio);
+            });
+
+            audio.play().catch(e => console.warn("SFX Play failed:", e));
+        } catch (e) {
+            console.error("SFX Error:", e);
+        }
+    };
+
+    // Stop all active sound effects immediately
+    const stopAllSfx = () => {
+        activeSfxRef.current.forEach(audio => {
+            audio.pause();
+            audio.currentTime = 0;
+        });
+        activeSfxRef.current.clear();
+    };
 
     return (
         <AudioContext.Provider value={{
@@ -423,7 +520,9 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             setVolume: setVolumeWrapper,
             addTrackToPlaylist,
             removeTrackFromPlaylist,
-            importLocalTracks
+            importLocalTracks,
+            playSfx,
+            stopAllSfx
         }}>
             {children}
         </AudioContext.Provider>
