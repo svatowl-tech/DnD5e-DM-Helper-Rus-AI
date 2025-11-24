@@ -4,7 +4,7 @@ import { CONDITIONS } from '../constants';
 import { RULES_DATA } from '../data/rulesData';
 import { EQUIPMENT_DB, EquipmentItem } from '../data/equipmentData';
 import { RuleSection, SavedImage } from '../types';
-import { Search, Sword, Map, Users, Crown, Zap, Skull, BookOpen, X, ChevronDown, ChevronUp, Sparkles, Loader, Shield, Backpack, PenTool, Hammer, Image as ImageIcon, ZoomIn, Eye, FlaskConical } from 'lucide-react';
+import { Search, Sword, Map, Users, Crown, Zap, Skull, BookOpen, X, ChevronDown, ChevronUp, Sparkles, Loader, Shield, Backpack, PenTool, Hammer, Image as ImageIcon, ZoomIn, Eye, FlaskConical, Dices } from 'lucide-react';
 import { generateExtendedDetails, generateItemCustomization, generateImage } from '../services/polzaService';
 
 interface DmScreenProps {
@@ -12,7 +12,7 @@ interface DmScreenProps {
     onShowImage?: (image: SavedImage) => void;
 }
 
-type Category = 'all' | 'combat' | 'exploration' | 'social' | 'magic' | 'dm' | 'conditions' | 'spells' | 'equipment' | 'alchemy';
+type Category = 'all' | 'combat' | 'exploration' | 'social' | 'magic' | 'dm' | 'conditions' | 'spells' | 'equipment' | 'alchemy' | 'lazy' | 'crafting';
 
 const RuleCard: React.FC<{ rule: RuleSection, onSpellClick?: (spell: string) => void }> = ({ rule, onSpellClick }) => {
     const [expanded, setExpanded] = useState(false);
@@ -29,6 +29,8 @@ const RuleCard: React.FC<{ rule: RuleSection, onSpellClick?: (spell: string) => 
                     {rule.category === 'conditions' && <Skull className="w-4 h-4 text-red-900/50"/>}
                     {rule.category === 'spells' && <Sparkles className="w-4 h-4 text-purple-900/50"/>}
                     {rule.category === 'alchemy' && <FlaskConical className="w-4 h-4 text-green-900/50"/>}
+                    {rule.category === 'lazy' && <Dices className="w-4 h-4 text-blue-500/50"/>}
+                    {rule.category === 'crafting' && <Hammer className="w-4 h-4 text-orange-500/50"/>}
                 </h3>
             </div>
             
@@ -138,8 +140,8 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
 
   const categories: { id: Category; label: string; icon: React.ReactNode }[] = [
       { id: 'all', label: 'Все', icon: <BookOpen className="w-4 h-4"/> },
-      { id: 'alchemy', label: 'Алхимия', icon: <FlaskConical className="w-4 h-4"/> },
-      { id: 'equipment', label: 'Снаряжение', icon: <Backpack className="w-4 h-4"/> },
+      { id: 'lazy', label: 'Ленивый ДМ', icon: <Dices className="w-4 h-4"/> },
+      { id: 'crafting', label: 'Ремесло', icon: <Hammer className="w-4 h-4"/> },
       { id: 'combat', label: 'Бой', icon: <Sword className="w-4 h-4"/> },
       { id: 'exploration', label: 'Мир', icon: <Map className="w-4 h-4"/> },
       { id: 'social', label: 'Социум', icon: <Users className="w-4 h-4"/> },
@@ -147,6 +149,8 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
       { id: 'dm', label: 'Мастер', icon: <Crown className="w-4 h-4"/> },
       { id: 'conditions', label: 'Состояния', icon: <Skull className="w-4 h-4"/> },
       { id: 'spells', label: 'Заклинания', icon: <Sparkles className="w-4 h-4"/> },
+      { id: 'equipment', label: 'Снаряжение', icon: <Backpack className="w-4 h-4"/> },
+      { id: 'alchemy', label: 'Алхимия', icon: <FlaskConical className="w-4 h-4"/> },
   ];
 
   const handleSpellClick = async (spellName: string) => {
@@ -218,7 +222,7 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
     <div className="h-full flex flex-col space-y-4 relative">
         {/* Spell Modal */}
         {spellModalOpen && (
-            <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+            <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
                 <div className="bg-dnd-card border-2 border-indigo-600 w-full max-w-2xl max-h-[80vh] rounded-lg shadow-2xl flex flex-col relative overflow-hidden">
                     <div className="p-4 bg-gray-900 border-b border-gray-700 flex justify-between items-center shrink-0">
                         <h3 className="text-xl font-serif font-bold text-indigo-400 flex items-center gap-2">
@@ -252,7 +256,7 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
 
         {/* Item Modal */}
         {itemModalOpen && selectedItem && (
-            <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+            <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
                 <div className="bg-dnd-card border-2 border-gold-600 w-full max-w-lg max-h-[90vh] rounded-lg shadow-2xl flex flex-col relative overflow-hidden">
                     <div className="p-4 bg-gray-900 border-b border-gray-700 flex justify-between items-center shrink-0">
                         <h3 className="text-xl font-serif font-bold text-gold-500 flex items-center gap-2">

@@ -6,7 +6,7 @@ import { searchMonsters, getMonsterDetails } from '../services/dndApiService';
 import { 
     ScrollText, Plus, Trash2, CheckCircle, Circle, Save, 
     Swords, Sparkles, Loader, ArrowLeft, Edit2, X, 
-    ChevronDown, ChevronUp, Wand2
+    ChevronDown, ChevronUp, Wand2, MapPin
 } from 'lucide-react';
 
 const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
@@ -301,17 +301,11 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
         }
     };
 
-    // Auto-resize textarea helper
-    const adjustTextareaHeight = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        e.target.style.height = 'auto';
-        e.target.style.height = e.target.scrollHeight + 'px';
-    };
-
     return (
         <div className="h-full flex gap-4 relative">
             {/* --- AI Modal --- */}
             {showAiModal && (
-                <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+                <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
                     <div className="bg-dnd-card border border-gold-600 w-full max-w-md rounded-lg shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
                         <div className="p-6 pb-2 shrink-0 border-b border-gray-800">
                             <h3 className="text-xl font-serif font-bold text-gold-500 mb-4 flex items-center gap-2">
@@ -410,6 +404,7 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
                                     {q.status === 'active' ? 'Активен' : q.status === 'completed' ? 'Завершен' : 'Провален'}
                                 </span>
                             </div>
+                            {q.location && <div className="flex items-center gap-1 mt-1 text-xs text-gold-600"><MapPin className="w-3 h-3"/> {q.location}</div>}
                             <p className="text-xs text-gray-500 mt-1 truncate">{q.summary || 'Нет описания'}</p>
                         </div>
                     ))}
@@ -462,14 +457,23 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
                         {/* Content */}
                         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar">
                             {/* Summary & Giver */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="bg-gray-900/50 p-3 rounded border border-gray-700">
-                                    <label className="text-xs text-gray-500 uppercase font-bold block mb-1">Заказчик / Локация</label>
+                                    <label className="text-xs text-gray-500 uppercase font-bold block mb-1">Заказчик</label>
                                     <input 
                                         className="w-full bg-transparent text-sm text-white outline-none"
                                         placeholder="Кто дал квест?"
                                         value={activeQuest.giver}
                                         onChange={e => updateQuest(activeQuest.id, { giver: e.target.value })}
+                                    />
+                                </div>
+                                <div className="bg-gray-900/50 p-3 rounded border border-gray-700">
+                                    <label className="text-xs text-gray-500 uppercase font-bold block mb-1">Локация</label>
+                                    <input 
+                                        className="w-full bg-transparent text-sm text-white outline-none"
+                                        placeholder="Где происходит?"
+                                        value={activeQuest.location || ''}
+                                        onChange={e => updateQuest(activeQuest.id, { location: e.target.value })}
                                     />
                                 </div>
                                 <div className="bg-gray-900/50 p-3 rounded border border-gray-700">

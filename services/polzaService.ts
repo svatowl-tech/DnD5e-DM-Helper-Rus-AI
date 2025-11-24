@@ -1,5 +1,5 @@
 
-import { CampaignSettings, FullQuest, CampaignNpc } from "../types";
+import { CampaignSettings, FullQuest, CampaignNpc, TravelResult } from "../types";
 
 // Available models per user request
 export const AVAILABLE_MODELS = [
@@ -240,6 +240,52 @@ export const generateImage = async (prompt: string, aspectRatio: string = "1:1")
 
 
 // --- Generators ---
+
+export const generateTravelScenario = async (
+    from: string,
+    to: string,
+    regionContext: string,
+    method: string,
+    pace: string
+): Promise<TravelResult> => {
+    const context = getCampaignContext();
+    const systemPrompt = `Ты — Мастер Подземелий (DM), ведущий игру D&D 5e. ${context}
+    Твоя задача — сгенерировать сценарий путешествия между двумя точками.
+    
+    Входные данные:
+    - Откуда: ${from}
+    - Куда: ${to}
+    - Регион/Контекст: ${regionContext}
+    - Способ: ${method}
+    - Темп: ${pace}
+
+    Верни JSON со следующей структурой:
+    {
+      "summary": "Краткое описание всего маршрута и атмосферы (1-2 предложения).",
+      "duration": Число дней пути (int),
+      "events": [
+        {
+          "day": Номер дня (int),
+          "type": "combat" | "social" | "discovery" | "weather" | "quiet",
+          "title": "Короткий заголовок события",
+          "description": "Художественное описание события (2-3 предложения).",
+          "threats": ["Имя монстра 1", "Имя монстра 2"] (только для combat),
+          "loot": ["Предмет 1"] (только для discovery),
+          "mechanic": "Описание механики, проверки навыка или спасброска (если нужно)"
+        }
+      ]
+    }
+    Сгенерируй от 2 до 5 событий в зависимости от расстояния и опасности региона. 
+    Используй русский язык. Отвечай ТОЛЬКО валидным JSON.`;
+
+    return withRetry(async () => {
+        const text = await makeRequest([
+            { role: "system", content: systemPrompt },
+            { role: "user", content: "Сгенерируй путешествие." }
+        ], true);
+        return JSON.parse(cleanText(text));
+    });
+};
 
 export const generateItemCustomization = async (itemName: string, itemType: string, userContext?: string): Promise<any> => {
     const contextPrompt = userContext ? `Пожелания пользователя: "${userContext}".` : "";

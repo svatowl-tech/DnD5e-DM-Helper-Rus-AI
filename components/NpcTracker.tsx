@@ -337,7 +337,7 @@ const NpcTracker: React.FC<NpcTrackerProps> = ({ addLog, onImageGenerated }) => 
             
             {/* --- AI Modal --- */}
             {showAiModal && (
-                <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+                <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
                     <div className="bg-dnd-card border border-gold-600 w-full max-w-md rounded-lg shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
                         <div className="p-6 pb-2 shrink-0 border-b border-gray-800">
                             <h3 className="text-xl font-serif font-bold text-gold-500 mb-4 flex items-center gap-2">

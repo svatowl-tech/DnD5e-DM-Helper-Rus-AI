@@ -118,7 +118,7 @@ const SoundBoard: React.FC = () => {
 
         {/* --- Playlist Detail Modal --- */}
         {viewedPlaylist && (
-            <div className="absolute inset-0 z-40 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95">
+            <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95">
                 <div className="bg-dnd-dark border border-gold-600 w-full max-w-2xl h-[85vh] rounded-xl shadow-2xl flex flex-col overflow-hidden">
                     
                     {/* Header */}

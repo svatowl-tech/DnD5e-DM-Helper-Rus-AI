@@ -101,43 +101,45 @@ export interface QuestObjective {
 export interface FullQuest {
     id: string;
     title: string;
+    location?: string; // Location binding
     status: 'active' | 'completed' | 'failed';
     giver: string;
     summary: string;
     description: string; // Full text / HTML
-    objectives: QuestObjective[];
-    threats: string[]; // List of monster names
-    reward: string;
-    location?: string;
-    level?: number;
+    objectives?: QuestObjective[];
+    threats?: string[];
+    reward?: string;
 }
 
-export interface BreachEvent {
-    title: string;
-    description: string;
-    threats: string[]; // List of enemies involved in the event
-    goal: string; // What players need to do
-}
-
-export interface LocationData {
-  id?: string;
+// Data Types
+export interface EquipmentItem {
+  index: string;
   name: string;
-  type?: string; // City, Ruins, Forest, etc.
-  description: string;
-  atmosphere: string;
-  npcs: NpcData[];
-  secrets: string[];
-  monsters: string[]; // Suggested monster types (e.g. "Orc", "Undead")
-  loot: string[];
-  quests?: QuestData[];
-  // Project Ark specific fields
-  originWorld?: string;
-  anomalyEffect?: string;
-  anchor?: string;
-  breachEvent?: BreachEvent; // Specific event happening in the breach
+  category: string;
+  subcategory?: string;
+  cost: string;
+  weight?: number;
+  description?: string;
+  damage?: string;
+  damageType?: string;
+  range?: string;
+  properties?: string[];
+  ac?: number;
+  dexBonus?: boolean;
+  maxDexBonus?: number;
+  stealthDisadvantage?: boolean;
+  strReq?: number;
 }
 
-// Structure for the static handbook
+export interface RuleSection {
+  id: string;
+  title: string;
+  category: 'combat' | 'exploration' | 'social' | 'magic' | 'dm' | 'equipment' | 'alchemy' | 'conditions' | 'spells' | 'lazy' | 'crafting';
+  content?: string;
+  table?: { label: string; value: string }[];
+  list?: string[];
+}
+
 export interface LoreEntry {
     id: string;
     name: string;
@@ -145,38 +147,127 @@ export interface LoreEntry {
     capital?: string;
     ruler?: string;
     population?: string;
-    locations: LocationData[]; // Cities, ruins, forests within the region
+    locations: LocationData[];
+}
+
+export interface LocationData {
+    id?: string;
+    name: string;
+    type: string;
+    description: string;
+    atmosphere: string;
+    npcs?: NpcData[];
+    secrets?: string[];
+    monsters?: string[];
+    loot?: string[];
+    quests?: QuestData[];
+    originWorld?: string;
+    anomalyEffect?: string;
+    anchor?: string;
+    breachEvent?: {
+        title: string;
+        description: string;
+        goal: string;
+        threats: string[];
+    };
+}
+
+// Travel Types
+export interface TravelEvent {
+    day: number;
+    type: 'combat' | 'social' | 'discovery' | 'weather' | 'quiet';
+    title: string;
+    description: string; // Narrative
+    threats?: string[]; // For combat
+    loot?: string[]; // For discoveries
+    locationName?: string; // If a POI is found
+    mechanic?: string; // e.g. "Survival DC 15 to avoid exhaustion"
+}
+
+export interface TravelResult {
+    summary: string;
+    duration: number; // Days
+    events: TravelEvent[];
 }
 
 export interface Note {
-  id: string;
-  title: string;
-  content: string;
-  tags: string[];
-  type: 'session' | 'location' | 'npc' | 'quest';
-  date: string;
+    id: string;
+    title: string;
+    content: string;
+    tags: string[];
+    type: 'session' | 'npc' | 'location' | 'quest' | 'other';
+    date: string;
 }
 
 export interface SavedImage {
-  id: string;
-  url: string;
-  title: string;
-  type: 'npc' | 'location' | 'item' | 'monster';
-  timestamp: number;
+    id: string;
+    url: string;
+    title: string;
+    type: 'npc' | 'location' | 'item' | 'monster' | 'other';
+    timestamp: number;
+}
+
+// Audio Types
+export type AudioCategory = 'atmosphere' | 'combat' | 'mood' | 'travel' | 'comedy' | 'scifi' | 'special';
+
+export interface Track {
+    id: string;
+    title: string;
+    artist?: string;
+    url: string;
+    isLocal?: boolean;
+}
+
+export interface Playlist {
+    id: string;
+    name: string;
+    category: AudioCategory;
+    tracks: Track[];
+}
+
+export interface AudioContextType {
+    playlists: Playlist[];
+    currentTrack: Track | null;
+    currentPlaylistId: string | null;
+    isPlaying: boolean;
+    isShuffle: boolean;
+    volume: number;
+    isLoading: boolean;
+    error: string | null;
+    playTrack: (track: Track, playlistId: string) => void;
+    playPlaylist: (playlistId: string, shuffle?: boolean) => void;
+    togglePlay: () => void;
+    toggleShuffle: () => void;
+    playNext: () => void;
+    playPrev: () => void;
+    setVolume: (vol: number) => void;
+    addTrackToPlaylist: (playlistId: string, track: Track) => void;
+    removeTrackFromPlaylist: (playlistId: string, trackId: string) => void;
+    importLocalTracks: (playlistId: string, files: File[]) => void;
 }
 
 export enum Tab {
   DASHBOARD = 'dashboard',
-  LOCATION = 'location',
-  QUESTS = 'quests',
-  NPCS = 'npcs', // NEW TAB
-  PARTY = 'party',
   COMBAT = 'combat',
-  NOTES = 'notes',
   GENERATORS = 'generators',
   SCREEN = 'screen',
+  NOTES = 'notes',
+  PARTY = 'party',
+  LOCATION = 'location',
   SOUNDS = 'sounds',
-  GALLERY = 'gallery'
+  QUESTS = 'quests',
+  GALLERY = 'gallery',
+  NPCS = 'npcs'
+}
+
+export interface GeneratorsProps {
+    onImageGenerated?: (image: SavedImage) => void;
+    onShowImage?: (image: SavedImage) => void;
+    addLog: (entry: LogEntry) => void;
+}
+
+export interface PartyManagerProps {
+    addLog: (entry: LogEntry) => void;
 }
 
 export interface LocationTrackerProps {
@@ -186,70 +277,11 @@ export interface LocationTrackerProps {
     onShowImage?: (image: SavedImage) => void;
 }
 
-export interface GeneratorsProps {
-    addLog: (entry: LogEntry) => void;
-    onImageGenerated?: (image: SavedImage) => void;
-    onShowImage?: (image: SavedImage) => void;
-}
-
 export interface QuestTrackerProps {
     addLog: (entry: LogEntry) => void;
-}
-
-export interface PartyManagerProps {
-    addLog?: (entry: LogEntry) => void;
 }
 
 export interface NpcTrackerProps {
     addLog: (entry: LogEntry) => void;
     onImageGenerated?: (image: SavedImage) => void;
-}
-
-export interface RuleSection {
-  id: string;
-  title: string;
-  category: 'combat' | 'exploration' | 'social' | 'magic' | 'dm' | 'conditions' | 'spells' | 'equipment' | 'alchemy';
-  content?: string;
-  table?: { label: string; value: string }[];
-  list?: string[];
-}
-
-// --- Audio Types ---
-
-export type AudioCategory = 'atmosphere' | 'mood' | 'combat' | 'travel' | 'special' | 'comedy' | 'scifi';
-
-export interface Track {
-  id: string;
-  title: string;
-  artist?: string;
-  url: string;
-  isLocal?: boolean;
-}
-
-export interface Playlist {
-  id: string;
-  name: string;
-  category: AudioCategory;
-  tracks: Track[];
-}
-
-export interface AudioContextType {
-  playlists: Playlist[];
-  currentTrack: Track | null;
-  currentPlaylistId: string | null;
-  isPlaying: boolean;
-  isShuffle: boolean; // New
-  volume: number;
-  isLoading: boolean;
-  error: string | null;
-  playTrack: (track: Track, playlistId: string) => void;
-  playPlaylist: (playlistId: string, shuffle?: boolean) => void; // New
-  togglePlay: () => void;
-  toggleShuffle: () => void; // New
-  playNext: () => void;
-  playPrev: () => void;
-  setVolume: (vol: number) => void;
-  addTrackToPlaylist: (playlistId: string, track: Track) => void;
-  removeTrackFromPlaylist: (playlistId: string, trackId: string) => void;
-  importLocalTracks: (playlistId: string, files: File[]) => void;
 }

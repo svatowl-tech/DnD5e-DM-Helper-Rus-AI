@@ -419,7 +419,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
 
       {/* --- Initiative Roll Modal --- */}
       {showInitModal && (
-          <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
               <div className="bg-dnd-card border-2 border-gold-600 w-full max-w-lg rounded-lg shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
                   <div className="p-4 bg-gray-900 border-b border-gray-700 flex justify-between items-center shrink-0">
                       <h3 className="text-xl font-serif font-bold text-gold-500 flex items-center gap-2">
@@ -469,7 +469,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
 
       {/* --- Victory Modal --- */}
       {showVictoryModal && (
-          <div className="absolute inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95">
+          <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95">
               <div className="bg-dnd-card border-2 border-gold-600 w-full max-w-lg rounded-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                   <div className="bg-gradient-to-r from-gold-600 to-yellow-500 p-4 text-center shrink-0">
                       <h2 className="text-3xl font-serif font-bold text-black flex items-center justify-center gap-2">

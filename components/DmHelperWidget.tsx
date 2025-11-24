@@ -46,7 +46,7 @@ const DmHelperWidget: React.FC = () => {
         return (
             <button 
                 onClick={() => setIsOpen(true)}
-                className="fixed bottom-20 right-4 z-40 bg-gold-600 text-black p-3 rounded-full shadow-lg hover:scale-110 transition-transform border-2 border-white xl:bottom-4"
+                className="fixed bottom-28 right-4 z-[60] bg-gold-600 text-black p-3 rounded-full shadow-lg hover:scale-110 transition-transform border-2 border-white xl:bottom-32"
                 title="Помощник ДМ"
             >
                 <BrainCircuit className="w-6 h-6" />
@@ -55,7 +55,7 @@ const DmHelperWidget: React.FC = () => {
     }
 
     return (
-        <div className="fixed bottom-20 right-4 z-40 bg-dnd-card border border-gold-600 rounded-lg shadow-2xl w-80 overflow-hidden animate-in slide-in-from-bottom-5 xl:bottom-4 flex flex-col max-h-[600px]">
+        <div className="fixed bottom-28 right-4 z-[60] bg-dnd-card border border-gold-600 rounded-lg shadow-2xl w-80 overflow-hidden animate-in slide-in-from-bottom-5 xl:bottom-32 flex flex-col max-h-[500px]">
             <div className="flex justify-between items-center bg-gray-900 p-2 border-b border-gray-700 shrink-0">
                 <h4 className="font-bold text-gold-500 text-sm flex items-center gap-2"><BrainCircuit className="w-4 h-4"/> DM Helper</h4>
                 <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-white"><X className="w-4 h-4"/></button>

@@ -1,12 +1,42 @@
 
 import React, { useState, useEffect } from 'react';
-import { LocationData, PartyMember, Combatant, EntityType, LoreEntry, LocationTrackerProps, Note, SavedImage } from '../types';
-import { parseLoreFromText, generateEncounterIntro, generateScenarioDescription, generateFullLocation, generateLocationContent, generateExtendedDetails, generateMultiverseBreach, generateRealityGlitch, generateImage } from '../services/polzaService';
+import { LocationData, PartyMember, Combatant, EntityType, LoreEntry, LocationTrackerProps, Note, SavedImage, TravelResult, CampaignNpc, FullQuest } from '../types';
+import { parseLoreFromText, generateEncounterIntro, generateScenarioDescription, generateFullLocation, generateLocationContent, generateExtendedDetails, generateMultiverseBreach, generateRealityGlitch, generateImage, generateNpc, generateQuest } from '../services/polzaService';
 import { getMonstersByCr } from '../services/dndApiService';
-import { MapPin, Users, Skull, Sparkles, BookOpen, Loader, Search, Eye, ChevronRight, ArrowRight, Menu, Map, Copy, Plus, Home, Trees, Tent, Castle, ArrowLeft, LandPlot, Landmark, Beer, Footprints, ShieldAlert, Ghost, Info, X, Save, FileText, RefreshCcw, ChevronDown, ChevronUp, Zap, Anchor, Globe, Hexagon, Activity, Radio, Flame, Image as ImageIcon, ZoomIn, Church, Building, Mountain, ScrollText, Swords, UserPlus } from 'lucide-react';
+import { MapPin, Users, Skull, Sparkles, BookOpen, Loader, Search, Eye, ChevronRight, ArrowRight, Menu, Map, Copy, Plus, Home, Trees, Tent, Castle, ArrowLeft, LandPlot, Landmark, Beer, Footprints, ShieldAlert, Ghost, Info, X, Save, FileText, RefreshCcw, ChevronDown, ChevronUp, Zap, Anchor, Globe, Hexagon, Activity, Radio, Flame, Image as ImageIcon, ZoomIn, Church, Building, Mountain, ScrollText, Swords, UserPlus, Pickaxe, Wheat, Ship, ShoppingBag, Gavel, Gem, Compass, UserSquare2, PenTool, Wand2 } from 'lucide-react';
 import { FAERUN_LORE } from '../data/faerunLore';
 import { useAudio } from '../contexts/AudioContext';
 import SmartText from './SmartText';
+import TravelManager from './TravelManager';
+
+// Extended location types for the generator grid
+const GENERIC_LOCATIONS = [
+    { label: 'Деревня', icon: <Home className="w-6 h-6 text-green-500"/>, type: 'Небольшая деревня' },
+    { label: 'Город', icon: <Landmark className="w-6 h-6 text-blue-400"/>, type: 'Крупный торговый город' },
+    { label: 'Руины', icon: <Castle className="w-6 h-6 text-gray-400"/>, type: 'Древние руины' },
+    { label: 'Лес', icon: <Trees className="w-6 h-6 text-emerald-500"/>, type: 'Лесная чаща' },
+    { label: 'Таверна', icon: <Beer className="w-6 h-6 text-yellow-500"/>, type: 'Придорожная таверна' },
+    { label: 'Пещера', icon: <Mountain className="w-6 h-6 text-stone-500"/>, type: 'Глубокая пещера' },
+    { label: 'Лагерь', icon: <Tent className="w-6 h-6 text-orange-400"/>, type: 'Лагерь бандитов или наемников' },
+    { label: 'Башня Мага', icon: <Zap className="w-6 h-6 text-purple-500"/>, type: 'Одинокая башня волшебника' },
+    { label: 'Храм', icon: <Church className="w-6 h-6 text-gold-500"/>, type: 'Забытый храм' },
+    { label: 'Подземелье', icon: <Skull className="w-6 h-6 text-red-500"/>, type: 'Опасное подземелье' },
+    { label: 'Кладбище', icon: <Ghost className="w-6 h-6 text-gray-300"/>, type: 'Старое кладбище' },
+    { label: 'Порт', icon: <Anchor className="w-6 h-6 text-blue-600"/>, type: 'Портовый док' },
+    { label: 'Мост', icon: <LandPlot className="w-6 h-6 text-stone-400"/>, type: 'Переправа или мост' },
+    { label: 'Оазис', icon: <Trees className="w-6 h-6 text-teal-400"/>, type: 'Оазис в пустоши' },
+    { label: 'Крепость', icon: <ShieldAlert className="w-6 h-6 text-zinc-400"/>, type: 'Военный форпост' },
+    { label: 'Шахта', icon: <Pickaxe className="w-6 h-6 text-stone-600"/>, type: 'Заброшенная шахта' },
+    { label: 'Ферма', icon: <Wheat className="w-6 h-6 text-yellow-600"/>, type: 'Одинокая ферма' },
+    { label: 'Корабль', icon: <Ship className="w-6 h-6 text-blue-500"/>, type: 'Корабль (или обломки)' },
+    { label: 'Рынок', icon: <ShoppingBag className="w-6 h-6 text-orange-500"/>, type: 'Шумный рынок' },
+    { label: 'Тюрьма', icon: <Gavel className="w-6 h-6 text-gray-500"/>, type: 'Темница или тюрьма' },
+    { label: 'Портал', icon: <Globe className="w-6 h-6 text-purple-400"/>, type: 'Древний портал' },
+    { label: 'Усадьба', icon: <Home className="w-6 h-6 text-indigo-400"/>, type: 'Богатое поместье' },
+    { label: 'Сокровищница', icon: <Gem className="w-6 h-6 text-pink-500"/>, type: 'Тайная сокровищница' },
+    { label: 'Библиотека', icon: <BookOpen className="w-6 h-6 text-amber-700"/>, type: 'Древняя библиотека' },
+    { label: 'Арена', icon: <Swords className="w-6 h-6 text-red-600"/>, type: 'Бойцовская арена' },
+];
 
 const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, onImageGenerated, onShowImage }) => {
     // Audio Context for automation
@@ -16,11 +46,16 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         const savedLore = localStorage.getItem('dmc_lore');
         return savedLore ? JSON.parse(savedLore) : FAERUN_LORE;
     });
+    
+    // Global Tracker Data
+    const [trackerNpcs, setTrackerNpcs] = useState<CampaignNpc[]>([]);
+    const [trackerQuests, setTrackerQuests] = useState<FullQuest[]>([]);
+
     const [location, setLocation] = useState<LocationData | null>(null);
     const [selectedRegion, setSelectedRegion] = useState<LoreEntry | null>(null);
     const [loreInput, setLoreInput] = useState('');
     const [loading, setLoading] = useState(false);
-    const [breachLoading, setBreachLoading] = useState(false); // New state for Breach loading
+    const [breachLoading, setBreachLoading] = useState(false); 
     const [generatingSection, setGeneratingSection] = useState<string | null>(null);
     const [party, setParty] = useState<PartyMember[]>([]);
     const [showLoreInput, setShowLoreInput] = useState(false);
@@ -30,17 +65,38 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     const [handbookSearch, setHandbookSearch] = useState('');
     const [expandedRegion, setExpandedRegion] = useState<string | null>(null);
     const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+    const [showTravel, setShowTravel] = useState(false);
     
+    // Travel State Persistence
+    const [activeTravelPlan, setActiveTravelPlan] = useState<{result: TravelResult, completed: number[]} | null>(null);
+
     // Image Generation State
     const [locationImage, setLocationImage] = useState<SavedImage | null>(null);
     const [imageLoading, setImageLoading] = useState(false);
 
-    // Modal State
+    // Modal State (Detail)
     const [modalOpen, setModalOpen] = useState(false);
     const [modalContent, setModalContent] = useState<string>('');
     const [modalTitle, setModalTitle] = useState('');
     const [modalCategory, setModalCategory] = useState('');
     const [modalLoading, setModalLoading] = useState(false);
+
+    // Add Custom Entity Modal State
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [addEntityType, setAddEntityType] = useState<'npc' | 'quest'>('npc');
+    const [addEntityName, setAddEntityName] = useState('');
+    const [addEntityDesc, setAddEntityDesc] = useState('');
+    const [useAiGeneration, setUseAiGeneration] = useState(false);
+    const [addLoading, setAddLoading] = useState(false);
+
+    // --- INITIALIZATION & LISTENERS ---
+
+    const loadTrackerData = () => {
+        const savedNpcs = localStorage.getItem('dmc_npcs');
+        if (savedNpcs) setTrackerNpcs(JSON.parse(savedNpcs));
+        const savedQuests = localStorage.getItem('dmc_quests');
+        if (savedQuests) setTrackerQuests(JSON.parse(savedQuests));
+    };
 
     useEffect(() => {
         localStorage.setItem('dmc_lore', JSON.stringify(lore));
@@ -58,6 +114,23 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             const region = lore.find(r => r.id === savedRegionId);
             if (region) setSelectedRegion(region);
         }
+        
+        const savedTravel = localStorage.getItem('dmc_active_travel');
+        if (savedTravel) setActiveTravelPlan(JSON.parse(savedTravel));
+
+        loadTrackerData();
+
+        // Listen for updates from other components
+        const handleUpdateNpcs = () => loadTrackerData();
+        const handleUpdateQuests = () => loadTrackerData();
+
+        window.addEventListener('dmc-update-npcs', handleUpdateNpcs);
+        window.addEventListener('dmc-update-quests', handleUpdateQuests);
+
+        return () => {
+            window.removeEventListener('dmc-update-npcs', handleUpdateNpcs);
+            window.removeEventListener('dmc-update-quests', handleUpdateQuests);
+        };
     }, []); 
 
     useEffect(() => {
@@ -70,7 +143,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     useEffect(() => {
         if (location) {
             localStorage.setItem('dmc_active_location', JSON.stringify(location));
-            setLocationImage(null); // Reset image when location changes
+            setLocationImage(null); 
         } else {
             localStorage.removeItem('dmc_active_location');
         }
@@ -84,59 +157,163 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         }
     }, [selectedRegion]);
 
-    // Helper to set location and log it
+    useEffect(() => {
+        if (activeTravelPlan) {
+            localStorage.setItem('dmc_active_travel', JSON.stringify(activeTravelPlan));
+        } else {
+            localStorage.removeItem('dmc_active_travel');
+        }
+    }, [activeTravelPlan]);
+
+    // --- DATA MERGING LOGIC ---
+
+    const getMergedNpcs = () => {
+        if (!location) return [];
+        
+        const activeNpcs = trackerNpcs.filter(n => n.location === location.name);
+        const loreNpcs = location.npcs || [];
+        
+        // If name matches, use Tracker version (it's persistent/active)
+        const merged = [
+            ...activeNpcs.map(n => ({ ...n, source: 'tracker', original: n })),
+            ...loreNpcs.filter(ln => !activeNpcs.some(an => an.name === ln.name)).map(n => ({ ...n, source: 'lore', original: n }))
+        ];
+        return merged;
+    };
+
+    const getMergedQuests = () => {
+        if (!location) return [];
+
+        const activeQuests = trackerQuests.filter(q => q.location === location.name || q.giver === location.name);
+        const loreQuests = location.quests || [];
+
+        // Quests usually don't duplicate names as often, but same logic applies
+        const merged = [
+            ...activeQuests.map(q => ({ 
+                title: q.title, 
+                description: q.summary || q.description, // Use summary for list view
+                source: 'tracker',
+                original: q
+            })),
+            ...loreQuests.filter(lq => !activeQuests.some(aq => aq.title === lq.title)).map(q => ({
+                ...q,
+                source: 'lore',
+                original: q
+            }))
+        ];
+        return merged;
+    };
+
+    // --- ACTION HANDLERS ---
+
     const setLocationAndLog = (loc: LocationData) => {
         setLocation(loc);
         setShowHandbook(false);
         setEncounterIntro('');
         
-        // Narrative Log
         addLog({
             id: Date.now().toString(),
             timestamp: Date.now(),
-            text: `[Локация] ${loc.name}`, // Tag used by SessionWizard
+            text: `[Локация] ${loc.name}`, 
             type: 'story'
         });
 
         triggerLocationMusic(loc);
     };
 
-    // Automation: Play music when location changes significantly
+    const handleTravelUpdate = (plan: TravelResult, completedEvents: number[]) => {
+        setActiveTravelPlan({ result: plan, completed: completedEvents });
+    };
+
+    const handleTravelComplete = (newLocation: LocationData, newRegionId?: string) => {
+        if (newRegionId) {
+            const newRegion = lore.find(r => r.id === newRegionId);
+            if (newRegion) setSelectedRegion(newRegion);
+        }
+        setLocationAndLog(newLocation);
+        setActiveTravelPlan(null);
+    };
+
     const triggerLocationMusic = (loc: LocationData) => {
         const text = (loc.type + ' ' + loc.name + ' ' + loc.atmosphere).toLowerCase();
-        
-        let playlistId = 'atmosphere'; // Default
+        let playlistId = 'atmosphere'; 
 
-        if (loc.originWorld) {
-            playlistId = 'scifi';
-        } else if (text.includes('лес') || text.includes('роща') || text.includes('чаща') || text.includes('forest')) {
-            playlistId = 'forest';
-        } else if (text.includes('подземел') || text.includes('пещер') || text.includes('склеп') || text.includes('руины') || text.includes('dungeon')) {
-            playlistId = 'dungeon';
-        } else if (text.includes('таверна') || text.includes('трактир') || text.includes('inn') || text.includes('tavern')) {
-            playlistId = 'tavern';
-        } else if (text.includes('город') || text.includes('порт') || text.includes('столица') || text.includes('city')) {
-            playlistId = 'city';
-        } else if (text.includes('пустын') || text.includes('песк') || text.includes('восток') || text.includes('desert')) {
-            playlistId = 'eastern';
-        }
+        if (loc.originWorld) playlistId = 'scifi';
+        else if (text.includes('лес') || text.includes('роща') || text.includes('чаща') || text.includes('forest')) playlistId = 'forest';
+        else if (text.includes('подземел') || text.includes('пещер') || text.includes('склеп') || text.includes('руины') || text.includes('dungeon')) playlistId = 'dungeon';
+        else if (text.includes('таверна') || text.includes('трактир') || text.includes('inn') || text.includes('tavern')) playlistId = 'tavern';
+        else if (text.includes('город') || text.includes('порт') || text.includes('столица') || text.includes('city')) playlistId = 'city';
+        else if (text.includes('пустын') || text.includes('песк') || text.includes('восток') || text.includes('desert')) playlistId = 'eastern';
 
-        // Play in shuffle mode for ambient variety
         playPlaylist(playlistId, true);
     };
 
-    // --- CROSS-LINK ACTIONS ---
+    const handleOpenItem = (item: any) => {
+        if (item.source === 'tracker') {
+            const type = addEntityType === 'npc' ? 'npc' : 'quest'; // Just for type inference
+            // Open global detail modal for tracker items
+            const event = new CustomEvent('dmc-show-details', {
+                detail: { type: item.original.race ? 'npc' : 'quest', id: item.original.name || item.original.title, title: item.original.name || item.original.title }
+            });
+            window.dispatchEvent(event);
+        } else {
+            // Open AI detail modal for lore items
+            openDetailModal(item.original.race ? 'npc' : 'quest', item.original.name || item.original.title);
+        }
+    };
 
-    const handleTrackQuest = (quest: any) => {
-        const event = new CustomEvent('dmc-add-quest', { 
-            detail: {
-                title: quest.title,
-                description: quest.description,
-                giver: location?.name || 'Локация'
-            } 
-        });
-        window.dispatchEvent(event);
-        addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Квест "${quest.title}" добавлен в Трекер.`, type: 'system' });
+    const handleAddEntity = async () => {
+        if (!location || !addEntityName) return;
+        setAddLoading(true);
+
+        try {
+            if (addEntityType === 'npc') {
+                let npcData: Partial<CampaignNpc> = {
+                    name: addEntityName,
+                    description: addEntityDesc,
+                    location: location.name,
+                    race: 'Гуманоид',
+                    class: 'Обыватель',
+                    status: 'alive',
+                    attitude: 'neutral'
+                };
+
+                if (useAiGeneration) {
+                    const aiResult = await generateNpc(addEntityName + " " + addEntityDesc);
+                    npcData = { ...npcData, ...aiResult, location: location.name };
+                }
+
+                const event = new CustomEvent('dmc-add-npc', { detail: npcData });
+                window.dispatchEvent(event);
+            } else {
+                let questData: Partial<FullQuest> = {
+                    title: addEntityName,
+                    description: addEntityDesc,
+                    giver: location.name,
+                    location: location.name,
+                    summary: addEntityDesc,
+                    status: 'active'
+                };
+
+                if (useAiGeneration) {
+                    // Using generateQuest which returns HTML, parsing manually for now or using it as desc
+                    const aiHtml = await generateQuest('3', addEntityName + ". " + addEntityDesc + ". Context: " + location.name);
+                    questData.description = aiHtml;
+                    questData.summary = "Сгенерировано AI";
+                }
+
+                const event = new CustomEvent('dmc-add-quest', { detail: questData });
+                window.dispatchEvent(event);
+            }
+            
+            setIsAddModalOpen(false);
+            setAddEntityName('');
+            setAddEntityDesc('');
+        } catch (e: any) {
+            alert("Ошибка добавления: " + e.message);
+        } finally {
+            setAddLoading(false);
+        }
     };
 
     const handleFightNpc = (npc: any) => {
@@ -144,10 +321,8 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             detail: {
                 name: npc.name,
                 type: 'MONSTER',
-                notes: `${npc.race} ${npc.class}. ${npc.description}`,
-                hp: 20, // Default
-                ac: 12, // Default
-                initiative: 10
+                notes: `${npc.race || ''} ${npc.class || ''}. ${npc.description}`,
+                hp: 20, ac: 12, initiative: 10
             }
         });
         window.dispatchEvent(event);
@@ -170,6 +345,20 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `${npc.name} добавлен в NPC Трекер.`, type: 'system' });
     };
 
+    const handleTrackQuest = (quest: any) => {
+        const event = new CustomEvent('dmc-add-quest', { 
+            detail: {
+                title: quest.title,
+                description: quest.description,
+                giver: location?.name || 'Локация',
+                location: location?.name
+            } 
+        });
+        window.dispatchEvent(event);
+        addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Квест "${quest.title}" добавлен в Трекер.`, type: 'system' });
+    };
+
+    // ... Existing Handlers ...
     const handleParseLore = async () => {
         if (!loreInput) return;
         setLoading(true);
@@ -211,25 +400,14 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         }
     };
 
-    // Project Ark Generators
     const handleGenerateBreach = async () => {
-        setBreachLoading(true); // Start special loading
+        setBreachLoading(true); 
         try {
             const breach = await generateMultiverseBreach();
             breach.id = Date.now().toString();
-            
-            // Small delay to ensure animation plays smoothly if API is too fast
             await new Promise(r => setTimeout(r, 1500));
-            
             setLocationAndLog(breach);
-            
-            addLog({
-                id: Date.now().toString(),
-                timestamp: Date.now(),
-                text: `[КОВЧЕГ] ⚠️ ВНИМАНИЕ! Обнаружен разлом: ${breach.name}. Источник: ${breach.originWorld}.`,
-                type: 'combat' // Red highlighting for importance
-            });
-
+            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[КОВЧЕГ] ⚠️ ВНИМАНИЕ! Обнаружен разлом: ${breach.name}. Источник: ${breach.originWorld}.`, type: 'combat' });
         } catch (e: any) {
             alert(`Ошибка генерации разлома: ${e.message}. Попробуйте еще раз.`);
         } finally {
@@ -242,19 +420,11 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         setLoading(true);
         try {
             const glitch = await generateRealityGlitch(location.name);
-            
             setModalTitle(`Аномалия: ${glitch.name}`);
             setModalContent(`<p class="text-lg text-purple-300 font-bold border-l-4 border-purple-500 pl-4 py-2 bg-purple-900/20">${glitch.effect}</p>`);
             setModalCategory('glitch');
             setModalOpen(true);
-
-            addLog({
-                id: Date.now().toString(),
-                timestamp: Date.now(),
-                text: `[АНОМАЛИЯ] ${glitch.name}: ${glitch.effect}`,
-                type: 'combat'
-            });
-
+            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[АНОМАЛИЯ] ${glitch.name}: ${glitch.effect}`, type: 'combat' });
         } catch (e: any) {
             alert(`Ошибка: ${e.message}`);
         } finally {
@@ -264,17 +434,12 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
 
     const handleSaveLocationToHandbook = () => {
         if (!selectedRegion || !location) return;
-
         setLore(prevLore => {
             return prevLore.map(region => {
                 if (region.id === selectedRegion.id) {
-                    const existingIndex = region.locations.findIndex(l => 
-                        (location.id && l.id === location.id) || l.name === location.name
-                    );
-
+                    const existingIndex = region.locations.findIndex(l => (location.id && l.id === location.id) || l.name === location.name);
                     const updatedLocations = [...region.locations];
                     const locationToSave = { ...location, id: location.id || Date.now().toString() };
-
                     if (existingIndex >= 0) {
                         updatedLocations[existingIndex] = locationToSave;
                         addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Локация "${location.name}" обновлена в справочнике.`, type: 'system' });
@@ -282,16 +447,12 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                         updatedLocations.push(locationToSave);
                         addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Локация "${location.name}" добавлена в справочник.`, type: 'system' });
                     }
-                    
                     return { ...region, locations: updatedLocations };
                 }
                 return region;
             });
         });
-        
-        if (!location.id) {
-             setLocation(prev => prev ? ({...prev, id: Date.now().toString()}) : null);
-        }
+        if (!location.id) { setLocation(prev => prev ? ({...prev, id: Date.now().toString()}) : null); }
     };
 
     const handleGenerateContent = async (category: 'npc' | 'secret' | 'loot' | 'quest') => {
@@ -299,7 +460,6 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         setGeneratingSection(category);
         try {
             const newItems = await generateLocationContent(location.name, category);
-            
             setLocation(prev => {
                 if (!prev) return null;
                 const updated = { ...prev };
@@ -309,7 +469,6 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                 if (category === 'quest') updated.quests = [...(prev.quests || []), ...newItems];
                 return updated;
             });
-
         } catch (e: any) {
             console.error(e);
             alert(`Ошибка генерации контента: ${e.message}`);
@@ -333,50 +492,28 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     };
 
     const generateEncounter = async () => {
-        if (party.length === 0) {
-            alert("Нет активных героев.");
-            return;
-        }
+        if (party.length === 0) { alert("Нет активных героев."); return; }
         setEncounterLoading(true);
         setEncounterIntro('');
-
         const avgLevel = party.reduce((sum, p) => sum + p.level, 0) / party.length;
         const minCr = Math.max(0, Math.floor(avgLevel / 4));
         const maxCr = Math.max(1, Math.ceil(avgLevel)); 
-
-        const monsterTypeContext = location?.monsters && location.monsters.length > 0 
-            ? location.monsters[Math.floor(Math.random() * location.monsters.length)] 
-            : undefined;
-
+        const monsterTypeContext = location?.monsters && location.monsters.length > 0 ? location.monsters[Math.floor(Math.random() * location.monsters.length)] : undefined;
         try {
             const candidates = await getMonstersByCr(minCr, maxCr, monsterTypeContext);
-            
-            if (candidates.length === 0) {
-                alert("Монстры не найдены (API).");
-                return;
-            }
-
+            if (candidates.length === 0) { alert("Монстры не найдены (API)."); return; }
             const currentCombatants: Combatant[] = JSON.parse(localStorage.getItem('dmc_combatants') || '[]');
             const newMonsters: Combatant[] = candidates.map((m, i) => ({
                 id: Date.now().toString() + i,
                 name: m.name,
                 type: EntityType.MONSTER,
                 initiative: Math.floor(Math.random() * 20) + 1,
-                hp: 10 + (avgLevel * 5), 
-                maxHp: 10 + (avgLevel * 5),
-                ac: 10 + Math.floor(avgLevel / 2),
-                conditions: [],
-                notes: `CR ${avgLevel}`
+                hp: 10 + (avgLevel * 5), maxHp: 10 + (avgLevel * 5), ac: 10 + Math.floor(avgLevel / 2), conditions: [], notes: `CR ${avgLevel}`
             }));
-
             const intro = await generateEncounterIntro(candidates.map(c => c.name), location?.name || 'Местность');
             setEncounterIntro(intro);
-
             localStorage.setItem('dmc_combatants', JSON.stringify([...currentCombatants, ...newMonsters]));
-            
-            // Notify Combat Tracker
             window.dispatchEvent(new Event('dmc-update-combat'));
-
         } catch (e: any) {
             console.error(e);
             alert(`Ошибка создания энкаунтера: ${e.message}`);
@@ -386,17 +523,11 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     };
 
     const handleCopyToLog = (category: string, text: string) => {
-        addLog({
-            id: Date.now().toString(),
-            timestamp: Date.now(),
-            text: `[${category}] ${text}`,
-            type: 'story'
-        });
+        addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[${category}] ${text}`, type: 'story' });
     };
 
     const handleSaveModalToJournal = () => {
         if (!location || !modalContent) return;
-        
         const newNote: Note = {
             id: Date.now().toString(),
             title: `${modalCategory.toUpperCase()}: ${modalTitle}`,
@@ -405,7 +536,6 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             type: 'npc', 
             date: new Date().toISOString()
         };
-
         onSaveNote(newNote);
         setModalOpen(false);
     };
@@ -417,7 +547,6 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         setModalCategory(category);
         setModalContent('');
         setModalLoading(true);
-        
         try {
             const content = await generateExtendedDetails(category, name, location.name);
             setModalContent(content);
@@ -434,18 +563,9 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         try {
             const prompt = `Fantasy landscape: ${location.name}, ${location.type}. ${location.atmosphere}. ${location.description}. Cinematic lighting, highly detailed, digital art.`;
             const url = await generateImage(prompt, "16:9");
-            
-            const newImage: SavedImage = {
-                id: Date.now().toString(),
-                url: url,
-                title: location.name,
-                type: 'location',
-                timestamp: Date.now()
-            };
-
+            const newImage: SavedImage = { id: Date.now().toString(), url: url, title: location.name, type: 'location', timestamp: Date.now() };
             setLocationImage(newImage);
             if (onImageGenerated) onImageGenerated(newImage);
-
         } catch (e: any) {
             alert("Ошибка генерации изображения: " + e.message);
         } finally {
@@ -455,26 +575,19 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
 
     const handleGenerateNpcImage = async (name: string, description: string) => {
         if (!confirm(`Сгенерировать портрет для ${name}? Это займет некоторое время.`)) return;
-        
         try {
             const prompt = `Fantasy portrait of ${name}. ${description}. Detailed digital art style.`;
             const url = await generateImage(prompt, "1:1");
-            
-            const newImage: SavedImage = {
-                id: Date.now().toString(),
-                url: url,
-                title: name,
-                type: 'npc',
-                timestamp: Date.now()
-            };
-
+            const newImage: SavedImage = { id: Date.now().toString(), url: url, title: name, type: 'npc', timestamp: Date.now() };
             if (onImageGenerated) onImageGenerated(newImage);
-            // If we have a handler to show directly, we could use it, or just notify via log
             addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Портрет ${name} добавлен в галерею.`, type: 'system' });
-
         } catch(e: any) {
             alert("Ошибка: " + e.message);
         }
+    };
+
+    const handleSetGeneratedLocation = (newLocation: LocationData) => {
+        setLocationAndLog(newLocation);
     };
 
     const filteredLore = lore.filter(region => 
@@ -485,28 +598,61 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     return (
         <div className="h-full flex gap-4 relative">
             
-            {/* Breach Loading Overlay */}
-            {breachLoading && (
-                <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center animate-in fade-in duration-500">
-                    <div className="relative w-64 h-64 flex items-center justify-center mb-8">
-                        <div className="absolute inset-0 border-4 border-indigo-600 rounded-full animate-ping opacity-20"></div>
-                        <div className="absolute inset-4 border-4 border-purple-600 rounded-full animate-spin opacity-40" style={{animationDuration: '3s'}}></div>
-                        <div className="absolute inset-8 border-2 border-white rounded-full animate-pulse opacity-10"></div>
-                        <Globe className="w-32 h-32 text-indigo-400 animate-pulse" />
-                    </div>
-                    <h2 className="text-3xl font-serif font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-600 mb-4 animate-pulse">
-                        ПРОКОЛ РЕАЛЬНОСТИ
-                    </h2>
-                    <div className="space-y-2 text-center font-mono text-sm text-indigo-300">
-                        <p className="animate-in slide-in-from-bottom-2 duration-700 delay-100">[СИСТЕМА] Обнаружен внешний сигнал...</p>
-                        <p className="animate-in slide-in-from-bottom-2 duration-700 delay-500 text-purple-300">[КОВЧЕГ] Синхронизация констант...</p>
-                        <p className="animate-in slide-in-from-bottom-2 duration-700 delay-1000 text-white">Стабилизация Слепой Зоны...</p>
+            <TravelManager 
+                isOpen={showTravel}
+                onClose={() => setShowTravel(false)}
+                currentLocation={location}
+                currentRegion={selectedRegion}
+                allLore={lore}
+                onTravelComplete={handleTravelComplete}
+                addLog={addLog}
+                travelState={activeTravelPlan}
+                onUpdateTravelState={handleTravelUpdate}
+                onGenerateLocation={handleSetGeneratedLocation}
+                onCancelTravel={() => setActiveTravelPlan(null)}
+            />
+
+            {/* Add Custom Entity Modal */}
+            {isAddModalOpen && (
+                <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-dnd-card border border-gold-600 w-full max-w-md rounded-lg shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+                        <div className="p-4 bg-gray-900 border-b border-gray-700 flex justify-between items-center">
+                            <h3 className="text-lg font-serif font-bold text-white flex items-center gap-2">
+                                <PenTool className="w-5 h-5 text-gold-500"/> Добавить в локацию
+                            </h3>
+                            <button onClick={() => setIsAddModalOpen(false)}><X className="w-5 h-5 text-gray-400"/></button>
+                        </div>
+                        <div className="p-4 space-y-4">
+                            <div className="flex bg-gray-800 rounded p-1">
+                                <button onClick={() => setAddEntityType('npc')} className={`flex-1 py-2 text-xs font-bold rounded transition-colors ${addEntityType === 'npc' ? 'bg-gray-700 text-white' : 'text-gray-400'}`}>NPC</button>
+                                <button onClick={() => setAddEntityType('quest')} className={`flex-1 py-2 text-xs font-bold rounded transition-colors ${addEntityType === 'quest' ? 'bg-gray-700 text-white' : 'text-gray-400'}`}>Квест</button>
+                            </div>
+                            <div>
+                                <label className="text-xs text-gray-500 uppercase font-bold block mb-1">Название</label>
+                                <input className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white focus:border-gold-500 outline-none" value={addEntityName} onChange={e => setAddEntityName(e.target.value)} autoFocus />
+                            </div>
+                            <div>
+                                <label className="text-xs text-gray-500 uppercase font-bold block mb-1">Описание / Ключевые слова</label>
+                                <textarea className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white h-24 resize-none focus:border-gold-500 outline-none" value={addEntityDesc} onChange={e => setAddEntityDesc(e.target.value)} />
+                            </div>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" checked={useAiGeneration} onChange={e => setUseAiGeneration(e.target.checked)} className="accent-gold-600" />
+                                <span className="text-sm text-gray-300">Использовать AI для генерации деталей</span>
+                            </label>
+                        </div>
+                        <div className="p-4 border-t border-gray-700 bg-gray-900 flex justify-end gap-2">
+                            <button onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 text-gray-400 hover:text-white text-sm">Отмена</button>
+                            <button onClick={handleAddEntity} disabled={addLoading || !addEntityName} className="bg-gold-600 hover:bg-gold-500 text-black px-6 py-2 rounded font-bold text-sm flex items-center gap-2 disabled:opacity-50">
+                                {addLoading ? <Loader className="w-4 h-4 animate-spin"/> : <Plus className="w-4 h-4"/>} Добавить
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
 
             {/* Handbook Sidebar */}
             <div className={`fixed xl:static inset-y-0 left-0 z-30 w-80 bg-gray-900 border-r border-gray-700 transform transition-transform duration-300 flex flex-col ${showHandbook ? 'translate-x-0' : '-translate-x-full'} xl:translate-x-0`}>
+                {/* ... existing sidebar content ... */}
                 <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-dnd-darker shrink-0">
                     <h2 className="font-serif font-bold text-gold-500 flex items-center gap-2">
                         <BookOpen className="w-5 h-5"/> Справочник
@@ -584,10 +730,10 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                     </button>
                 )}
 
-                {/* Modal Overlay */}
+                {/* Detail Modal */}
                 {modalOpen && (
-                    <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-                        <div className="bg-dnd-card border-2 border-gold-600 w-full max-w-2xl max-h-[90vh] rounded-lg shadow-2xl flex flex-col relative overflow-hidden">
+                    <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+                        <div className="bg-dnd-card border-2 border-gold-600 w-full max-w-2xl max-h-[80vh] rounded-lg shadow-2xl flex flex-col relative overflow-hidden" onClick={e => e.stopPropagation()}>
                             <div className="p-4 bg-gray-900 border-b border-gray-700 flex justify-between items-center shrink-0">
                                 <h3 className="text-xl font-serif font-bold text-gold-500">{modalTitle}</h3>
                                 <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-white transition-colors">
@@ -623,12 +769,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                     </button>
                                     <button 
                                         onClick={() => {
-                                            addLog({
-                                                id: Date.now().toString(), 
-                                                timestamp: Date.now(), 
-                                                text: `Мастер изучает детали: ${modalTitle}`, 
-                                                type: 'system'
-                                            });
+                                            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Мастер изучает детали: ${modalTitle}`, type: 'system' });
                                             setModalOpen(false);
                                         }}
                                         className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm font-bold"
@@ -641,7 +782,6 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                     </div>
                 )}
 
-                {/* ... rest of the component (showLoreInput, region view, location details) ... */}
                 {showLoreInput ? (
                      <div className="flex-1 p-4 flex flex-col items-center justify-center animate-in fade-in">
                          <div className="w-full max-w-2xl bg-dnd-card border border-gray-700 rounded-lg p-6 shadow-xl">
@@ -678,12 +818,20 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                 <ArrowLeft className="w-4 h-4" /> Справочник
                             </button>
 
-                            <div className="max-w-4xl mx-auto mt-8">
+                            <div className="max-w-4xl mx-auto mt-8 pb-20">
                                 {/* ... same region details ... */}
                                 <div className="border-b border-gray-700 pb-4 mb-6">
-                                    <div className="flex items-end gap-4 mb-2">
-                                        <h1 className="text-4xl font-serif font-bold text-gold-500">{selectedRegion.name}</h1>
-                                        {selectedRegion.capital && <span className="text-gray-400 text-sm pb-2">Столица: {selectedRegion.capital}</span>}
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="flex items-end gap-4">
+                                            <h1 className="text-4xl font-serif font-bold text-gold-500">{selectedRegion.name}</h1>
+                                            {selectedRegion.capital && <span className="text-gray-400 text-sm pb-2">Столица: {selectedRegion.capital}</span>}
+                                        </div>
+                                        <button 
+                                            onClick={() => setShowTravel(true)}
+                                            className={`bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded font-bold flex items-center gap-2 border border-gray-600 ${activeTravelPlan ? 'animate-pulse border-gold-500 text-gold-500' : ''}`}
+                                        >
+                                            <Compass className="w-5 h-5"/> {activeTravelPlan ? 'Продолжить путь' : 'Путешествие'}
+                                        </button>
                                     </div>
                                     <SmartText content={selectedRegion.description} className="text-lg text-gray-300 italic leading-relaxed" />
                                     {selectedRegion.ruler && <p className="text-sm text-gray-500 mt-2">Правитель: {selectedRegion.ruler}</p>}
@@ -736,23 +884,17 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                             <Sparkles className="w-5 h-5 text-purple-400"/> Обычные локации (AI)
                                         </h3>
                                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                                            <button 
-                                                disabled={loading}
-                                                onClick={() => handleGenerateLocation('Малая деревня/Хутор')}
-                                                className="bg-gray-800 border border-gray-700 p-3 rounded-lg hover:bg-gray-700 flex flex-col items-center gap-2 transition-colors disabled:opacity-50 text-sm group"
-                                            >
-                                                <Home className="w-6 h-6 text-green-500 group-hover:scale-110 transition-transform"/>
-                                                <span className="font-bold">Деревня</span>
-                                            </button>
-                                             <button 
-                                                disabled={loading}
-                                                onClick={() => handleGenerateLocation('Крупный город/Торговый пост')}
-                                                className="bg-gray-800 border border-gray-700 p-3 rounded-lg hover:bg-gray-700 flex flex-col items-center gap-2 transition-colors disabled:opacity-50 text-sm group"
-                                            >
-                                                <Landmark className="w-6 h-6 text-blue-400 group-hover:scale-110 transition-transform"/>
-                                                <span className="font-bold">Город</span>
-                                            </button>
-                                            {/* ... other buttons ... */}
+                                            {GENERIC_LOCATIONS.map((loc, i) => (
+                                                <button 
+                                                    key={i}
+                                                    disabled={loading}
+                                                    onClick={() => handleGenerateLocation(loc.type)}
+                                                    className="bg-gray-800 border border-gray-700 p-3 rounded-lg hover:bg-gray-700 flex flex-col items-center gap-2 transition-colors disabled:opacity-50 text-sm group"
+                                                >
+                                                    <div className="group-hover:scale-110 transition-transform duration-200">{loc.icon}</div>
+                                                    <span className="font-bold text-center">{loc.label}</span>
+                                                </button>
+                                            ))}
                                         </div>
                                         {loading && (
                                             <div className="mt-4 text-center text-gold-500 animate-pulse flex items-center justify-center gap-2">
@@ -787,6 +929,13 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                     )}
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
+                                    <button 
+                                        onClick={() => setShowTravel(true)}
+                                        className={`text-gold-500 hover:text-white p-2 bg-gray-800 rounded-full ${activeTravelPlan ? 'animate-pulse border border-gold-500' : ''}`}
+                                        title={activeTravelPlan ? "Продолжить путешествие" : "Отправиться в путь"}
+                                    >
+                                        <Compass className="w-4 h-4" />
+                                    </button>
                                     <button 
                                         onClick={handleGenerateLocationImage}
                                         disabled={imageLoading}
@@ -888,7 +1037,6 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                             </div>
                         </div>
 
-                        {/* ... rest of location details (intro, breach event, grid) ... */}
                         {encounterIntro && (
                             <div className="bg-red-950/40 border-l-4 border-red-600 p-4 rounded-r-lg animate-in fade-in slide-in-from-top-2 shrink-0 max-h-40 overflow-y-auto">
                                 <h4 className="text-red-400 text-xs uppercase tracking-widest mb-1 font-bold flex items-center gap-2">
@@ -923,64 +1071,77 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                     <h3 className="font-serif font-bold text-gray-400 uppercase text-sm flex items-center gap-2">
                                         <Users className="w-4 h-4"/> Обитатели
                                     </h3>
-                                    <button 
-                                        onClick={() => handleGenerateContent('npc')}
-                                        disabled={!!generatingSection}
-                                        className="text-xs bg-gray-800 hover:bg-gray-700 text-gold-500 px-2 py-1 rounded flex items-center gap-1 disabled:opacity-50"
-                                    >
-                                        {generatingSection === 'npc' ? <Loader className="w-3 h-3 animate-spin"/> : <Plus className="w-3 h-3"/>} AI
-                                    </button>
+                                    <div className="flex gap-1">
+                                        <button 
+                                            onClick={() => { setAddEntityType('npc'); setIsAddModalOpen(true); }}
+                                            className="text-xs bg-green-800 hover:bg-green-700 text-white px-2 py-1 rounded flex items-center gap-1"
+                                        >
+                                            <Plus className="w-3 h-3"/> Свой
+                                        </button>
+                                        <button 
+                                            onClick={() => handleGenerateContent('npc')}
+                                            disabled={!!generatingSection}
+                                            className="text-xs bg-gray-800 hover:bg-gray-700 text-gold-500 px-2 py-1 rounded flex items-center gap-1 disabled:opacity-50"
+                                        >
+                                            {generatingSection === 'npc' ? <Loader className="w-3 h-3 animate-spin"/> : <Plus className="w-3 h-3"/>} AI
+                                        </button>
+                                    </div>
                                 </div>
 
-                                {(location.npcs || []).length === 0 && <p className="text-gray-600 text-sm italic">Нет важных NPC.</p>}
-                                {(location.npcs || []).map((npc, i) => (
-                                    <div key={i} className="bg-gray-800/50 p-3 rounded border border-gray-700 hover:border-gray-600 transition-colors group relative">
-                                        <div className="flex justify-between pr-24">
-                                            <span className="font-bold text-gold-500">{npc.name}</span>
-                                            <span className="text-xs text-gray-500">{npc.race} {npc.class}</span>
+                                {(getMergedNpcs()).length === 0 && <p className="text-gray-600 text-sm italic">Нет важных NPC.</p>}
+                                {getMergedNpcs().map((item, i) => {
+                                    const npc = item.original as CampaignNpc; // Casting for safety
+                                    return (
+                                        <div 
+                                            key={i} 
+                                            onClick={() => handleOpenItem(item)}
+                                            className={`p-3 rounded border transition-colors group relative cursor-pointer hover:bg-gray-800/80 ${item.source === 'tracker' ? 'bg-indigo-950/20 border-indigo-500/50' : 'bg-gray-800/50 border-gray-700'}`}
+                                        >
+                                            <div className="flex justify-between pr-24">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`font-bold ${item.source === 'tracker' ? 'text-indigo-300' : 'text-gold-500'}`}>{npc.name}</span>
+                                                    {item.source === 'tracker' && <UserSquare2 className="w-3 h-3 text-indigo-400" title="В базе NPC"/>}
+                                                </div>
+                                                <span className="text-xs text-gray-500">{npc.race} {npc.class}</span>
+                                            </div>
+                                            <SmartText content={npc.description} className="text-sm text-gray-300 mt-1 block line-clamp-2" />
+                                            {npc.personality && <p className="text-xs text-gray-500 mt-1 italic line-clamp-1">"{npc.personality}"</p>}
+                                            
+                                            <div className="absolute top-2 right-2 flex gap-1" onClick={e => e.stopPropagation()}>
+                                                {item.source === 'lore' && (
+                                                    <button 
+                                                        onClick={() => handleSaveNpcToTracker(npc)}
+                                                        className="p-1.5 bg-indigo-900/50 text-indigo-200 rounded hover:bg-indigo-800 border border-indigo-800"
+                                                        title="В базу (Сохранить NPC)"
+                                                    >
+                                                        <UserPlus className="w-3 h-3" />
+                                                    </button>
+                                                )}
+                                                <button 
+                                                    onClick={() => handleFightNpc(npc)}
+                                                    className="p-1.5 bg-red-900/80 text-red-200 rounded hover:bg-red-800 border border-red-800"
+                                                    title="Атаковать (В инициативу)"
+                                                >
+                                                    <Swords className="w-3 h-3" />
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleGenerateNpcImage(npc.name, npc.description)}
+                                                    className="p-1.5 bg-purple-900 text-purple-200 rounded hover:bg-purple-800"
+                                                    title="Нарисовать"
+                                                >
+                                                    <ImageIcon className="w-3 h-3" />
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleCopyToLog('NPC', `${npc.name} (${npc.race}): ${npc.description}`)}
+                                                    className="p-1.5 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 hover:text-white"
+                                                    title="Копировать в лог"
+                                                >
+                                                    <Copy className="w-3 h-3" />
+                                                </button>
+                                            </div>
                                         </div>
-                                        <SmartText content={npc.description} className="text-sm text-gray-300 mt-1 block" />
-                                        {npc.personality && <p className="text-xs text-gray-500 mt-1 italic">"{npc.personality}"</p>}
-                                        
-                                        <div className="absolute top-2 right-2 flex gap-1">
-                                            <button 
-                                                onClick={() => handleSaveNpcToTracker(npc)}
-                                                className="p-1.5 bg-indigo-900/50 text-indigo-200 rounded hover:bg-indigo-800 border border-indigo-800"
-                                                title="В базу (Сохранить NPC)"
-                                            >
-                                                <UserPlus className="w-3 h-3" />
-                                            </button>
-                                            <button 
-                                                onClick={() => handleFightNpc(npc)}
-                                                className="p-1.5 bg-red-900/80 text-red-200 rounded hover:bg-red-800 border border-red-800"
-                                                title="Атаковать (В инициативу)"
-                                            >
-                                                <Swords className="w-3 h-3" />
-                                            </button>
-                                            <button 
-                                                onClick={() => handleGenerateNpcImage(npc.name, npc.description)}
-                                                className="p-1.5 bg-purple-900 text-purple-200 rounded hover:bg-purple-800"
-                                                title="Нарисовать"
-                                            >
-                                                <ImageIcon className="w-3 h-3" />
-                                            </button>
-                                            <button 
-                                                onClick={() => openDetailModal('npc', npc.name)}
-                                                className="p-1.5 bg-blue-900 text-blue-200 rounded hover:bg-blue-800"
-                                                title="Подробнее (AI)"
-                                            >
-                                                <Info className="w-3 h-3" />
-                                            </button>
-                                            <button 
-                                                onClick={() => handleCopyToLog('NPC', `${npc.name} (${npc.race}): ${npc.description}`)}
-                                                className="p-1.5 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 hover:text-white"
-                                                title="Копировать в лог"
-                                            >
-                                                <Copy className="w-3 h-3" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
 
                             {/* Secrets & Loot & Quests */}
@@ -991,46 +1152,55 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                         <h3 className="font-serif font-bold text-gray-400 uppercase text-sm flex items-center gap-2">
                                             <Sparkles className="w-4 h-4"/> Квесты
                                         </h3>
-                                        <button 
-                                            onClick={() => handleGenerateContent('quest')}
-                                            disabled={!!generatingSection}
-                                            className="text-xs bg-gray-800 hover:bg-gray-700 text-gold-500 px-2 py-1 rounded flex items-center gap-1 disabled:opacity-50"
-                                        >
-                                            {generatingSection === 'quest' ? <Loader className="w-3 h-3 animate-spin"/> : <Plus className="w-3 h-3"/>} AI
-                                        </button>
+                                        <div className="flex gap-1">
+                                            <button 
+                                                onClick={() => { setAddEntityType('quest'); setIsAddModalOpen(true); }}
+                                                className="text-xs bg-green-800 hover:bg-green-700 text-white px-2 py-1 rounded flex items-center gap-1"
+                                            >
+                                                <Plus className="w-3 h-3"/> Свой
+                                            </button>
+                                            <button 
+                                                onClick={() => handleGenerateContent('quest')}
+                                                disabled={!!generatingSection}
+                                                className="text-xs bg-gray-800 hover:bg-gray-700 text-gold-500 px-2 py-1 rounded flex items-center gap-1 disabled:opacity-50"
+                                            >
+                                                {generatingSection === 'quest' ? <Loader className="w-3 h-3 animate-spin"/> : <Plus className="w-3 h-3"/>} AI
+                                            </button>
+                                        </div>
                                     </div>
-                                    {(!(location.quests || []) || (location.quests || []).length === 0) && <p className="text-gray-600 text-sm italic">Нет квестов.</p>}
+                                    {getMergedQuests().length === 0 && <p className="text-gray-600 text-sm italic">Нет квестов.</p>}
                                     <ul className="space-y-2">
-                                        {(location.quests || []).map((q, i) => (
-                                            <li key={i} className="text-sm bg-indigo-900/20 p-2 rounded border border-indigo-900/40 group relative pr-20">
-                                                <div className="font-bold text-indigo-300">{q.title}</div>
-                                                <SmartText content={q.description} className="text-gray-400" />
-                                                <div className="absolute top-2 right-2 flex gap-1">
-                                                    <button 
-                                                        onClick={() => handleTrackQuest(q)}
-                                                        className="p-1.5 bg-green-900/80 text-green-200 rounded hover:bg-green-800 border border-green-800"
-                                                        title="Взять квест"
-                                                    >
-                                                        <ScrollText className="w-3 h-3" />
-                                                        <Plus className="w-2 h-2 absolute top-0 right-0 -mr-1 -mt-1 bg-green-500 rounded-full text-black"/>
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => openDetailModal('quest', q.title)}
-                                                        className="p-1.5 bg-indigo-800 text-indigo-100 rounded hover:bg-indigo-700"
-                                                        title="Подробнее (AI)"
-                                                    >
-                                                        <Info className="w-3 h-3" />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleCopyToLog('Квест', `${q.title}: ${q.description}`)}
-                                                        className="p-1.5 bg-indigo-900 text-indigo-200 rounded hover:bg-indigo-800"
-                                                        title="Копировать в лог"
-                                                    >
-                                                        <Copy className="w-3 h-3" />
-                                                    </button>
-                                                </div>
-                                            </li>
-                                        ))}
+                                        {getMergedQuests().map((item, i) => {
+                                            const q = item.original;
+                                            return (
+                                                <li key={i} className={`text-sm p-2 rounded border group relative pr-20 cursor-pointer hover:bg-gray-800/80 ${item.source === 'tracker' ? 'bg-indigo-950/20 border-indigo-500/50' : 'bg-indigo-900/20 border-indigo-900/40'}`} onClick={() => handleOpenItem(item)}>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className={`font-bold ${item.source === 'tracker' ? 'text-green-400' : 'text-indigo-300'}`}>{q.title}</div>
+                                                        {item.source === 'tracker' && <ScrollText className="w-3 h-3 text-green-500" title="В трекере"/>}
+                                                    </div>
+                                                    <SmartText content={item.description} className="text-gray-400 line-clamp-2" />
+                                                    <div className="absolute top-2 right-2 flex gap-1" onClick={e => e.stopPropagation()}>
+                                                        {item.source === 'lore' && (
+                                                            <button 
+                                                                onClick={() => handleTrackQuest(q)}
+                                                                className="p-1.5 bg-green-900/80 text-green-200 rounded hover:bg-green-800 border border-green-800"
+                                                                title="Взять квест"
+                                                            >
+                                                                <ScrollText className="w-3 h-3" />
+                                                                <Plus className="w-2 h-2 absolute top-0 right-0 -mr-1 -mt-1 bg-green-500 rounded-full text-black"/>
+                                                            </button>
+                                                        )}
+                                                        <button 
+                                                            onClick={() => handleCopyToLog('Квест', `${q.title}: ${item.description}`)}
+                                                            className="p-1.5 bg-indigo-900 text-indigo-200 rounded hover:bg-indigo-800"
+                                                            title="Копировать в лог"
+                                                        >
+                                                            <Copy className="w-3 h-3" />
+                                                        </button>
+                                                    </div>
+                                                </li>
+                                            );
+                                        })}
                                     </ul>
                                 </div>
 

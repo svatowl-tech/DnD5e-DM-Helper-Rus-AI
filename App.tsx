@@ -50,7 +50,6 @@ import { CONDITIONS } from './constants';
 import { RULES_DATA } from './data/rulesData';
 
 // Static imports for critical components
-import DiceRoller from './components/DiceRoller';
 import GlobalPlayer from './components/GlobalPlayer';
 import ImageTheater from './components/ImageTheater';
 import DmHelperWidget from './components/DmHelperWidget';
@@ -95,7 +94,7 @@ const AppContent: React.FC = () => {
 
   // Mobile State
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [showMobileTools, setShowMobileTools] = useState(false); // For Dice/Logs on mobile
+  const [showMobileTools, setShowMobileTools] = useState(false); // For Logs on mobile
 
   // PWA / Install State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -486,8 +485,8 @@ const AppContent: React.FC = () => {
       {/* Global Detail Modal */}
       {detailModal && detailModal.open && (
           <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-              <div className="bg-dnd-card border-2 border-gold-600 w-full max-w-md rounded-lg shadow-2xl p-0 overflow-hidden" onClick={e => e.stopPropagation()}>
-                  <div className="p-4 bg-gray-900 border-b border-gray-700 flex justify-between items-start">
+              <div className="bg-dnd-card border-2 border-gold-600 w-full max-w-md max-h-[80vh] flex flex-col rounded-lg shadow-2xl p-0 overflow-hidden" onClick={e => e.stopPropagation()}>
+                  <div className="p-4 bg-gray-900 border-b border-gray-700 flex justify-between items-start shrink-0">
                       <div>
                           <div className="flex items-center gap-2">
                               {detailModal.type === 'condition' && <Skull className="w-5 h-5 text-red-500"/>}
@@ -501,7 +500,7 @@ const AppContent: React.FC = () => {
                       <button onClick={() => setDetailModal(null)} className="text-gray-400 hover:text-white"><X className="w-6 h-6"/></button>
                   </div>
                   
-                  <div className="p-5 max-h-[60vh] overflow-y-auto">
+                  <div className="p-5 overflow-y-auto custom-scrollbar flex-1">
                       {detailModal.type === 'condition' && (
                           <>
                               <p className="text-gray-300 mb-2">{detailModal.content.description}</p>
@@ -562,7 +561,7 @@ const AppContent: React.FC = () => {
                       )}
                   </div>
                   
-                  <div className="bg-gray-900 p-3 border-t border-gray-700 text-right">
+                  <div className="bg-gray-900 p-3 border-t border-gray-700 text-right shrink-0">
                       <button onClick={() => setDetailModal(null)} className="bg-gold-600 hover:bg-gold-500 text-black text-sm font-bold px-4 py-1 rounded">Закрыть</button>
                   </div>
               </div>
@@ -571,7 +570,7 @@ const AppContent: React.FC = () => {
 
       {showSettingsModal && (
         <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-            <div className="bg-dnd-card border border-gold-600 w-full max-w-md rounded-lg shadow-2xl p-6">
+            <div className="bg-dnd-card border border-gold-600 w-full max-w-md rounded-lg shadow-2xl p-6 max-h-[80vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="font-serif font-bold text-xl text-gold-500 flex items-center gap-2">
                         <Settings className="w-5 h-5"/> Настройки
@@ -642,7 +641,7 @@ const AppContent: React.FC = () => {
                     <button onClick={() => setHelpSection('install')} className={`flex-1 py-3 text-sm font-bold ${helpSection === 'install' ? 'text-gold-500 bg-gray-800/50' : 'text-gray-400'}`}>Установка</button>
                     <button onClick={() => setHelpSection('deploy')} className={`flex-1 py-3 text-sm font-bold ${helpSection === 'deploy' ? 'text-gold-500 bg-gray-800/50' : 'text-gray-400'}`}>Деплой</button>
                 </div>
-                <div className="p-6 space-y-4 overflow-y-auto text-sm text-gray-300">
+                <div className="p-6 space-y-4 overflow-y-auto text-sm text-gray-300 flex-1">
                     {helpSection === 'install' ? <p>Инструкции по установке PWA...</p> : <p>Инструкции по деплою...</p>}
                 </div>
             </div>
@@ -726,7 +725,12 @@ const AppContent: React.FC = () => {
 
       {/* --- MAIN CONTENT AREA --- */}
       <main className="flex-1 flex flex-col h-full overflow-hidden relative bg-dnd-darker">
-        <div className="flex-1 p-3 md:p-6 overflow-y-auto pb-32 xl:pb-20 custom-scrollbar">
+        {/* 
+            Padding Bottom explanation:
+            Mobile: pb-28 (Nav + Player + Widget space)
+            Desktop: pb-12 (Main Content Space) - Adjusted to be closer to the new compact panel
+        */}
+        <div className="flex-1 p-3 md:p-6 overflow-y-auto pb-28 xl:pb-12 custom-scrollbar">
             <Suspense fallback={<div className="flex h-full items-center justify-center text-gold-500"><Loader className="w-12 h-12 animate-spin"/></div>}>
                 {renderContent()}
             </Suspense>
@@ -743,8 +747,8 @@ const AppContent: React.FC = () => {
                 onClick={() => setShowMobileTools(!showMobileTools)}
                 className={`flex flex-col items-center gap-1 p-2 rounded-lg ${showMobileTools ? 'text-gold-500' : 'text-gray-400'}`}
              >
-                 <Dices className={`w-6 h-6 ${showMobileTools ? 'animate-pulse' : ''}`}/>
-                 <span className="text-[10px] font-bold">Инструм.</span>
+                 <ScrollText className={`w-6 h-6 ${showMobileTools ? 'animate-pulse' : ''}`}/>
+                 <span className="text-[10px] font-bold">Лог</span>
              </button>
 
              <MobileNavIcon active={activeTab === Tab.NPCS} onClick={() => changeTabMobile(Tab.NPCS)} icon={<UserSquare2/>} label="NPC" />
@@ -758,18 +762,17 @@ const AppContent: React.FC = () => {
              </button>
         </nav>
 
-        {/* --- TOOLS DRAWER (Mobile/Tablet) --- */}
+        {/* --- LOG DRAWER (Mobile/Tablet) --- */}
         {showMobileTools && (
             <div className="xl:hidden fixed bottom-[60px] left-0 right-0 bg-dnd-dark border-t border-gold-600 rounded-t-xl shadow-2xl z-50 flex flex-col max-h-[60vh] animate-in slide-in-from-bottom-5">
                 <div className="flex justify-between items-center p-3 border-b border-gray-700 bg-gray-900/90 rounded-t-xl">
-                    <span className="text-gold-500 font-bold text-sm flex items-center gap-2"><Dices className="w-4 h-4"/> Дайсы и Лог</span>
+                    <span className="text-gold-500 font-bold text-sm flex items-center gap-2"><ScrollText className="w-4 h-4"/> Лог сессии</span>
                     <button onClick={() => setShowMobileTools(false)}><ChevronDown className="w-5 h-5 text-gray-400"/></button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-dnd-darker">
-                    <DiceRoller addLog={addLog} />
-                    <div className="bg-dnd-card rounded border border-gray-700 p-2 max-h-40 overflow-y-auto text-xs font-mono">
+                    <div className="bg-dnd-card rounded border border-gray-700 p-2 max-h-60 overflow-y-auto text-xs font-mono">
                         <div className="flex justify-between items-center mb-2 sticky top-0 bg-dnd-card pb-1 border-b border-gray-700">
-                            <span className="text-gray-400 font-bold">Лог сессии</span>
+                            <span className="text-gray-400 font-bold">Записи</span>
                             <div className="flex gap-2">
                                 <button onClick={exportLogToJournal}><Save className="w-3 h-3 text-green-400"/></button>
                                 <button onClick={clearLogs}><Trash2 className="w-3 h-3 text-red-400"/></button>
@@ -787,10 +790,11 @@ const AppContent: React.FC = () => {
             </div>
         )}
 
-        {/* --- DESKTOP BOTTOM PANEL (Log & Dice - XL+ only) --- */}
-        <div className="hidden xl:flex h-48 border-t border-gray-800 bg-dnd-dark p-4 gap-4 shrink-0 z-20 pb-10">
+        {/* --- DESKTOP BOTTOM PANEL (Log Only - XL+) --- */}
+        {/* Reduced height to h-20 (80px) for minimal footprint: header + ~3 lines */}
+        <div className="hidden xl:flex h-20 border-t border-gray-800 bg-dnd-dark p-2 gap-4 shrink-0 z-20">
            <div className="flex-1 overflow-y-auto font-mono text-xs text-gray-400 space-y-1 relative group custom-scrollbar">
-              <div className="text-xs font-bold text-gray-600 uppercase mb-2 sticky top-0 bg-dnd-dark py-1 flex justify-between items-center border-b border-gray-800">
+              <div className="text-xs font-bold text-gray-600 uppercase mb-1 sticky top-0 bg-dnd-dark py-1 flex justify-between items-center border-b border-gray-800">
                   <span>Лог сессии ({logs.length})</span>
                   <div className="flex items-center gap-2">
                     <button onClick={exportLogToJournal} className="text-gray-500 hover:text-green-400 p-1" title="Сохранить в Журнал"><Save className="w-3 h-3" /></button>
@@ -798,16 +802,13 @@ const AppContent: React.FC = () => {
                   </div>
               </div>
               {logs.map((log) => (
-                  <div key={log.id} className="border-l-2 border-gray-700 pl-2 py-1 hover:bg-gray-800/30 rounded-r transition-colors">
+                  <div key={log.id} className="border-l-2 border-gray-700 pl-2 py-0.5 hover:bg-gray-800/30 rounded-r transition-colors">
                     <span className="text-gray-600">[{new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}]</span>
                     <span className={log.type === 'combat' ? 'text-red-400 ml-2' : log.type === 'roll' ? 'text-blue-400 ml-2' : log.type === 'story' ? 'text-gold-500 ml-2' : 'text-gray-300 ml-2'}>
                         {log.text}
                     </span>
                   </div>
               ))}
-           </div>
-           <div className="w-72">
-              <DiceRoller addLog={addLog} />
            </div>
         </div>
       </main>
