@@ -9,6 +9,15 @@ import {
     Target, Coins, Tent, MapPin, Sparkles, Play
 } from 'lucide-react';
 
+interface TravelState {
+    result: TravelResult;
+    completed: number[];
+    destination?: {
+        name: string;
+        regionId?: string;
+    };
+}
+
 interface TravelManagerProps {
     isOpen: boolean;
     onClose: () => void;
@@ -19,8 +28,8 @@ interface TravelManagerProps {
     addLog: (entry: any) => void;
     
     // Persistence State
-    travelState: {result: TravelResult, completed: number[]} | null;
-    onUpdateTravelState: (plan: TravelResult, completedEvents: number[]) => void;
+    travelState: TravelState | null;
+    onUpdateTravelState: (state: TravelState) => void;
     onGenerateLocation: (location: LocationData) => void;
     onCancelTravel: () => void;
 }
@@ -95,7 +104,17 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                 selectedPace
             );
             
-            onUpdateTravelState(scenario, []); // Save to parent
+            // Persist destination info so we know where we are going when we arrive
+            const newState: TravelState = {
+                result: scenario,
+                completed: [],
+                destination: {
+                    name: destName,
+                    regionId: travelScope === 'global' ? targetRegionId : currentRegion?.id
+                }
+            };
+
+            onUpdateTravelState(newState); // Save to parent
             setMode('journey');
         } catch (e: any) {
             alert("Ошибка генерации: " + e.message);
@@ -104,29 +123,59 @@ const TravelManager: React.FC<TravelManagerProps> = ({
     };
 
     const handleEventAction = (event: TravelEvent, action: 'combat' | 'loot' | 'complete') => {
+        if (!travelState) return;
+
         if (action === 'combat' && event.threats) {
-            const combatEvent = new CustomEvent('dmc-add-combatant', {
-                detail: {
-                    name: event.threats.join(', '), // Simplified, usually we iterate
-                    type: 'MONSTER',
-                    hp: 20, ac: 12, initiative: 10, // Defaults, DM handles specifics
-                    notes: `Событие: ${event.title}`
-                }
+            // Normalize threats: split by comma if AI combined them (e.g. "Wolf, Goblin")
+            // Also handles array of strings properly
+            let individualThreats: string[] = [];
+            if (Array.isArray(event.threats)) {
+                event.threats.forEach(t => {
+                    if (t.includes(',')) {
+                        individualThreats.push(...t.split(',').map(s => s.trim()));
+                    } else {
+                        individualThreats.push(t.trim());
+                    }
+                });
+            }
+
+            // Loop through threats and dispatch individual events
+            individualThreats.forEach((threatName, index) => {
+                // Small delay to ensure unique IDs if processed rapidly
+                setTimeout(() => {
+                    const combatEvent = new CustomEvent('dmc-add-combatant', {
+                        detail: {
+                            name: threatName,
+                            type: 'MONSTER',
+                            hp: 20, ac: 12, initiative: 10 + Math.floor(Math.random() * 5),
+                            notes: `Событие: ${event.title}`
+                        }
+                    });
+                    window.dispatchEvent(combatEvent);
+                }, index * 50);
             });
-            window.dispatchEvent(combatEvent);
-            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Путь] Враги добавлены в бой: ${event.threats.join(', ')}`, type: 'combat' });
+            
+            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Путь] Враги добавлены в бой: ${individualThreats.join(', ')}`, type: 'combat' });
+            
+            // Switch to Combat Tab IMMEDIATELY
+            window.dispatchEvent(new CustomEvent('dmc-switch-tab', { detail: 'combat' }));
+            onClose(); // Close travel modal to show combat
         } 
         else if (action === 'loot' && event.loot) {
             addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Путь] Найдено: ${event.loot.join(', ')}`, type: 'story' });
         }
 
         // Mark completed
-        if (travelState && !travelState.completed.includes(event.day)) {
-            onUpdateTravelState(travelState.result, [...travelState.completed, event.day]);
+        if (!travelState.completed.includes(event.day)) {
+            onUpdateTravelState({
+                ...travelState,
+                completed: [...travelState.completed, event.day]
+            });
         }
     };
 
     const handleExploreLocation = async (event: TravelEvent) => {
+        if (!travelState) return;
         setGeneratingEventId(event.day);
         try {
             // Generate full location based on event description
@@ -140,9 +189,10 @@ const TravelManager: React.FC<TravelManagerProps> = ({
             onGenerateLocation(newLocation);
             
             // Mark event as completed
-            if (travelState) {
-                onUpdateTravelState(travelState.result, [...travelState.completed, event.day]);
-            }
+            onUpdateTravelState({
+                ...travelState,
+                completed: [...travelState.completed, event.day]
+            });
 
             addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Путь] Группа остановилась исследовать: ${newLocation.name}`, type: 'system' });
             
@@ -159,8 +209,11 @@ const TravelManager: React.FC<TravelManagerProps> = ({
     const handleArrival = () => {
         if (!travelState) return;
 
-        // Construct new location data
-        const newLocName = customTarget || targetLocationName || 'Пункт Назначения';
+        // Use stored destination info
+        const destInfo = travelState.destination;
+        const newLocName = destInfo?.name || 'Пункт Назначения';
+        const regionId = destInfo?.regionId;
+        
         let newLocData: LocationData = {
             id: Date.now().toString(),
             name: newLocName,
@@ -169,23 +222,24 @@ const TravelManager: React.FC<TravelManagerProps> = ({
             atmosphere: 'Следы дороги, новые горизонты.'
         };
 
-        // If selected from dropdown, try to find full data
-        const regionId = travelScope === 'global' ? targetRegionId : currentRegion?.id;
-        const region = allLore.find(r => r.id === regionId);
-        if (region) {
-            const existing = region.locations.find(l => l.name === targetLocationName);
-            if (existing) newLocData = existing;
+        // Try to find full data from Lore if it matches a known location
+        if (regionId) {
+            const region = allLore.find(r => r.id === regionId);
+            if (region) {
+                const existing = region.locations.find(l => l.name === newLocName);
+                if (existing) newLocData = existing;
+            }
         }
 
         // Log Arrival
         addLog({ 
             id: Date.now().toString(), 
             timestamp: Date.now(), 
-            text: `[Путешествие] Группа прибыли в "${newLocName}" (${travelState.result.duration} дн.).`, 
+            text: `[Путешествие] Группа прибыла в "${newLocName}" (${travelState.result.duration} дн.).`, 
             type: 'system' 
         });
 
-        onTravelComplete(newLocData, travelScope === 'global' ? targetRegionId : undefined);
+        onTravelComplete(newLocData, regionId);
         onClose();
     };
 
@@ -329,8 +383,15 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                     {mode === 'journey' && travelState && (
                         <div className="space-y-6">
                             <div className="bg-gray-800 p-4 rounded border-l-4 border-gold-500">
-                                <h4 className="font-bold text-white mb-1">Маршрут ({travelState.result.duration} дн.)</h4>
-                                <p className="text-sm text-gray-300 italic">{travelState.result.summary}</p>
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h4 className="font-bold text-white mb-1">Маршрут ({travelState.result.duration} дн.)</h4>
+                                        <div className="text-xs text-gold-500 mb-1 flex items-center gap-1">
+                                            <Target className="w-3 h-3"/> Цель: {travelState.destination?.name || "Неизвестно"}
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="text-sm text-gray-300 italic mt-2">{travelState.result.summary}</p>
                             </div>
 
                             <div className="space-y-4 relative before:absolute before:left-4 before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-700">

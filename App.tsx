@@ -124,14 +124,22 @@ const AppContent: React.FC = () => {
   useEffect(() => {
       // 1. Add Quest
       const handleAddQuest = (e: CustomEvent) => {
-          const { title, description, giver } = e.detail;
+          const { title, description, giver, location } = e.detail;
+          
+          // Ensure we have default values if fields are missing
+          const safeTitle = title || 'Новый квест';
+          const safeGiver = giver || 'Неизвестно';
+          const safeLocation = location || 'Неизвестно';
+          const safeDescription = description || '';
+          
           const newQuest: FullQuest = {
               id: Date.now().toString(),
-              title: title || 'Новый квест',
+              title: safeTitle,
               status: 'active',
-              giver: giver || 'Неизвестно',
-              summary: description?.substring(0, 50) + '...' || '',
-              description: description || '',
+              giver: safeGiver,
+              location: safeLocation, // Pass location correctly
+              summary: safeDescription.substring(0, 50) + (safeDescription.length > 50 ? '...' : '') || safeTitle,
+              description: safeDescription,
               objectives: [{ id: Date.now().toString() + 'obj', text: 'Основная цель', completed: false }],
               threats: [],
               reward: ''
@@ -147,7 +155,7 @@ const AppContent: React.FC = () => {
           addLog({
               id: Date.now().toString(),
               timestamp: Date.now(),
-              text: `[Квест] Добавлена задача: "${newQuest.title}"`,
+              text: `[Квест] Добавлена задача: "${newQuest.title}" в локации ${safeLocation}`,
               type: 'story'
           });
       };
@@ -288,6 +296,19 @@ const AppContent: React.FC = () => {
           window.removeEventListener('dmc-add-xp' as any, handleAddXp);
           window.removeEventListener('dmc-add-npc' as any, handleAddNpc);
       };
+  }, []);
+
+  // 6. Switch Tab Listener
+  useEffect(() => {
+    const handleSwitchTab = (e: CustomEvent) => {
+        if (e.detail && Object.values(Tab).includes(e.detail as Tab)) {
+            setActiveTab(e.detail as Tab);
+        } else if (e.detail === 'combat') {
+            setActiveTab(Tab.COMBAT);
+        }
+    };
+    window.addEventListener('dmc-switch-tab' as any, handleSwitchTab);
+    return () => window.removeEventListener('dmc-switch-tab' as any, handleSwitchTab);
   }, []);
 
   // Handle PWA Install Prompt

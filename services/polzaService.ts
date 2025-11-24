@@ -71,10 +71,14 @@ const getCampaignContext = (): string => {
     }
 };
 
-// Helper to clean text from Markdown code blocks
+// Helper to clean text from Markdown code blocks and artifacts
 const cleanText = (text: string): string => {
   if (!text) return "";
-  return text.replace(/```(?:json|html|xml)?\s*([\s\S]*?)\s*```/g, '$1').trim();
+  // Remove ```json ... ``` or just ``` ... ``` blocks
+  let cleaned = text.replace(/```(?:json|html|xml|markdown)?\s*([\s\S]*?)\s*```/g, '$1');
+  // Remove any remaining standalone code block markers
+  cleaned = cleaned.replace(/^```/gm, '').replace(/```$/gm, '');
+  return cleaned.trim();
 };
 
 // Generic Request Handler for Polza API
@@ -140,34 +144,32 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 2, delay = 1000): Pr
 
 // --- IMAGE GENERATION ---
 
-async function initiateImageGeneration(prompt: string, requestedSize: string = "1:1"): Promise<string> {
+async function initiateImageGeneration(prompt: string, requestedRatio: string = "1:1"): Promise<string> {
     const apiKey = getCustomApiKey() || process.env.API_KEY || '';
     if (!apiKey) throw new Error("API Key не найден.");
 
     const model = getActiveImageModel();
     
-    // Parameter mapping based on model requirements
     const body: any = {
         model: model,
         prompt: prompt 
     };
 
-    // Handle Ratios and specific model params
-    if (model === 'gpt4o-image') {
-        let size = "1:1";
-        if (requestedSize === "16:9") size = "3:2"; 
-        else if (requestedSize === "9:16") size = "2:3";
-        else if (requestedSize === "4:3") size = "1:1"; 
-        else if (requestedSize === "3:4") size = "2:3"; 
-        body.size = size;
-    } 
-    else if (model === 'seedream-v4') {
-        body.size = requestedSize;
-        body.imageResolution = "1K"; 
-    } 
-    else if (model === 'nano-banana') {
-        body.size = requestedSize;
+    // Resolution Mapping
+    // Models require specific resolutions, not just strings like "16:9".
+    let size = "1024x1024"; 
+    
+    if (requestedRatio === "16:9") size = "1024x1024"; // Default fallback for stability
+    if (model === 'seedream-v4' || model === 'gpt4o-image') {
+        if (requestedRatio === "16:9") size = "1792x1024"; 
+        else if (requestedRatio === "9:16") size = "1024x1792";
+        else size = "1024x1024";
+    } else {
+        // Default 1024x1024 for most models to ensure compatibility
+        size = "1024x1024";
     }
+
+    body.size = size;
 
     const response = await fetch(`${BASE_API_URL}/images/generations`, {
         method: 'POST',
@@ -179,12 +181,13 @@ async function initiateImageGeneration(prompt: string, requestedSize: string = "
     });
 
     if (!response.ok) {
-        const err = await response.json();
+        const err = await response.json().catch(() => ({}));
         throw new Error(err.message || `Ошибка генерации изображения (${response.status})`);
     }
 
     const data = await response.json();
-    return data.requestId;
+    // Some endpoints return the ID immediately in `id`, others in `requestId`
+    return data.requestId || data.id; 
 }
 
 async function checkImageStatus(requestId: string): Promise<any> {
@@ -224,6 +227,9 @@ export const generateImage = async (prompt: string, aspectRatio: string = "1:1")
                 if (result.image) return result.image;
                 if (typeof result.output === 'string') return result.output;
                 
+                // Fallback: sometimes result IS the url if it's a direct link in `output` object key
+                if (result.output && typeof result.output.url === 'string') return result.output.url;
+
                 throw new Error("API вернуло успех, но ссылка на изображение не найдена.");
             } else if (status === 'failed' || status === 'error') {
                 throw new Error(`Генерация не удалась: ${result.error || 'Неизвестная ошибка'}`);
@@ -232,6 +238,7 @@ export const generateImage = async (prompt: string, aspectRatio: string = "1:1")
             if (e.message.includes('Генерация не удалась') || e.message.includes('ссылка на изображение не найдена')) {
                 throw e;
             }
+            // Ignore network blips during polling
         }
         attempts++;
     }

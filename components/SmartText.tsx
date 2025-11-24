@@ -14,6 +14,13 @@ const SmartText: React.FC<SmartTextProps> = ({ content, className = "" }) => {
     if (!content) return "";
     
     let html = content;
+
+    // Basic heuristic to detect plain text with newlines and no block HTML
+    // If it doesn't have common block tags, treat newlines as line breaks
+    if (!/<(p|div|ul|ol|li|h[1-6]|table|tr|td|th|blockquote)[^>]*>/i.test(html)) {
+        html = html.replace(/\n/g, '<br/>');
+    }
+
     const keywords = new Map<string, { type: string; id: string; title: string }>();
 
     // 1. Load Data from Storage/Constants
@@ -64,7 +71,6 @@ const SmartText: React.FC<SmartTextProps> = ({ content, className = "" }) => {
     // We replace keywords with a placeholder {{{INDEX}}} to avoid replacing inside tags or re-replacing.
     // Then we restore placeholders with the span.
     
-    const fragments: string[] = [];
     let tempHtml = html;
 
     sortedKeys.forEach((key, index) => {
