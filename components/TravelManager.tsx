@@ -8,6 +8,7 @@ import {
     CheckCircle, X, Loader, ArrowRight, Compass,
     Target, Coins, Tent, RotateCcw, Sparkles
 } from 'lucide-react';
+import { useAudio } from '../contexts/AudioContext';
 
 interface TravelManagerProps {
     isOpen: boolean;
@@ -50,6 +51,7 @@ const TravelManager: React.FC<TravelManagerProps> = ({
     onGenerateLocation, 
     onCancelTravel 
 }) => {
+    const { autoPlayMusic } = useAudio();
     // View Modes: 'plan' (setup), 'loading' (AI working), 'journey' (active trip)
     const [viewMode, setViewMode] = useState<'plan' | 'loading' | 'journey'>('plan');
 
@@ -137,6 +139,9 @@ const TravelManager: React.FC<TravelManagerProps> = ({
             onUpdateTravelState(newState);
             setViewMode('journey');
             addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Путешествие] Группа отправляется в "${destination}".`, type: 'story' });
+            
+            // Start Travel Music
+            autoPlayMusic('travel');
 
         } catch (error: any) {
             console.error("Travel Generation Failed:", error);
@@ -184,6 +189,10 @@ const TravelManager: React.FC<TravelManagerProps> = ({
             // Switch tab and close modal
             window.dispatchEvent(new CustomEvent('dmc-switch-tab', { detail: 'combat' }));
             markCompleted();
+            
+            // Switch music to combat automatically
+            autoPlayMusic('combat', threats.join(' '));
+            
             onClose();
         } 
         else if (action === 'loot') {
@@ -205,6 +214,10 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                 markCompleted();
                 
                 addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Путь] Исследована локация: ${newLoc.name}`, type: 'system' });
+                
+                // Auto-switch music to location based
+                autoPlayMusic('location', newLoc.name + " " + newLoc.type + " " + newLoc.atmosphere);
+                
                 onClose(); // Close to let DM explore the new location
             } catch (e: any) {
                 alert("Ошибка генерации локации: " + e.message);
@@ -244,6 +257,10 @@ const TravelManager: React.FC<TravelManagerProps> = ({
         addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Путешествие] Прибытие в "${destName}".`, type: 'system' });
         
         onTravelComplete(finalLocation, destRegionId);
+        
+        // Auto switch music to location
+        autoPlayMusic('location', finalLocation.name + " " + finalLocation.type + " " + finalLocation.atmosphere);
+        
         onClose();
     };
 

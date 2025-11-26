@@ -218,7 +218,7 @@ export interface SavedImage {
 }
 
 // Audio Types
-export type AudioCategory = 'atmosphere' | 'combat' | 'mood' | 'travel' | 'comedy' | 'scifi' | 'special';
+export type AudioCategory = 'combat' | 'atmosphere' | 'city' | 'horror' | 'mystic' | 'drama' | 'scifi' | 'special';
 
 export interface Track {
     id: string;
@@ -256,6 +256,7 @@ export interface AudioContextType {
     importLocalTracks: (playlistId: string, files: File[]) => void;
     playSfx: (url: string) => void;
     stopAllSfx: () => void;
+    autoPlayMusic: (type: 'combat' | 'location' | 'travel' | 'victory', contextText?: string) => void;
 }
 
 export enum Tab {

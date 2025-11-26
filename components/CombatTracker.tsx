@@ -15,7 +15,7 @@ interface CombatTrackerProps {
 }
 
 const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
-  const { playPlaylist } = useAudio();
+  const { playPlaylist, autoPlayMusic } = useAudio();
 
   const [combatants, setCombatants] = useState<Combatant[]>(() => {
       const saved = localStorage.getItem('dmc_combatants');
@@ -99,8 +99,10 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
   }, [showInitModal]);
 
   const playCombatMusic = () => {
-      playPlaylist('combat', true);
-      addLog({ id: Date.now().toString(), timestamp: Date.now(), text: "Включен боевой плейлист.", type: 'system' });
+      // Check names for intelligent switching
+      const monsterNames = combatants.filter(c => c.type === EntityType.MONSTER).map(c => c.name + " " + c.notes).join(' ');
+      autoPlayMusic('combat', monsterNames);
+      addLog({ id: Date.now().toString(), timestamp: Date.now(), text: "Включена боевая музыка.", type: 'system' });
   };
 
   const sortCombatants = () => {
@@ -223,7 +225,9 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
       setVictoryXp(xpPerPlayer);
       setVictoryLoot('');
       setShowVictoryModal(true);
-      playPlaylist('victory', false);
+      
+      // Auto play victory music
+      autoPlayMusic('victory');
   };
 
   const cleanCombatState = () => {
@@ -347,7 +351,11 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
 
     setCombatants(prev => {
         const monstersBefore = prev.filter(c => c.type === EntityType.MONSTER).length;
-        if (monstersBefore === 0) playCombatMusic();
+        if (monstersBefore === 0) {
+             // Trigger auto music based on monster name/type
+             const contextText = `${monster.name} ${monster.type} CR ${monster.challenge_rating}`;
+             autoPlayMusic('combat', contextText);
+        }
         return [...prev, ...newMonsters];
     });
     addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Добавлено ${count} x ${monster.name} (API).`, type: 'system' });
@@ -359,6 +367,9 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
           // Switch to Location tab and trigger travel modal open
           window.dispatchEvent(new CustomEvent('dmc-switch-tab', { detail: 'location' }));
           setTimeout(() => window.dispatchEvent(new CustomEvent('dmc-open-travel')), 100);
+          
+          // Switch back to travel music
+          autoPlayMusic('travel');
       }
   };
 

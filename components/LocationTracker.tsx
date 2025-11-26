@@ -40,7 +40,7 @@ const GENERIC_LOCATIONS = [
 
 const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, onImageGenerated, onShowImage }) => {
     // Audio Context for automation
-    const { playPlaylist } = useAudio();
+    const { autoPlayMusic } = useAudio();
 
     const [lore, setLore] = useState<LoreEntry[]>(() => {
         const savedLore = localStorage.getItem('dmc_lore');
@@ -228,7 +228,8 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             type: 'story'
         });
 
-        triggerLocationMusic(loc);
+        // Auto-DJ trigger
+        autoPlayMusic('location', `${loc.type} ${loc.name} ${loc.atmosphere} ${loc.description}`);
     };
 
     const handleTravelUpdate = (state: TravelState) => {
@@ -242,20 +243,6 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         }
         setLocationAndLog(newLocation);
         setActiveTravelPlan(null);
-    };
-
-    const triggerLocationMusic = (loc: LocationData) => {
-        const text = (loc.type + ' ' + loc.name + ' ' + loc.atmosphere).toLowerCase();
-        let playlistId = 'atmosphere'; 
-
-        if (loc.originWorld) playlistId = 'scifi';
-        else if (text.includes('лес') || text.includes('роща') || text.includes('чаща') || text.includes('forest')) playlistId = 'forest';
-        else if (text.includes('подземел') || text.includes('пещер') || text.includes('склеп') || text.includes('руины') || text.includes('dungeon')) playlistId = 'dungeon';
-        else if (text.includes('таверна') || text.includes('трактир') || text.includes('inn') || text.includes('tavern')) playlistId = 'tavern';
-        else if (text.includes('город') || text.includes('порт') || text.includes('столица') || text.includes('city')) playlistId = 'city';
-        else if (text.includes('пустын') || text.includes('песк') || text.includes('восток') || text.includes('desert')) playlistId = 'eastern';
-
-        playPlaylist(playlistId, true);
     };
 
     const handleOpenItem = (item: any) => {
@@ -795,7 +782,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                 {showLoreInput ? (
                      <div className="flex-1 p-4 flex flex-col items-center justify-center animate-in fade-in">
                          <div className="w-full max-w-2xl bg-dnd-card border border-gray-700 rounded-lg p-6 shadow-xl">
-                            <h3 className="text-xl font-serif font-bold text-gold-500 mb-4">AI Импорт локации</h3>
+                            <h3 className="text-xl font-serif font-bold text-gold-500 mb-4">AI Импорт текста</h3>
                             <p className="text-sm text-gray-400 mb-4">Вставьте любой текст из книги приключений, и ИИ структурирует его.</p>
                             <textarea 
                                 className="w-full h-48 bg-gray-900 border border-gray-600 rounded p-3 text-sm text-gray-300 focus:border-gold-500 outline-none resize-none"

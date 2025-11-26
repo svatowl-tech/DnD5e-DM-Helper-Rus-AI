@@ -9,10 +9,11 @@ import { AudioCategory, Track, Playlist } from '../types';
 
 const CATEGORIES: Record<AudioCategory, string> = {
     combat: 'Боевые сцены',
-    atmosphere: 'Атмосфера',
-    mood: 'Настроение / Хоррор',
-    travel: 'Путешествие',
-    comedy: 'Таверна / Комедия',
+    atmosphere: 'Атмосфера и Природа',
+    city: 'Город и Таверна',
+    horror: 'Хоррор и Подземелье',
+    mystic: 'Мистика и Магия',
+    drama: 'Драма и Печаль',
     scifi: 'Сай-Фай / Космос',
     special: 'Специальное'
 };
@@ -20,9 +21,10 @@ const CATEGORIES: Record<AudioCategory, string> = {
 const CATEGORY_ICONS: Record<AudioCategory, string> = {
     combat: '⚔️',
     atmosphere: '🌲',
-    mood: '🔮',
-    travel: '🐎',
-    comedy: '🍺',
+    city: '🍺',
+    horror: '💀',
+    mystic: '🔮',
+    drama: '🎻',
     scifi: '👽',
     special: '🏆'
 };

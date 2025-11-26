@@ -1,5 +1,6 @@
 
 import { CampaignSettings, FullQuest, CampaignNpc, TravelResult } from "../types";
+import { ECHOES_CAMPAIGN_PROMPT } from "../data/prompts/echoesPrompts";
 
 // Available models per user request
 export const AVAILABLE_MODELS = [
@@ -23,6 +24,7 @@ export const AVAILABLE_IMAGE_MODELS = [
 const STORAGE_KEY_API = 'dmc_polza_api_key';
 const STORAGE_KEY_MODEL = 'dmc_ai_model';
 const STORAGE_KEY_IMG_MODEL = 'dmc_ai_image_model';
+const STORAGE_KEY_MODE = 'dmc_campaign_mode';
 const BASE_API_URL = 'https://api.polza.ai/api/v1';
 
 export const setCustomApiKey = (key: string) => {
@@ -59,13 +61,35 @@ export const setActiveImageModel = (modelId: string) => {
     localStorage.setItem(STORAGE_KEY_IMG_MODEL, modelId);
 };
 
+// --- Campaign Mode Management ---
+export type CampaignMode = 'standard' | 'echoes';
+
+export const getCampaignMode = (): CampaignMode => {
+    const saved = localStorage.getItem(STORAGE_KEY_MODE);
+    return (saved === 'echoes') ? 'echoes' : 'standard';
+};
+
+export const setCampaignMode = (mode: CampaignMode) => {
+    localStorage.setItem(STORAGE_KEY_MODE, mode);
+};
+
 // Helper to get global campaign settings context
 const getCampaignContext = (): string => {
+    const mode = getCampaignMode();
+    
     try {
         const saved = localStorage.getItem('dmc_campaign_settings');
-        if (!saved) return "";
-        const s: CampaignSettings = JSON.parse(saved);
-        return `КОНТЕКСТ КАМПАНИИ: Мир: "${s.worldName}". Тон игры: "${s.tone}". Уровень группы: ${s.partyLevel}. Учитывай это при генерации.`;
+        let baseSettings = "";
+        if (saved) {
+            const s: CampaignSettings = JSON.parse(saved);
+            baseSettings = `НАСТРОЙКИ ИГРЫ: Мир: "${s.worldName}". Тон: "${s.tone}". Уровень группы: ${s.partyLevel}.`;
+        }
+
+        if (mode === 'echoes') {
+            return `${ECHOES_CAMPAIGN_PROMPT}\n\n${baseSettings}`;
+        } else {
+            return `КОНТЕКСТ КАМПАНИИ: ${baseSettings} Учитывай это при генерации.`;
+        }
     } catch (e) {
         return "";
     }
@@ -803,7 +827,8 @@ export const generateExtendedDetails = async (category: string, name: string, lo
 };
 
 export const generateMultiverseBreach = async (): Promise<any> => {
-  const systemPrompt = `Ты генератор событий "Project Ark" (Мультивселенная D&D). Верни JSON.
+  const context = getCampaignContext();
+  const systemPrompt = `Ты генератор событий "Project Ark" (Мультивселенная D&D). Верни JSON. ${context}
   Структура:
   {
     "name": "Название разлома",
@@ -831,7 +856,8 @@ export const generateMultiverseBreach = async (): Promise<any> => {
 };
 
 export const generateRealityGlitch = async (locationName: string): Promise<any> => {
-    const systemPrompt = `Верни JSON: {"name": "Название сбоя", "effect": "Описание эффекта"}.`;
+    const context = getCampaignContext();
+    const systemPrompt = `Верни JSON: {"name": "Название сбоя", "effect": "Описание эффекта"}. ${context}`;
     const userPrompt = `Придумай "Сбой Реальности" (Glitch) для локации "${locationName}". Странный физический или магический эффект.`;
 
     return withRetry(async () => {
