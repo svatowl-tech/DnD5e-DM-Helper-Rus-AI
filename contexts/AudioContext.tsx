@@ -1,9 +1,8 @@
+
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { AudioContextType, Playlist, Track } from '../types';
 
 // --- HELPER FOR STABLE URLS ---
-// Kevin MacLeod's site uses specific filenames. 
-// We use encodeURIComponent to handle spaces safely.
 const getTrackUrl = (filename: string) => {
     return `https://incompetech.com/music/royalty-free/mp3-royaltyfree/${encodeURIComponent(filename)}.mp3`;
 };
@@ -34,7 +33,7 @@ const INITIAL_PRESETS: Playlist[] = [
             { id: 'c_heavy_interlude', title: 'Heavy Interlude', artist: 'Kevin MacLeod', url: getTrackUrl('Heavy Interlude') },
             { id: 'c_volitile', title: 'Volatile Reaction', artist: 'Kevin MacLeod', url: getTrackUrl('Volatile Reaction') },
             { id: 'c_hitman', title: 'Hitman', artist: 'Kevin MacLeod', url: getTrackUrl('Hitman') },
-            { id: 'c_pina', title: 'Pinball Spring', artist: 'Kevin MacLeod', url: getTrackUrl('Pinball Spring') }, // Fast paced
+            { id: 'c_pina', title: 'Pinball Spring', artist: 'Kevin MacLeod', url: getTrackUrl('Pinball Spring') },
             { id: 'c_imp', title: 'Impact Prelude', artist: 'Kevin MacLeod', url: getTrackUrl('Impact Prelude') },
             { id: 'c_all_this', title: 'All This', artist: 'Kevin MacLeod', url: getTrackUrl('All This') },
             { id: 'c_achilles', title: 'Achilles', artist: 'Kevin MacLeod', url: getTrackUrl('Achilles') },
@@ -253,13 +252,9 @@ export const useAudio = () => {
 
 export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [playlists, setPlaylists] = useState<Playlist[]>(() => {
-        // Load from local storage or use initial
         const saved = localStorage.getItem('dmc_playlists');
         if (saved) {
             try {
-                // Merge saved playlists with initial presets if presets have new tracks?
-                // For simplicity, if saved exists, we trust it, but in dev we might want to reset.
-                // In a real app, we'd merge. Here, let's just load initial if saved is empty or broken.
                 const parsed = JSON.parse(saved);
                 if (Array.isArray(parsed) && parsed.length > 0) return parsed;
             } catch(e) { console.warn('Failed to load playlists', e); }
@@ -287,62 +282,74 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 const target = e.target as HTMLAudioElement;
                 const err = target.error;
                 let errMsg = "Ошибка воспроизведения.";
-                
                 if (err) {
                     if (err.code === 1) errMsg = "Загрузка прервана.";
                     else if (err.code === 2) errMsg = "Ошибка сети.";
                     else if (err.code === 3) errMsg = "Ошибка декодирования.";
-                    else if (err.code === 4) errMsg = "Файл не найден или формат не поддерживается.";
+                    else if (err.code === 4) errMsg = "Файл не найден.";
                     console.warn(`Audio Error (${err.code}): ${err.message}`);
-                } else {
-                    console.warn("Unknown Audio Error", e);
                 }
-
-                setError(errMsg);
-                setIsLoading(false);
-                setIsPlaying(false);
+                // Only set error if we are actively trying to play
+                if (isPlaying) {
+                    setError(errMsg);
+                    setIsLoading(false);
+                    setIsPlaying(false);
+                }
             });
             audioRef.current.addEventListener('waiting', () => setIsLoading(true));
             audioRef.current.addEventListener('canplay', () => setIsLoading(false));
         }
+        
         return () => {
             if (audioRef.current) {
                 audioRef.current.pause();
-                audioRef.current.src = "";
+                audioRef.current.removeAttribute('src');
             }
         };
     }, []);
 
-    // Volume Sync
+    // Volume Sync for Music AND SFX
     useEffect(() => {
         if (audioRef.current) {
             audioRef.current.volume = volume;
         }
+        // Also update all active SFX instantly
+        activeSfxRef.current.forEach(sfx => {
+            sfx.volume = volume;
+        });
     }, [volume]);
 
     // Playback Control
     useEffect(() => {
         const playAudio = async () => {
-            if (!audioRef.current || !currentTrack) return;
+            if (!audioRef.current) return;
             
-            // Only reload source if it changed
-            if (audioRef.current.src !== currentTrack.url) {
-                audioRef.current.src = currentTrack.url;
-                audioRef.current.load();
-            }
+            if (currentTrack && currentTrack.url) {
+                const currentSrc = audioRef.current.getAttribute('src');
+                // Only reload source if it changed
+                if (currentSrc !== currentTrack.url) {
+                    audioRef.current.src = currentTrack.url;
+                    audioRef.current.load();
+                }
 
-            if (isPlaying) {
-                try {
-                    await audioRef.current.play();
-                    setError(null);
-                } catch (e: any) {
-                    console.warn("Play attempt failed (often due to autoplay policy):", e);
-                    if (e.name !== 'AbortError') {
-                        setIsPlaying(false);
+                if (isPlaying) {
+                    try {
+                        await audioRef.current.play();
+                        setError(null);
+                    } catch (e: any) {
+                        console.warn("Play attempt failed:", e);
+                        if (e.name !== 'AbortError') {
+                            setIsPlaying(false);
+                        }
                     }
+                } else {
+                    audioRef.current.pause();
                 }
             } else {
                 audioRef.current.pause();
+                if (audioRef.current.getAttribute('src')) {
+                     audioRef.current.removeAttribute('src');
+                }
             }
         };
 
@@ -366,7 +373,8 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const playPlaylist = (playlistId: string, shuffle: boolean = false) => {
         const playlist = playlists.find(p => p.id === playlistId);
-        if (!playlist || !playlist.tracks.length) return;
+        // FIX: Added check for tracks array existence
+        if (!playlist || !playlist.tracks || !playlist.tracks.length) return;
 
         setIsShuffle(shuffle);
         setCurrentPlaylistId(playlistId);
@@ -392,7 +400,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const getNextTrack = (direction: 'next' | 'prev') => {
         if (!currentPlaylistId || !currentTrack) return null;
         const playlist = playlists.find(p => p.id === currentPlaylistId);
-        if (!playlist) return null;
+        if (!playlist || !playlist.tracks) return null;
 
         if (isShuffle) {
              return playlist.tracks[Math.floor(Math.random() * playlist.tracks.length)];
@@ -467,11 +475,12 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setVolume(Math.max(0, Math.min(1, vol)));
     }
 
-    // Trackable SFX Player
+    // Improved SFX Player
     const playSfx = (url: string) => {
         try {
+            if (!url) return;
             const audio = new Audio(url);
-            audio.volume = volume; // Use current master volume
+            audio.volume = volume; // Use current master volume immediately
             
             // Track this SFX instance
             activeSfxRef.current.add(audio);
@@ -482,13 +491,20 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             });
             
             // Cleanup on error
-            audio.addEventListener('error', () => {
+            audio.addEventListener('error', (e) => {
+                console.warn(`SFX Error for ${url}:`, e);
                 activeSfxRef.current.delete(audio);
             });
 
-            audio.play().catch(e => console.warn("SFX Play failed:", e));
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.warn("SFX Play failed:", error);
+                    activeSfxRef.current.delete(audio);
+                });
+            }
         } catch (e) {
-            console.error("SFX Error:", e);
+            console.error("SFX System Error:", e);
         }
     };
 

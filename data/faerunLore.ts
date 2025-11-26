@@ -1,5 +1,5 @@
 
-import { LoreEntry } from "../../types";
+import { LoreEntry } from "../types";
 // New split files
 import { LORE_ICEWIND_DALE } from "./lore/icewindDale";
 import { LORE_SAVAGE_FRONTIER } from "./lore/savageFrontier";
@@ -42,51 +42,68 @@ import { LORE_NAJARA } from "./lore/najara";
 import { LORE_ELTURGARD } from "./lore/elturgard";
 import { LORE_AGLAROND } from "./lore/aglarond";
 import { LORE_MURGHOM } from "./lore/murghom";
+import { LORE_WILD_COAST } from "./lore/wildCoast";
+import { LORE_GREAT_SEA } from "./lore/greatSea";
+import { LORE_TRACKLESS_SEA } from "./lore/tracklessSea";
+import { LORE_SHINING_SEA } from "./lore/shiningSea";
 import { LORE_WILD_LANDS } from "./lore/wildLands";
+import { LORE_SEA_OF_MOVING_ICE } from "./lore/seaOfMovingIce";
+import { LORE_ENDLESS_SEA } from "./lore/endlessSea";
+import { LORE_GREAT_ICE_SEA } from "./lore/greatIceSea";
+import { LORE_LAKE_OF_STEAM } from "./lore/lakeOfSteam";
+import { LORE_ALAMBER_SEA } from "./lore/alamberSea";
+import { LORE_VILHON_REACH } from "./lore/vilhonReach";
 
-// Combine all regions into one export
 export const FAERUN_LORE: LoreEntry[] = [
-    ...LORE_SWORD_COAST,
-    ...LORE_SEA_OF_SWORDS,
-    // Replaced LORE_NORTH with specific files
-    ...LORE_ICEWIND_DALE,
-    ...LORE_COLD_RUN,
-    ...LORE_SAVAGE_FRONTIER,
-    ...LORE_SILVER_MARCHES,
-    ...LORE_HIGH_FOREST,
-    ...LORE_HARTSVALE,
-    ...LORE_HIGH_ICE,
-    ...LORE_NAKVALIGACH,
-    ...LORE_ANGALPUK,
-    ...LORE_LANTAN,
-    ...LORE_THAR,
-    ...LORE_ALARON,
-    ...LORE_GWYNNETH,
-    // ---------------------------
-    ...LORE_MOONSEA,
-    ...LORE_EVERESKA,
-    ...LORE_FLOODED_FOREST,
-    ...LORE_GRAY_FOREST,
-    ...LORE_NAJARA,
-    ...LORE_ELTURGARD,
-    ...LORE_VAASA,
-    ...LORE_DAMARA,
-    ...LORE_VAST,
-    ...LORE_AGLAROND,
-    ...LORE_VESPERIN,
-    ...LORE_IMPILTUR,
-    ...LORE_THE_GREAT_DALE,
-    ...LORE_NARFELL,
-    ...LORE_THESK,
-    ...LORE_MURGHOM,
-    ...LORE_HEARTLANDS,
-    ...LORE_SEMBIA,
-    ...LORE_DALELANDS,
-    ...LORE_CORMANTHOR,
-    ...LORE_SOUTH,
-    ...LORE_EAST,
-    ...LORE_UNDERDARK,
-    ...LORE_SEA_OF_FALLEN_STARS,
-    ...LORE_ANAUROCH,
-    ...LORE_WILD_LANDS
+  ...LORE_ICEWIND_DALE,
+  ...LORE_SAVAGE_FRONTIER,
+  ...LORE_SILVER_MARCHES,
+  ...LORE_HIGH_FOREST,
+  ...LORE_COLD_RUN,
+  ...LORE_HARTSVALE,
+  ...LORE_HIGH_ICE,
+  ...LORE_NAKVALIGACH,
+  ...LORE_ANGALPUK,
+  ...LORE_LANTAN,
+  ...LORE_THAR,
+  ...LORE_ALARON,
+  ...LORE_GWYNNETH,
+  ...LORE_SWORD_COAST,
+  ...LORE_HEARTLANDS,
+  ...LORE_EAST,
+  ...LORE_SOUTH,
+  ...LORE_UNDERDARK,
+  ...LORE_SEA_OF_FALLEN_STARS,
+  ...LORE_ANAUROCH,
+  ...LORE_SEMBIA,
+  ...LORE_DALELANDS,
+  ...LORE_CORMANTHOR,
+  ...LORE_MOONSEA,
+  ...LORE_VAASA,
+  ...LORE_VAST,
+  ...LORE_IMPILTUR,
+  ...LORE_THE_GREAT_DALE,
+  ...LORE_NARFELL,
+  ...LORE_THESK,
+  ...LORE_DAMARA,
+  ...LORE_SEA_OF_SWORDS,
+  ...LORE_VESPERIN,
+  ...LORE_FLOODED_FOREST,
+  ...LORE_GRAY_FOREST,
+  ...LORE_EVERESKA,
+  ...LORE_NAJARA,
+  ...LORE_ELTURGARD,
+  ...LORE_AGLAROND,
+  ...LORE_MURGHOM,
+  ...LORE_WILD_COAST,
+  ...LORE_GREAT_SEA,
+  ...LORE_TRACKLESS_SEA,
+  ...LORE_SHINING_SEA,
+  ...LORE_WILD_LANDS,
+  ...LORE_SEA_OF_MOVING_ICE,
+  ...LORE_ENDLESS_SEA,
+  ...LORE_GREAT_ICE_SEA,
+  ...LORE_LAKE_OF_STEAM,
+  ...LORE_ALAMBER_SEA,
+  ...LORE_VILHON_REACH
 ];

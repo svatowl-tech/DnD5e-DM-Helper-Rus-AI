@@ -190,6 +190,15 @@ export interface TravelResult {
     events: TravelEvent[];
 }
 
+export interface TravelState {
+    result: TravelResult;
+    completed: number[];
+    destination?: {
+        name: string;
+        regionId?: string;
+    };
+}
+
 export interface Note {
     id: string;
     title: string;

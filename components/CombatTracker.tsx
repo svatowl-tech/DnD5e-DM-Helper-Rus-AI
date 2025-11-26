@@ -174,11 +174,12 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
   const toggleCondition = (combatantId: string, condition: Condition) => {
       setCombatants(prev => prev.map(c => {
           if (c.id === combatantId) {
-              const exists = c.conditions.some(cond => cond.id === condition.id);
+              const safeConditions = c.conditions || [];
+              const exists = safeConditions.some(cond => cond.id === condition.id);
               let newConditions;
               
               if (exists) {
-                  newConditions = c.conditions.filter(cond => cond.id !== condition.id);
+                  newConditions = safeConditions.filter(cond => cond.id !== condition.id);
                   addLog({ 
                       id: Date.now().toString(), 
                       timestamp: Date.now(), 
@@ -186,7 +187,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
                       type: 'system' 
                   });
               } else {
-                  newConditions = [...c.conditions, condition];
+                  newConditions = [...safeConditions, condition];
                   addLog({ 
                       id: Date.now().toString(), 
                       timestamp: Date.now(), 
@@ -551,7 +552,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
             <div className="text-xs text-gray-400 font-sans bg-gray-900/30 p-1 rounded border border-gray-800 flex justify-between items-center">
                 <span>Ход: <span className="text-white font-bold text-sm">{activeCombatant.name}</span></span>
                 <div className="flex gap-2 items-center">
-                    {activeCombatant.conditions.map(c => (
+                    {(activeCombatant.conditions || []).map(c => (
                         <span key={c.id} className="bg-red-900/50 text-red-200 px-1.5 rounded border border-red-800 text-[10px] font-bold">
                             {c.name.split(' (')[0]}
                         </span>
@@ -602,6 +603,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
           const isActive = c.id === activeId;
           const isDead = c.hp === 0;
           const isEditingConditions = editingConditionsId === c.id;
+          const currentConditions = c.conditions || [];
 
           return (
             <div 
@@ -625,7 +627,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
                             
                             {/* Condition Badges */}
                             <div className="flex flex-wrap gap-1">
-                                {c.conditions.map(cond => (
+                                {currentConditions.map(cond => (
                                     <button 
                                         key={cond.id}
                                         onClick={() => openConditionInfo(cond.id, cond.name)}
@@ -648,7 +650,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
                  </div>
                  
                  <div className="sm:hidden flex gap-2">
-                    <button onClick={() => setEditingConditionsId(isEditingConditions ? null : c.id)} className={`p-1 rounded ${c.conditions.length > 0 ? 'text-red-400' : 'text-gray-600'}`}>
+                    <button onClick={() => setEditingConditionsId(isEditingConditions ? null : c.id)} className={`p-1 rounded ${currentConditions.length > 0 ? 'text-red-400' : 'text-gray-600'}`}>
                         <Activity className="w-5 h-5"/>
                     </button>
                     <button onClick={() => removeCombatant(c.id)} className="text-gray-600 hover:text-red-500 p-1">
@@ -678,7 +680,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
               <div className="hidden sm:flex items-center gap-1">
                   <button 
                     onClick={() => setEditingConditionsId(isEditingConditions ? null : c.id)}
-                    className={`p-2 rounded hover:bg-gray-800 transition-colors ${c.conditions.length > 0 ? 'text-red-400' : 'text-gray-500 hover:text-white'}`}
+                    className={`p-2 rounded hover:bg-gray-800 transition-colors ${currentConditions.length > 0 ? 'text-red-400' : 'text-gray-500 hover:text-white'}`}
                     title="Управление состояниями"
                   >
                       <Activity className="w-5 h-5"/>
@@ -703,7 +705,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
                       </div>
                       <div className="grid grid-cols-2 gap-1 max-h-40 overflow-y-auto custom-scrollbar">
                           {CONDITIONS.map(cond => {
-                              const isActiveCond = c.conditions.some(active => active.id === cond.id);
+                              const isActiveCond = currentConditions.some(active => active.id === cond.id);
                               return (
                                   <button
                                     key={cond.id}

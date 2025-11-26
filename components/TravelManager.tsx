@@ -1,22 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
-import { TravelResult, TravelEvent, LoreEntry, LocationData } from '../types';
+import { TravelResult, TravelEvent, LoreEntry, LocationData, TravelState, EntityType } from '../types';
 import { generateTravelScenario, generateFullLocation } from '../services/polzaService';
 import { 
     Map, Footprints, Ship, Zap, 
     Cloud, Sword, Search, MessageSquare, Skull, 
     CheckCircle, X, Loader, ArrowRight, Compass,
-    Target, Coins, Tent, MapPin, Sparkles, Play
+    Target, Coins, Tent, RotateCcw, Sparkles
 } from 'lucide-react';
-
-interface TravelState {
-    result: TravelResult;
-    completed: number[];
-    destination?: {
-        name: string;
-        regionId?: string;
-    };
-}
 
 interface TravelManagerProps {
     isOpen: boolean;
@@ -35,8 +26,8 @@ interface TravelManagerProps {
 }
 
 const PACE_OPTIONS = [
-    { id: 'fast', label: 'Быстрый (Скрытность -5)', icon: <Zap className="w-4 h-4"/> },
     { id: 'normal', label: 'Нормальный', icon: <Footprints className="w-4 h-4"/> },
+    { id: 'fast', label: 'Быстрый (-5 Скрытность)', icon: <Zap className="w-4 h-4"/> },
     { id: 'slow', label: 'Скрытный (Медленно)', icon: <Search className="w-4 h-4"/> },
 ];
 
@@ -47,13 +38,22 @@ const METHOD_OPTIONS = [
 ];
 
 const TravelManager: React.FC<TravelManagerProps> = ({ 
-    isOpen, onClose, currentLocation, currentRegion, allLore, onTravelComplete, addLog,
-    travelState, onUpdateTravelState, onGenerateLocation, onCancelTravel
+    isOpen, 
+    onClose, 
+    currentLocation, 
+    currentRegion, 
+    allLore, 
+    onTravelComplete, 
+    addLog, 
+    travelState, 
+    onUpdateTravelState, 
+    onGenerateLocation, 
+    onCancelTravel 
 }) => {
-    // Modes: 'plan' -> 'loading' -> 'journey'
-    const [mode, setMode] = useState<'plan' | 'loading' | 'journey'>('plan');
-    
-    // Planning State
+    // View Modes: 'plan' (setup), 'loading' (AI working), 'journey' (active trip)
+    const [viewMode, setViewMode] = useState<'plan' | 'loading' | 'journey'>('plan');
+
+    // Planning Form State
     const [travelScope, setTravelScope] = useState<'local' | 'global'>('local');
     const [targetRegionId, setTargetRegionId] = useState<string>('');
     const [targetLocationName, setTargetLocationName] = useState<string>('');
@@ -61,232 +61,240 @@ const TravelManager: React.FC<TravelManagerProps> = ({
     const [selectedMethod, setSelectedMethod] = useState('foot');
     const [selectedPace, setSelectedPace] = useState('normal');
 
-    // Generation State
-    const [generatingEventId, setGeneratingEventId] = useState<number | null>(null);
+    // Transient processing state
+    const [processingEventId, setProcessingEventId] = useState<number | null>(null);
 
+    // Effect: Initialize state when modal opens or props change
     useEffect(() => {
         if (isOpen) {
-            if (travelState) {
-                setMode('journey');
+            // Check if we have a valid active travel state
+            const hasActiveJourney = travelState && 
+                                     travelState.result && 
+                                     Array.isArray(travelState.result.events) && 
+                                     travelState.result.events.length > 0;
+
+            if (hasActiveJourney) {
+                setViewMode('journey');
             } else {
-                setMode('plan');
-                if (currentRegion) setTargetRegionId(currentRegion.id);
+                setViewMode('plan');
+                // Pre-select current region if available
+                if (currentRegion) {
+                    setTargetRegionId(currentRegion.id);
+                }
             }
         }
-    }, [isOpen, currentRegion, travelState]);
+    }, [isOpen, travelState, currentRegion]);
 
-    // Derived Data
-    const availableLocations = travelScope === 'local' 
-        ? (currentRegion?.locations || [])
-        : (allLore.find(r => r.id === targetRegionId)?.locations || []);
+    // Helper: Get list of locations based on scope
+    const getAvailableLocations = () => {
+        if (travelScope === 'local') {
+            return currentRegion?.locations || [];
+        } else if (targetRegionId) {
+            const region = allLore.find(r => r.id === targetRegionId);
+            return region?.locations || [];
+        }
+        return [];
+    };
 
-    const handleGenerate = async () => {
-        const originName = currentLocation?.name || 'Неизвестная местность';
-        const destName = customTarget || targetLocationName || 'Неизвестная цель';
+    // Action: Generate the Travel Scenario
+    const handleGenerateScenario = async () => {
+        const origin = currentLocation?.name || 'Неизвестная местность';
+        const destination = customTarget || targetLocationName || 'Неизвестная цель';
         
-        // Determine Region Context
-        let regionContext = currentRegion?.name || 'Фаэрун';
-
-        if (travelScope === 'global' && targetRegionId && targetRegionId !== currentRegion?.id) {
+        let context = currentRegion ? `Регион: ${currentRegion.name}. ${currentRegion.description.substring(0, 100)}...` : 'Фэнтези мир.';
+        
+        // Add context about target region if global travel
+        if (travelScope === 'global' && targetRegionId) {
             const targetRegion = allLore.find(r => r.id === targetRegionId);
             if (targetRegion) {
-                regionContext = `Путешествие из региона "${currentRegion?.name}" в регион "${targetRegion.name}".`;
+                context += ` Путешествие в регион: ${targetRegion.name}.`;
             }
         }
 
-        setMode('loading');
+        setViewMode('loading');
+
         try {
-            const scenario = await generateTravelScenario(
-                originName,
-                destName,
-                regionContext,
-                selectedMethod,
-                selectedPace
-            );
+            const scenario = await generateTravelScenario(origin, destination, context, selectedMethod, selectedPace);
             
-            // Persist destination info so we know where we are going when we arrive
+            // Basic validation of AI response
+            if (!scenario || !Array.isArray(scenario.events)) {
+                throw new Error("Получены некорректные данные от AI.");
+            }
+
             const newState: TravelState = {
-                result: scenario,
+                result: {
+                    summary: scenario.summary || "Путь проложен.",
+                    duration: scenario.duration || 1,
+                    events: scenario.events
+                },
                 completed: [],
                 destination: {
-                    name: destName,
+                    name: destination,
                     regionId: travelScope === 'global' ? targetRegionId : currentRegion?.id
                 }
             };
 
-            onUpdateTravelState(newState); // Save to parent
-            setMode('journey');
-        } catch (e: any) {
-            alert("Ошибка генерации: " + e.message);
-            setMode('plan');
+            onUpdateTravelState(newState);
+            setViewMode('journey');
+            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Путешествие] Группа отправляется в "${destination}".`, type: 'story' });
+
+        } catch (error: any) {
+            console.error("Travel Generation Failed:", error);
+            alert(`Ошибка генерации: ${error.message}`);
+            setViewMode('plan');
         }
     };
 
-    const handleEventAction = (event: TravelEvent, action: 'combat' | 'loot' | 'complete') => {
+    // Action: Handle specific event interactions
+    const handleEventAction = async (event: TravelEvent, action: 'combat' | 'loot' | 'explore' | 'skip') => {
         if (!travelState) return;
 
-        if (action === 'combat' && event.threats) {
-            // Normalize threats: split by comma if AI combined them (e.g. "Wolf, Goblin")
-            // Also handles array of strings properly
-            let individualThreats: string[] = [];
-            if (Array.isArray(event.threats)) {
-                event.threats.forEach(t => {
-                    if (t.includes(',')) {
-                        individualThreats.push(...t.split(',').map(s => s.trim()));
-                    } else {
-                        individualThreats.push(t.trim());
-                    }
+        // mark as completed helper
+        const markCompleted = () => {
+            if (!travelState.completed.includes(event.day)) {
+                onUpdateTravelState({
+                    ...travelState,
+                    completed: [...travelState.completed, event.day]
                 });
             }
+        };
 
-            // Loop through threats and dispatch individual events
-            individualThreats.forEach((threatName, index) => {
-                // Small delay to ensure unique IDs if processed rapidly
+        if (action === 'combat') {
+            // Add monsters to combat tracker
+            const threats = event.threats || ['Неизвестный враг'];
+            
+            threats.forEach((name, index) => {
                 setTimeout(() => {
                     const combatEvent = new CustomEvent('dmc-add-combatant', {
                         detail: {
-                            name: threatName,
+                            name: name,
                             type: 'MONSTER',
-                            hp: 20, ac: 12, initiative: 10 + Math.floor(Math.random() * 5),
+                            hp: 20, // Default, DM should edit
+                            ac: 12,
+                            initiative: 10 + Math.floor(Math.random() * 5),
                             notes: `Событие: ${event.title}`
                         }
                     });
                     window.dispatchEvent(combatEvent);
-                }, index * 50);
+                }, index * 100); // Stagger slightly to ensure unique IDs if rapid
             });
+
+            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Путь] Бой: ${threats.join(', ')}`, type: 'combat' });
             
-            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Путь] Враги добавлены в бой: ${individualThreats.join(', ')}`, type: 'combat' });
-            
-            // Switch to Combat Tab IMMEDIATELY
+            // Switch tab and close modal
             window.dispatchEvent(new CustomEvent('dmc-switch-tab', { detail: 'combat' }));
-            onClose(); // Close travel modal to show combat
-        } 
-        else if (action === 'loot' && event.loot) {
-            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Путь] Найдено: ${event.loot.join(', ')}`, type: 'story' });
-        }
-
-        // Mark completed
-        if (!travelState.completed.includes(event.day)) {
-            onUpdateTravelState({
-                ...travelState,
-                completed: [...travelState.completed, event.day]
-            });
-        }
-    };
-
-    const handleExploreLocation = async (event: TravelEvent) => {
-        if (!travelState) return;
-        setGeneratingEventId(event.day);
-        try {
-            // Generate full location based on event description
-            const regionName = currentRegion?.name || "Дикие Земли";
-            const locationType = event.title + " (" + event.type + ")";
-            
-            const newLocation = await generateFullLocation(regionName, locationType);
-            newLocation.id = Date.now().toString();
-            newLocation.description = `[Сгенерировано в пути] ${event.description}\n\n${newLocation.description}`;
-            
-            onGenerateLocation(newLocation);
-            
-            // Mark event as completed
-            onUpdateTravelState({
-                ...travelState,
-                completed: [...travelState.completed, event.day]
-            });
-
-            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Путь] Группа остановилась исследовать: ${newLocation.name}`, type: 'system' });
-            
-            // Close modal to let user play
+            markCompleted();
             onClose();
-
-        } catch (e: any) {
-            alert("Ошибка генерации локации: " + e.message);
-        } finally {
-            setGeneratingEventId(null);
+        } 
+        else if (action === 'loot') {
+            const loot = event.loot?.join(', ') || 'Ничего';
+            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Путь] Найдено: ${loot}`, type: 'story' });
+            markCompleted();
         }
-    };
-
-    const handleArrival = () => {
-        if (!travelState) return;
-
-        // Use stored destination info
-        const destInfo = travelState.destination;
-        const newLocName = destInfo?.name || 'Пункт Назначения';
-        const regionId = destInfo?.regionId;
-        
-        let newLocData: LocationData = {
-            id: Date.now().toString(),
-            name: newLocName,
-            type: 'Локация',
-            description: 'Вы прибыли сюда после долгого путешествия.',
-            atmosphere: 'Следы дороги, новые горизонты.'
-        };
-
-        // Try to find full data from Lore if it matches a known location
-        if (regionId) {
-            const region = allLore.find(r => r.id === regionId);
-            if (region) {
-                const existing = region.locations.find(l => l.name === newLocName);
-                if (existing) newLocData = existing;
+        else if (action === 'explore') {
+            setProcessingEventId(event.day);
+            try {
+                const regionName = currentRegion?.name || "Дикие Земли";
+                const newLoc = await generateFullLocation(regionName, event.locationName || event.title);
+                newLoc.id = Date.now().toString();
+                
+                // Add context from event
+                newLoc.description = `(Обнаружено в пути) ${event.description}\n\n${newLoc.description}`;
+                
+                onGenerateLocation(newLoc);
+                markCompleted();
+                
+                addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Путь] Исследована локация: ${newLoc.name}`, type: 'system' });
+                onClose(); // Close to let DM explore the new location
+            } catch (e: any) {
+                alert("Ошибка генерации локации: " + e.message);
+            } finally {
+                setProcessingEventId(null);
             }
         }
+        else if (action === 'skip') {
+            markCompleted();
+        }
+    };
 
-        // Log Arrival
-        addLog({ 
-            id: Date.now().toString(), 
-            timestamp: Date.now(), 
-            text: `[Путешествие] Группа прибыла в "${newLocName}" (${travelState.result.duration} дн.).`, 
-            type: 'system' 
-        });
+    // Action: Complete Journey
+    const handleFinishJourney = () => {
+        if (!travelState) return;
+        
+        const destName = travelState.destination?.name || "Цель";
+        const destRegionId = travelState.destination?.regionId;
 
-        onTravelComplete(newLocData, regionId);
+        // Create a basic location entry for the destination if it's new
+        // Or finding existing if it matches
+        let finalLocation: LocationData = {
+            id: Date.now().toString(),
+            name: destName,
+            type: 'Локация',
+            description: 'Вы прибыли к месту назначения после долгого пути.',
+            atmosphere: 'Дорожная пыль, новые горизонты.'
+        };
+
+        // Try to find existing data
+        if (destRegionId) {
+            const region = allLore.find(r => r.id === destRegionId);
+            const existing = region?.locations.find(l => l.name === destName);
+            if (existing) finalLocation = existing;
+        }
+
+        addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Путешествие] Прибытие в "${destName}".`, type: 'system' });
+        
+        onTravelComplete(finalLocation, destRegionId);
         onClose();
     };
 
-    const handleCancelJourney = () => {
-        if (window.confirm("Прервать путешествие? Прогресс будет потерян.")) {
+    const handleAbort = () => {
+        if (window.confirm("Прервать путешествие? Прогресс будет сброшен.")) {
             onCancelTravel();
-            setMode('plan');
-            onClose();
+            setViewMode('plan');
         }
     };
 
-    const getEventIcon = (type: string) => {
+    // Render Helpers
+    const getIconForEventType = (type: string) => {
         switch (type) {
-            case 'combat': return <Sword className="w-5 h-5 text-red-500"/>;
-            case 'social': return <MessageSquare className="w-5 h-5 text-blue-400"/>;
-            case 'discovery': return <Search className="w-5 h-5 text-gold-500"/>;
-            case 'weather': return <Cloud className="w-5 h-5 text-gray-400"/>;
-            default: return <Tent className="w-5 h-5 text-green-500"/>;
+            case 'combat': return <Sword className="w-5 h-5 text-red-500" />;
+            case 'social': return <MessageSquare className="w-5 h-5 text-blue-400" />;
+            case 'discovery': return <Search className="w-5 h-5 text-gold-500" />;
+            case 'weather': return <Cloud className="w-5 h-5 text-gray-400" />;
+            default: return <Tent className="w-5 h-5 text-green-500" />;
         }
     };
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[80] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-            <div className="bg-dnd-card border border-gold-600 w-full max-w-2xl rounded-lg shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+        <div className="fixed inset-0 z-[80] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-dnd-card border-2 border-gold-600 w-full max-w-2xl rounded-lg shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
                 
                 {/* Header */}
                 <div className="p-4 bg-gray-900 border-b border-gray-700 flex justify-between items-center shrink-0">
                     <h3 className="text-xl font-serif font-bold text-gold-500 flex items-center gap-2">
-                        <Map className="w-6 h-6"/> {mode === 'plan' ? 'Планирование Пути' : 'В Пути'}
+                        <Map className="w-6 h-6" /> 
+                        {viewMode === 'plan' ? 'Планирование Маршрута' : viewMode === 'loading' ? 'Генерация...' : 'В Пути'}
                     </h3>
-                    <button onClick={onClose}><X className="w-6 h-6 text-gray-500 hover:text-white"/></button>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+                        <X className="w-6 h-6" />
+                    </button>
                 </div>
 
-                {/* Content */}
+                {/* Body Content */}
                 <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                     
-                    {mode === 'plan' && (
+                    {/* --- PLAN MODE --- */}
+                    {viewMode === 'plan' && (
                         <div className="space-y-6">
-                            {/* Scope Selector */}
+                            {/* Scope Toggle */}
                             <div className="flex bg-gray-800 rounded p-1">
                                 <button 
                                     onClick={() => setTravelScope('local')}
                                     className={`flex-1 py-2 text-sm font-bold rounded transition-colors ${travelScope === 'local' ? 'bg-gray-700 text-gold-500' : 'text-gray-400 hover:text-white'}`}
                                 >
-                                    По региону ({currentRegion?.name})
+                                    Внутри региона
                                 </button>
                                 <button 
                                     onClick={() => setTravelScope('global')}
@@ -297,16 +305,18 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                             </div>
 
                             {/* Destination Selection */}
-                            <div className="space-y-3 bg-gray-900/50 p-4 rounded border border-gray-700">
-                                <h4 className="text-sm font-bold text-gray-300 flex items-center gap-2"><Target className="w-4 h-4"/> Пункт назначения</h4>
-                                
+                            <div className="bg-gray-900/50 p-4 rounded border border-gray-700 space-y-4">
+                                <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                    <Target className="w-4 h-4 text-gold-500"/> Пункт назначения
+                                </h4>
+
                                 {travelScope === 'global' && (
                                     <div>
-                                        <label className="text-xs text-gray-500 uppercase block mb-1">Целевой Регион</label>
+                                        <label className="text-xs text-gray-500 block mb-1">Регион</label>
                                         <select 
                                             className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white outline-none focus:border-gold-500"
                                             value={targetRegionId}
-                                            onChange={e => { setTargetRegionId(e.target.value); setTargetLocationName(''); }}
+                                            onChange={(e) => { setTargetRegionId(e.target.value); setTargetLocationName(''); }}
                                         >
                                             <option value="">Выберите регион...</option>
                                             {allLore.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -314,55 +324,57 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                                     </div>
                                 )}
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="text-xs text-gray-500 uppercase block mb-1">Известное место</label>
+                                        <label className="text-xs text-gray-500 block mb-1">Известное место</label>
                                         <select 
                                             className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white outline-none focus:border-gold-500"
                                             value={targetLocationName}
-                                            onChange={e => { setTargetLocationName(e.target.value); setCustomTarget(''); }}
-                                            disabled={!targetRegionId && travelScope === 'global'}
+                                            onChange={(e) => { setTargetLocationName(e.target.value); setCustomTarget(''); }}
+                                            disabled={travelScope === 'global' && !targetRegionId}
                                         >
-                                            <option value="">Выберите локацию...</option>
-                                            {availableLocations.map((l, i) => <option key={i} value={l.name}>{l.name}</option>)}
+                                            <option value="">Выберите...</option>
+                                            {getAvailableLocations().map((loc, idx) => (
+                                                <option key={idx} value={loc.name}>{loc.name}</option>
+                                            ))}
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="text-xs text-gray-500 uppercase block mb-1">Или особое место</label>
+                                        <label className="text-xs text-gray-500 block mb-1">Или особое место</label>
                                         <input 
                                             className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white outline-none focus:border-gold-500 placeholder-gray-600"
                                             placeholder="Напр. Таинственная башня"
                                             value={customTarget}
-                                            onChange={e => { setCustomTarget(e.target.value); setTargetLocationName(''); }}
+                                            onChange={(e) => { setCustomTarget(e.target.value); setTargetLocationName(''); }}
                                         />
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Travel Details */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-xs text-gray-500 uppercase font-bold block mb-2">Способ</label>
-                                    <div className="space-y-2">
+                            {/* Method & Pace */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-xs text-gray-500 font-bold uppercase">Способ передвижения</label>
+                                    <div className="space-y-1">
                                         {METHOD_OPTIONS.map(opt => (
                                             <button
                                                 key={opt.id}
                                                 onClick={() => setSelectedMethod(opt.id)}
-                                                className={`w-full flex items-center gap-2 p-2 rounded border text-sm text-left transition-colors ${selectedMethod === opt.id ? 'bg-gold-600/20 border-gold-500 text-gold-500' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}
+                                                className={`w-full flex items-center gap-3 px-3 py-2 rounded border text-sm text-left transition-all ${selectedMethod === opt.id ? 'bg-gold-600/20 border-gold-500 text-gold-500' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}
                                             >
                                                 {opt.icon} {opt.label}
                                             </button>
                                         ))}
                                     </div>
                                 </div>
-                                <div>
-                                    <label className="text-xs text-gray-500 uppercase font-bold block mb-2">Темп</label>
-                                    <div className="space-y-2">
+                                <div className="space-y-2">
+                                    <label className="text-xs text-gray-500 font-bold uppercase">Темп</label>
+                                    <div className="space-y-1">
                                         {PACE_OPTIONS.map(opt => (
                                             <button
                                                 key={opt.id}
                                                 onClick={() => setSelectedPace(opt.id)}
-                                                className={`w-full flex items-center gap-2 p-2 rounded border text-sm text-left transition-colors ${selectedPace === opt.id ? 'bg-gold-600/20 border-gold-500 text-gold-500' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}
+                                                className={`w-full flex items-center gap-3 px-3 py-2 rounded border text-sm text-left transition-all ${selectedPace === opt.id ? 'bg-gold-600/20 border-gold-500 text-gold-500' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}
                                             >
                                                 {opt.icon} {opt.label}
                                             </button>
@@ -373,100 +385,105 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                         </div>
                     )}
 
-                    {mode === 'loading' && (
-                        <div className="h-64 flex flex-col items-center justify-center text-gold-500 gap-4">
-                            <Loader className="w-12 h-12 animate-spin"/>
-                            <p className="animate-pulse font-serif text-lg">Мастер прокладывает маршрут...</p>
+                    {/* --- LOADING MODE --- */}
+                    {viewMode === 'loading' && (
+                        <div className="h-64 flex flex-col items-center justify-center gap-4 text-gold-500">
+                            <Loader className="w-16 h-16 animate-spin" />
+                            <div className="text-center">
+                                <h4 className="text-xl font-serif font-bold mb-1">Прокладываем маршрут...</h4>
+                                <p className="text-sm text-gray-400">Мастер оценивает опасности и расстояния.</p>
+                            </div>
                         </div>
                     )}
 
-                    {mode === 'journey' && travelState && (
+                    {/* --- JOURNEY MODE --- */}
+                    {viewMode === 'journey' && travelState && (
                         <div className="space-y-6">
-                            <div className="bg-gray-800 p-4 rounded border-l-4 border-gold-500">
+                            
+                            {/* Summary Box */}
+                            <div className="bg-gray-800 border-l-4 border-gold-500 p-4 rounded shadow-md">
                                 <div className="flex justify-between items-start">
-                                    <div>
-                                        <h4 className="font-bold text-white mb-1">Маршрут ({travelState.result.duration} дн.)</h4>
-                                        <div className="text-xs text-gold-500 mb-1 flex items-center gap-1">
-                                            <Target className="w-3 h-3"/> Цель: {travelState.destination?.name || "Неизвестно"}
-                                        </div>
-                                    </div>
+                                    <h4 className="font-bold text-white text-lg">Путешествие в {travelState.destination?.name}</h4>
+                                    <span className="text-xs bg-gray-900 text-gold-500 px-2 py-1 rounded border border-gold-500/50">
+                                        {travelState.result.duration} дн.
+                                    </span>
                                 </div>
-                                <p className="text-sm text-gray-300 italic mt-2">{travelState.result.summary}</p>
+                                <p className="text-sm text-gray-300 mt-2 italic leading-relaxed">
+                                    {travelState.result.summary}
+                                </p>
                             </div>
 
-                            <div className="space-y-4 relative before:absolute before:left-4 before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-700">
+                            {/* Timeline */}
+                            <div className="relative space-y-6 before:absolute before:left-4 before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-700">
                                 {travelState.result.events.map((event, idx) => {
                                     const isCompleted = travelState.completed.includes(event.day);
-                                    const isGenerating = generatingEventId === event.day;
+                                    const isProcessing = processingEventId === event.day;
 
                                     return (
-                                        <div key={idx} className={`relative pl-10 transition-opacity duration-500 ${isCompleted ? 'opacity-60 grayscale-[50%]' : 'opacity-100'}`}>
-                                            <div className={`absolute left-2 top-0 w-5 h-5 rounded-full border-2 z-10 flex items-center justify-center bg-dnd-card ${isCompleted ? 'border-green-500 text-green-500' : 'border-gold-500 text-gold-500'}`}>
-                                                {isCompleted ? <CheckCircle className="w-3 h-3"/> : <span className="text-[10px] font-bold">{event.day}</span>}
+                                        <div key={idx} className={`relative pl-12 transition-all ${isCompleted ? 'opacity-60 grayscale' : 'opacity-100'}`}>
+                                            {/* Timeline Node */}
+                                            <div className={`absolute left-1.5 top-0 w-6 h-6 rounded-full border-2 flex items-center justify-center z-10 ${isCompleted ? 'bg-green-900 border-green-500 text-green-500' : 'bg-dnd-card border-gold-500 text-gold-500'}`}>
+                                                {isCompleted ? <CheckCircle className="w-4 h-4"/> : <span className="text-xs font-bold">{event.day}</span>}
                                             </div>
-                                            
-                                            <div className={`border rounded-lg p-4 transition-colors ${isCompleted ? 'bg-gray-900/50 border-gray-800' : 'bg-gray-900 border-gray-600 hover:border-gold-500'}`}>
+
+                                            {/* Event Card */}
+                                            <div className={`border rounded-lg p-4 bg-gray-900 shadow-sm ${isCompleted ? 'border-gray-800' : 'border-gray-600 hover:border-gold-500/50'}`}>
                                                 <div className="flex justify-between items-start mb-2">
-                                                    <div className="flex items-center gap-2 font-bold text-gray-200">
-                                                        {getEventIcon(event.type)}
-                                                        <span>{event.title}</span>
+                                                    <div className="flex items-center gap-2">
+                                                        {getIconForEventType(event.type)}
+                                                        <span className="font-bold text-gray-200">{event.title}</span>
                                                     </div>
-                                                    <span className="text-xs uppercase text-gray-500 bg-gray-800 px-2 py-0.5 rounded">{event.type}</span>
+                                                    <span className="text-[10px] uppercase tracking-wider font-bold text-gray-500 bg-black/30 px-2 py-0.5 rounded">
+                                                        {event.type}
+                                                    </span>
                                                 </div>
-                                                
-                                                <p className="text-sm text-gray-300 mb-3 leading-relaxed">{event.description}</p>
-                                                
+
+                                                <p className="text-sm text-gray-300 mb-3">{event.description}</p>
+
                                                 {event.mechanic && (
-                                                    <div className="text-xs text-blue-300 bg-blue-900/20 p-2 rounded border border-blue-900/50 mb-3">
-                                                        <span className="font-bold">Механика:</span> {event.mechanic}
+                                                    <div className="text-xs text-blue-300 bg-blue-900/20 p-2 rounded border border-blue-900/30 mb-3">
+                                                        <span className="font-bold text-blue-400">Механика:</span> {event.mechanic}
                                                     </div>
                                                 )}
 
+                                                {/* Action Buttons */}
                                                 {!isCompleted && (
-                                                    <div className="flex flex-col gap-2 mt-2">
-                                                        <div className="flex gap-2">
-                                                            {event.type === 'combat' && (
-                                                                <button 
-                                                                    onClick={() => handleEventAction(event, 'combat')}
-                                                                    className="flex-1 bg-red-900/50 hover:bg-red-800 text-red-200 text-xs py-2 rounded font-bold flex justify-center items-center gap-2 transition-colors"
-                                                                >
-                                                                    <Skull className="w-3 h-3"/> К оружию!
-                                                                </button>
-                                                            )}
-                                                            {event.type === 'discovery' && event.loot && (
-                                                                <button 
-                                                                    onClick={() => handleEventAction(event, 'loot')}
-                                                                    className="flex-1 bg-gold-900/30 hover:bg-gold-800/50 text-gold-200 text-xs py-2 rounded font-bold flex justify-center items-center gap-2 transition-colors"
-                                                                >
-                                                                    <Coins className="w-3 h-3"/> Забрать лут
-                                                                </button>
-                                                            )}
-                                                        </div>
+                                                    <div className="flex flex-wrap gap-2 mt-3">
+                                                        {event.type === 'combat' && (
+                                                            <button 
+                                                                onClick={() => handleEventAction(event, 'combat')}
+                                                                className="flex-1 bg-red-900/40 hover:bg-red-900/80 text-red-200 border border-red-800/50 py-2 px-3 rounded text-xs font-bold flex items-center justify-center gap-2 transition-colors"
+                                                            >
+                                                                <Skull className="w-4 h-4"/> Начать Бой
+                                                            </button>
+                                                        )}
                                                         
-                                                        {/* Explore/Generate Location Button */}
+                                                        {event.type === 'discovery' && event.loot && (
+                                                            <button 
+                                                                onClick={() => handleEventAction(event, 'loot')}
+                                                                className="flex-1 bg-yellow-900/30 hover:bg-yellow-900/60 text-yellow-200 border border-yellow-800/50 py-2 px-3 rounded text-xs font-bold flex items-center justify-center gap-2 transition-colors"
+                                                            >
+                                                                <Coins className="w-4 h-4"/> Забрать Лут
+                                                            </button>
+                                                        )}
+
+                                                        {/* Option to explore/generate location for any event */}
                                                         <button 
-                                                            onClick={() => handleExploreLocation(event)}
-                                                            disabled={isGenerating}
-                                                            className="w-full bg-indigo-900/50 hover:bg-indigo-800 border border-indigo-600 text-indigo-100 text-xs py-2 rounded font-bold flex justify-center items-center gap-2 transition-colors disabled:opacity-50"
+                                                            onClick={() => handleEventAction(event, 'explore')}
+                                                            disabled={isProcessing}
+                                                            className="flex-1 bg-indigo-900/30 hover:bg-indigo-900/60 text-indigo-200 border border-indigo-800/50 py-2 px-3 rounded text-xs font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
                                                         >
-                                                            {isGenerating ? <Loader className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>}
-                                                            Исследовать локацию (Сгенерировать)
+                                                            {isProcessing ? <Loader className="w-4 h-4 animate-spin"/> : <Sparkles className="w-4 h-4"/>}
+                                                            Исследовать
                                                         </button>
 
                                                         <button 
-                                                            onClick={() => handleEventAction(event, 'complete')}
-                                                            className="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs py-2 rounded font-bold flex justify-center items-center gap-2 transition-colors border border-gray-700"
+                                                            onClick={() => handleEventAction(event, 'skip')}
+                                                            className="px-3 py-2 rounded border border-gray-700 text-gray-400 hover:text-white hover:bg-gray-800 text-xs font-bold transition-colors"
+                                                            title="Отметить как пройденное"
                                                         >
-                                                            <ArrowRight className="w-3 h-3"/> Пропустить / Продолжить путь
+                                                            <ArrowRight className="w-4 h-4"/>
                                                         </button>
-                                                    </div>
-                                                )}
-                                                
-                                                {isCompleted && (
-                                                    <div className="mt-2 pt-2 border-t border-gray-800 flex justify-center">
-                                                        <span className="text-xs text-green-500 flex items-center gap-1 font-bold">
-                                                            <CheckCircle className="w-3 h-3"/> Пройдено
-                                                        </span>
                                                     </div>
                                                 )}
                                             </div>
@@ -478,29 +495,35 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                     )}
                 </div>
 
-                {/* Footer */}
+                {/* Footer Controls */}
                 <div className="p-4 bg-gray-900 border-t border-gray-700 flex justify-end gap-3 shrink-0">
-                    {mode === 'plan' && (
+                    {viewMode === 'plan' && (
                         <>
-                            <button onClick={onClose} className="text-gray-400 hover:text-white px-4">Отмена</button>
+                            <button onClick={onClose} className="px-4 py-2 text-gray-400 hover:text-white text-sm font-bold">Отмена</button>
                             <button 
-                                onClick={handleGenerate}
+                                onClick={handleGenerateScenario}
                                 disabled={!targetLocationName && !customTarget}
-                                className="bg-gold-600 hover:bg-gold-500 text-black font-bold px-6 py-2 rounded flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="bg-gold-600 hover:bg-gold-500 text-black px-6 py-2 rounded font-bold text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                Построить маршрут <ArrowRight className="w-4 h-4"/>
+                                <Map className="w-4 h-4"/> Проложить путь
                             </button>
                         </>
                     )}
-                    {mode === 'journey' && (
+                    
+                    {viewMode === 'journey' && (
                         <>
-                            <button onClick={handleCancelJourney} className="text-red-400 hover:text-red-300 px-4 text-sm">Закончить путь</button>
-                            <button onClick={onClose} className="bg-gray-700 hover:bg-gray-600 text-white font-bold px-4 py-2 rounded text-sm">Пауза (Свернуть)</button>
                             <button 
-                                onClick={handleArrival}
-                                className="bg-green-600 hover:bg-green-500 text-white font-bold px-6 py-3 rounded flex items-center justify-center gap-2 shadow-lg"
+                                onClick={handleAbort}
+                                className="px-4 py-2 text-red-400 hover:text-red-300 text-sm font-bold mr-auto"
                             >
-                                <MapPin className="w-5 h-5"/> Прибыть в пункт назначения
+                                Прервать
+                            </button>
+                            
+                            <button 
+                                onClick={handleFinishJourney}
+                                className="bg-green-600 hover:bg-green-500 text-white px-6 py-2 rounded font-bold text-sm flex items-center gap-2 shadow-lg"
+                            >
+                                <CheckCircle className="w-4 h-4"/> Прибыть в пункт назначения
                             </button>
                         </>
                     )}

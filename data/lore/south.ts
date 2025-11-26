@@ -16,6 +16,7 @@ import { LORE_SERPENTES } from "./serpentes";
 import { LORE_TASHALAR } from "./tashalar";
 import { LORE_THINDOL } from "./thindol";
 import { LORE_SAMARACH } from "./samarach";
+import { LORE_SHINING_SEA } from "./shiningSea";
 
 export const LORE_SOUTH: LoreEntry[] = [
   ...LORE_AMN,
@@ -33,5 +34,6 @@ export const LORE_SOUTH: LoreEntry[] = [
   ...LORE_EASTERN_SHAAR,
   ...LORE_SHINING_LANDS,
   ...LORE_LUIREN,
-  ...LORE_HALRUAA
+  ...LORE_HALRUAA,
+  ...LORE_SHINING_SEA
 ];

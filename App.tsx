@@ -44,7 +44,10 @@ import {
   Info,
   Skull,
   Shield,
-  UserSquare2
+  UserSquare2,
+  Laptop,
+  Compass,
+  Feather
 } from 'lucide-react';
 import { CONDITIONS } from './constants';
 import { RULES_DATA } from './data/rulesData';
@@ -68,7 +71,7 @@ const Gallery = React.lazy(() => import('./components/Gallery'));
 const NpcTracker = React.lazy(() => import('./components/NpcTracker'));
 
 const XP_TABLE: Record<number, number> = {
-    1: 0, 2: 300, 3: 900, 4: 2700, 5: 6500, 6: 14000, 7: 23000, 8: 34000, 9: 48000, 10: 64000,
+    1: 0, 2: 300, 3: 900, 4: 2700, 5: 6500, 6: 14000, 7: 23000, 8: 34000, 9: 48000, 10: 64000, 
     11: 85000, 12: 100000, 13: 120000, 14: 140000, 15: 165000, 16: 195000, 17: 225000, 18: 265000, 19: 305000, 20: 355000
 };
 
@@ -78,13 +81,16 @@ const AppContent: React.FC = () => {
   // Log Persistence
   const [logs, setLogs] = useState<LogEntry[]>(() => {
       const saved = localStorage.getItem('dmc_session_logs');
-      return saved ? JSON.parse(saved) : [];
+      // FIX: Ensure array even if parse returns null
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed : [];
   });
   
   // Gallery Persistence
   const [gallery, setGallery] = useState<SavedImage[]>(() => {
       const saved = localStorage.getItem('dmc_gallery');
-      return saved ? JSON.parse(saved) : [];
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed : [];
   });
 
   // Theater Mode
@@ -102,7 +108,7 @@ const AppContent: React.FC = () => {
   
   // Modals
   const [showHelpModal, setShowHelpModal] = useState(false);
-  const [helpSection, setHelpSection] = useState<'install' | 'deploy'>('install');
+  const [helpSection, setHelpSection] = useState<'install' | 'usage'>('install');
   
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('');
@@ -659,11 +665,87 @@ const AppContent: React.FC = () => {
                     </button>
                 </div>
                 <div className="flex border-b border-gray-700 shrink-0">
-                    <button onClick={() => setHelpSection('install')} className={`flex-1 py-3 text-sm font-bold ${helpSection === 'install' ? 'text-gold-500 bg-gray-800/50' : 'text-gray-400'}`}>Установка</button>
-                    <button onClick={() => setHelpSection('deploy')} className={`flex-1 py-3 text-sm font-bold ${helpSection === 'deploy' ? 'text-gold-500 bg-gray-800/50' : 'text-gray-400'}`}>Деплой</button>
+                    <button onClick={() => setHelpSection('install')} className={`flex-1 py-3 text-sm font-bold ${helpSection === 'install' ? 'text-gold-500 bg-gray-800/50' : 'text-gray-400 hover:text-gray-200'}`}>Установка</button>
+                    <button onClick={() => setHelpSection('usage')} className={`flex-1 py-3 text-sm font-bold ${helpSection === 'usage' ? 'text-gold-500 bg-gray-800/50' : 'text-gray-400 hover:text-gray-200'}`}>Использование</button>
                 </div>
-                <div className="p-6 space-y-4 overflow-y-auto text-sm text-gray-300 flex-1">
-                    {helpSection === 'install' ? <p>Инструкции по установке PWA...</p> : <p>Инструкции по деплою...</p>}
+                <div className="p-6 space-y-4 overflow-y-auto text-sm text-gray-300 flex-1 custom-scrollbar">
+                    {helpSection === 'install' ? (
+                        <div className="space-y-4">
+                            <h4 className="text-lg font-bold text-white flex items-center gap-2"><Smartphone className="w-5 h-5 text-blue-400"/> Установка PWA</h4>
+                            <p>Это приложение можно установить как полноценную программу на телефон или компьютер.</p>
+                            
+                            <div className="bg-gray-800 p-3 rounded border border-gray-700">
+                                <h5 className="font-bold text-green-400 mb-1">Android (Chrome)</h5>
+                                <ol className="list-decimal list-inside space-y-1 text-xs">
+                                    <li>Нажмите на три точки (Меню) в углу браузера.</li>
+                                    <li>Выберите <strong>"Установить приложение"</strong> или <strong>"Добавить на главный экран"</strong>.</li>
+                                    <li>Подтвердите установку.</li>
+                                </ol>
+                            </div>
+
+                            <div className="bg-gray-800 p-3 rounded border border-gray-700">
+                                <h5 className="font-bold text-gray-200 mb-1">iOS (Safari)</h5>
+                                <ol className="list-decimal list-inside space-y-1 text-xs">
+                                    <li>Нажмите кнопку <strong>"Поделиться"</strong> (квадрат со стрелкой).</li>
+                                    <li>Прокрутите вниз и выберите <strong>"На экран «Домой»"</strong>.</li>
+                                    <li>Нажмите "Добавить".</li>
+                                </ol>
+                            </div>
+
+                            <div className="bg-gray-800 p-3 rounded border border-gray-700">
+                                <h5 className="font-bold text-blue-300 mb-1">PC (Chrome/Edge)</h5>
+                                <p className="text-xs">В адресной строке справа появится иконка монитора со стрелкой. Нажмите её для установки.</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            <h4 className="text-lg font-bold text-white flex items-center gap-2"><Laptop className="w-5 h-5 text-gold-500"/> Руководство Мастера</h4>
+                            
+                            <div className="space-y-2">
+                                <h5 className="font-bold text-gold-400 flex items-center gap-2"><BrainCircuit className="w-4 h-4"/> AI Генератор (Ключ API)</h5>
+                                <p className="text-xs">
+                                    Для работы AI функций (NPC, Квесты, Локации) требуется ключ <strong>Polza API</strong>. 
+                                    Получите его на сайте <a href="https://polza.ai" target="_blank" className="text-blue-400 underline">polza.ai</a> и введите в меню <strong>Настройки</strong>.
+                                    Ключ хранится только в вашем браузере.
+                                </p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <h5 className="font-bold text-gold-400 flex items-center gap-2"><Swords className="w-4 h-4"/> Бой и Инициатива</h5>
+                                <p className="text-xs">
+                                    Вкладка <strong>"Бой"</strong> позволяет отслеживать HP, КД и состояния.
+                                    <br/>• Нажмите <strong>"Инициатива"</strong> для группового броска.
+                                    <br/>• Используйте иконку <strong>Бестиария</strong>, чтобы добавить монстров из базы SRD.
+                                    <br/>• Нажмите на <strong>"Лут"</strong> после боя, чтобы сгенерировать награду.
+                                </p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <h5 className="font-bold text-gold-400 flex items-center gap-2"><Compass className="w-4 h-4"/> Путешествия</h5>
+                                <p className="text-xs">
+                                    Во вкладке <strong>"Локация"</strong> выберите регион из справочника.
+                                    <br/>• Нажмите кнопку с <strong>Компасом</strong>, чтобы открыть менеджер путешествий.
+                                    <br/>• AI создаст сценарий пути, события и энкаунтеры.
+                                </p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <h5 className="font-bold text-gold-400 flex items-center gap-2"><Music className="w-4 h-4"/> Музыка и Звуки</h5>
+                                <p className="text-xs">
+                                    Вкладка <strong>"Атмосфера"</strong> содержит плейлисты. 
+                                    Кнопка <strong>DM Helper</strong> (справа внизу) открывает панель быстрых звуковых эффектов (гром, меч, крик) и инструменты импровизации.
+                                </p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <h5 className="font-bold text-gold-400 flex items-center gap-2"><Feather className="w-4 h-4"/> Заметки и Лог</h5>
+                                <p className="text-xs">
+                                    Все важные события автоматически попадают в <strong>Лог сессии</strong> (внизу экрана).
+                                    Вы можете сохранить лог как заметку в конце игры через кнопку "Завершить".
+                                </p>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -672,7 +754,7 @@ const AppContent: React.FC = () => {
       {/* --- MOBILE MENU DRAWER --- */}
       {showMobileMenu && (
           <div className="fixed inset-0 z-[70] bg-black/90 backdrop-blur-sm xl:hidden flex flex-col justify-end animate-in slide-in-from-bottom-10">
-              <div className="bg-dnd-card border-t border-gold-600 rounded-t-xl p-4 pb-24 space-y-4 max-h-[80vh] overflow-y-auto">
+              <div className="bg-dnd-card border-t border-gold-600 rounded-t-xl p-4 pb-24 space-y-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                   <div className="flex justify-between items-center border-b border-gray-700 pb-2">
                       <h3 className="text-gold-500 font-serif font-bold">Меню</h3>
                       <button onClick={() => setShowMobileMenu(false)} className="text-gray-400"><X className="w-6 h-6"/></button>
@@ -697,6 +779,7 @@ const AppContent: React.FC = () => {
                       </button>
                   </div>
               </div>
+              <div className="flex-1" onClick={() => setShowMobileMenu(false)} />
           </div>
       )}
 

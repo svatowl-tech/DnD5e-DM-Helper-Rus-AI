@@ -8,6 +8,7 @@ import {
     Swords, Sparkles, Loader, ArrowLeft, Edit2, X, 
     ChevronDown, ChevronUp, Wand2, MapPin
 } from 'lucide-react';
+import SmartText from './SmartText';
 
 const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
     const [quests, setQuests] = useState<FullQuest[]>(() => {
@@ -525,12 +526,15 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
                             {/* Description */}
                             <div className="bg-gray-900/50 p-4 rounded border border-gray-700">
                                 <label className="text-xs text-gray-500 uppercase font-bold block mb-2">Описание и Заметки мастера</label>
-                                <textarea 
-                                    className="w-full bg-transparent text-sm text-gray-300 outline-none h-64 resize-y leading-relaxed font-mono"
-                                    placeholder="Подробности, скрытые мотивы, HTML поддерживается..."
-                                    value={activeQuest.description}
-                                    onChange={e => updateQuest(activeQuest.id, { description: e.target.value })}
-                                />
+                                {/* Replaced plain textarea with SmartText wrapper for rendered HTML, but kept editing via textarea for now to keep simple */}
+                                <div className="relative group/edit">
+                                    <textarea 
+                                        className="w-full bg-transparent text-sm text-gray-300 outline-none h-64 resize-y leading-relaxed font-mono"
+                                        placeholder="Подробности, скрытые мотивы, HTML поддерживается..."
+                                        value={activeQuest.description}
+                                        onChange={e => updateQuest(activeQuest.id, { description: e.target.value })}
+                                    />
+                                </div>
                             </div>
 
                             {/* Threats & Reward */}
@@ -563,11 +567,18 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
                                 <div>
                                     <h3 className="font-serif font-bold text-gold-500 mb-2">Награда</h3>
                                     <textarea 
-                                        className="w-full bg-gold-900/10 border border-gold-900/30 rounded p-2 text-sm text-gold-100 outline-none h-24 resize-none"
+                                        className="w-full bg-gray-900/50 border border-gold-900/30 rounded p-2 text-sm text-gold-100 outline-none h-24 resize-none placeholder-gold-500/30 focus:border-gold-500"
                                         placeholder="Золото, опыт, предметы..."
                                         value={activeQuest.reward}
                                         onChange={e => updateQuest(activeQuest.id, { reward: e.target.value })}
                                     />
+                                    {/* Preview for HTML content in reward */}
+                                    {activeQuest.reward && activeQuest.reward.includes('<') && (
+                                        <div className="mt-2 p-2 border border-gold-900/30 rounded bg-black/20">
+                                            <p className="text-xs text-gray-500 mb-1 uppercase">Предпросмотр:</p>
+                                            <SmartText content={activeQuest.reward} className="text-sm text-gold-100" />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

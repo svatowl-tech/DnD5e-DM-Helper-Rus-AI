@@ -30,24 +30,59 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
     const [wizardType, setWizardType] = useState<'start' | 'end' | null>(null);
 
     useEffect(() => {
-        // Read all data
+        // Read all data safely with fallbacks to empty arrays
         const savedCombatants = localStorage.getItem('dmc_combatants');
-        if (savedCombatants) setCombatants(JSON.parse(savedCombatants));
+        if (savedCombatants) {
+            try {
+                const parsed = JSON.parse(savedCombatants);
+                if (Array.isArray(parsed)) setCombatants(parsed);
+                else setCombatants([]);
+            } catch (e) { console.error("Failed to load combatants", e); setCombatants([]); }
+        }
 
         const savedParty = localStorage.getItem('dmc_party');
-        if (savedParty) setParty(JSON.parse(savedParty));
+        if (savedParty) {
+            try {
+                const parsed = JSON.parse(savedParty);
+                if (Array.isArray(parsed)) setParty(parsed);
+                else setParty([]);
+            } catch (e) { console.error("Failed to load party", e); setParty([]); }
+        }
 
         const savedNotes = localStorage.getItem('dmc_notes');
-        if (savedNotes) setNotes(JSON.parse(savedNotes));
+        if (savedNotes) {
+            try {
+                const parsed = JSON.parse(savedNotes);
+                if (Array.isArray(parsed)) setNotes(parsed);
+                else setNotes([]);
+            } catch (e) { console.error("Failed to load notes", e); setNotes([]); }
+        }
 
         const savedQuests = localStorage.getItem('dmc_quests');
-        if (savedQuests) setQuests(JSON.parse(savedQuests));
+        if (savedQuests) {
+            try {
+                const parsed = JSON.parse(savedQuests);
+                if (Array.isArray(parsed)) setQuests(parsed);
+                else setQuests([]);
+            } catch (e) { console.error("Failed to load quests", e); setQuests([]); }
+        }
 
         const savedLogs = localStorage.getItem('dmc_session_logs');
-        if (savedLogs) setLogs(JSON.parse(savedLogs));
+        if (savedLogs) {
+            try {
+                const parsed = JSON.parse(savedLogs);
+                if (Array.isArray(parsed)) setLogs(parsed);
+                else setLogs([]);
+            } catch (e) { console.error("Failed to load logs", e); setLogs([]); }
+        }
 
         const savedSettings = localStorage.getItem('dmc_campaign_settings');
-        if (savedSettings) setSettings(JSON.parse(savedSettings));
+        if (savedSettings) {
+            try {
+                const parsed = JSON.parse(savedSettings);
+                if (parsed && typeof parsed === 'object') setSettings(parsed);
+            } catch (e) { console.error("Failed to load settings", e); }
+        }
     }, []);
 
     // Save DM Focus automatically
@@ -61,19 +96,19 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
     };
 
     const addLog = (entry: LogEntry) => {
-        const newLogs = [entry, ...logs];
+        const newLogs = [entry, ...(logs || [])];
         setLogs(newLogs);
         localStorage.setItem('dmc_session_logs', JSON.stringify(newLogs));
     };
 
     const saveNote = (note: Note) => {
-        const newNotes = [note, ...notes];
+        const newNotes = [note, ...(notes || [])];
         setNotes(newNotes);
         localStorage.setItem('dmc_notes', JSON.stringify(newNotes));
     };
 
     const clearCombat = () => {
-        const players = combatants.filter(c => c.type === EntityType.PLAYER);
+        const players = (combatants || []).filter(c => c.type === EntityType.PLAYER);
         setCombatants(players);
         localStorage.setItem('dmc_combatants', JSON.stringify(players));
     };
@@ -83,9 +118,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
         localStorage.setItem('dmc_party', JSON.stringify(updatedParty));
     };
 
-    const activeQuests = quests.filter(q => q.status === 'active');
-    const monsters = combatants.filter(c => c.type === EntityType.MONSTER);
-    const displayParty = party.filter(p => p.active);
+    const activeQuests = (quests || []).filter(q => q.status === 'active');
+    const monsters = (combatants || []).filter(c => c.type === EntityType.MONSTER);
+    const displayParty = (party || []).filter(p => p.active);
 
     return (
         <div className="space-y-6 h-full flex flex-col">
@@ -94,9 +129,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
                 isOpen={!!wizardType}
                 onClose={() => setWizardType(null)}
                 type={wizardType || 'start'}
-                logs={logs}
-                party={party}
-                combatants={combatants}
+                logs={logs || []}
+                party={party || []}
+                combatants={combatants || []}
                 onAddLog={addLog}
                 onSaveNote={saveNote}
                 onClearCombat={clearCombat}
@@ -233,7 +268,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
                                     
                                     {/* Mini Objectives */}
                                     <div className="mt-2 space-y-1">
-                                        {q.objectives.filter(o => !o.completed).slice(0, 2).map(obj => (
+                                        {(q.objectives || []).filter(o => !o.completed).slice(0, 2).map(obj => (
                                             <div key={obj.id} className="flex items-start gap-2 text-xs text-gray-400">
                                                 <div className="w-1.5 h-1.5 rounded-full border border-gray-500 mt-1 shrink-0"></div>
                                                 <span>{obj.text}</span>

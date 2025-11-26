@@ -71,14 +71,38 @@ const getCampaignContext = (): string => {
     }
 };
 
-// Helper to clean text from Markdown code blocks and artifacts
+// Helper to clean text from Markdown code blocks and extract JSON
 const cleanText = (text: string): string => {
   if (!text) return "";
-  // Remove ```json ... ``` or just ``` ... ``` blocks
-  let cleaned = text.replace(/```(?:json|html|xml|markdown)?\s*([\s\S]*?)\s*```/g, '$1');
-  // Remove any remaining standalone code block markers
-  cleaned = cleaned.replace(/^```/gm, '').replace(/```$/gm, '');
-  return cleaned.trim();
+
+  // 1. Try regex for code blocks first as it's safest
+  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (codeBlockMatch) return codeBlockMatch[1].trim();
+  
+  // 2. Try finding JSON object/array directly by brackets
+  const openBrace = text.indexOf('{');
+  const openBracket = text.indexOf('[');
+  const closeBrace = text.lastIndexOf('}');
+  const closeBracket = text.lastIndexOf(']');
+  
+  let start = -1;
+  let end = -1;
+  
+  // Determine if it's an Object or Array likely
+  if (openBrace !== -1 && (openBracket === -1 || openBrace < openBracket)) {
+      start = openBrace;
+      end = closeBrace;
+  } else if (openBracket !== -1) {
+      start = openBracket;
+      end = closeBracket;
+  }
+  
+  if (start !== -1 && end !== -1 && end > start) {
+      return text.substring(start, end + 1);
+  }
+  
+  // 3. Last resort: strip markdown but keep content
+  return text.replace(/```(?:json|html|xml|markdown)?/g, '').replace(/```/g, '').trim();
 };
 
 // Generic Request Handler for Polza API
@@ -97,6 +121,12 @@ async function makeRequest(messages: Array<{role: string, content: string}>, jso
         max_tokens: 2500, // Reasonable limit for generations
         stream: false
     };
+
+    // Force JSON mode via prompt injection is usually safer across models than relying on API flags
+    if (jsonMode) {
+        // Ensure the system prompt explicitly asks for JSON if not already present in messages
+        // (This logic is usually handled by the caller, but good to note)
+    }
 
     const response = await fetch(`${BASE_API_URL}/chat/completions`, {
         method: 'POST',
@@ -283,14 +313,30 @@ export const generateTravelScenario = async (
       ]
     }
     Сгенерируй от 2 до 5 событий в зависимости от расстояния и опасности региона. 
-    Используй русский язык. Отвечай ТОЛЬКО валидным JSON.`;
+    Используй русский язык. Отвечай ТОЛЬКО валидным JSON. Не добавляй никакого текста, комментариев или markdown разметки кроме самого JSON.`;
 
     return withRetry(async () => {
         const text = await makeRequest([
             { role: "system", content: systemPrompt },
             { role: "user", content: "Сгенерируй путешествие." }
         ], true);
-        return JSON.parse(cleanText(text));
+        
+        let parsed;
+        try {
+            parsed = JSON.parse(cleanText(text));
+        } catch (e) {
+            console.warn("Initial JSON parse failed, attempted cleanup. Raw text:", text);
+            throw new Error("Не удалось прочитать ответ AI (ошибка JSON). Попробуйте снова.");
+        }
+        
+        // Validation: ensure essential fields exist to prevent UI crashes
+        if (!parsed || typeof parsed !== 'object') throw new Error("AI returned invalid data structure");
+        
+        return {
+            summary: parsed.summary || "Описание отсутствует.",
+            duration: typeof parsed.duration === 'number' ? parsed.duration : 1,
+            events: Array.isArray(parsed.events) ? parsed.events : []
+        };
     });
 };
 
