@@ -1,6 +1,7 @@
 
+
 import React, { useState, useEffect } from 'react';
-import { LocationData, PartyMember, Combatant, EntityType, LoreEntry, LocationTrackerProps, Note, SavedImage, TravelResult, CampaignNpc, FullQuest, TravelState } from '../types';
+import { LocationData, PartyMember, Combatant, EntityType, LoreEntry, LocationTrackerProps, Note, SavedImage, TravelResult, CampaignNpc, FullQuest, TravelState, BestiaryEntry } from '../types';
 import { parseLoreFromText, generateEncounterIntro, generateScenarioDescription, generateFullLocation, generateLocationContent, generateExtendedDetails, generateMultiverseBreach, generateRealityGlitch, generateImage, generateNpc, generateQuest } from '../services/polzaService';
 import { getMonstersByCr } from '../services/dndApiService';
 import { MapPin, Users, Skull, Sparkles, BookOpen, Loader, Search, Eye, ChevronRight, ArrowRight, Menu, Map, Copy, Plus, Home, Trees, Tent, Castle, ArrowLeft, LandPlot, Landmark, Beer, Footprints, ShieldAlert, Ghost, Info, X, Save, FileText, RefreshCcw, ChevronDown, ChevronUp, Zap, Anchor, Globe, Hexagon, Activity, Radio, Flame, Image as ImageIcon, ZoomIn, Church, Building, Mountain, ScrollText, Swords, UserPlus, Pickaxe, Wheat, Ship, ShoppingBag, Gavel, Gem, Compass, UserSquare2, PenTool, Wand2 } from 'lucide-react';
@@ -8,6 +9,7 @@ import { FAERUN_LORE } from '../data/faerunLore';
 import { useAudio } from '../contexts/AudioContext';
 import SmartText from './SmartText';
 import TravelManager from './TravelManager';
+import BestiaryBrowser from './BestiaryBrowser';
 
 // Extended location types for the generator grid
 const GENERIC_LOCATIONS = [
@@ -66,6 +68,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     const [expandedRegion, setExpandedRegion] = useState<string | null>(null);
     const [descriptionExpanded, setDescriptionExpanded] = useState(false);
     const [showTravel, setShowTravel] = useState(false);
+    const [showBestiary, setShowBestiary] = useState(false);
     
     // Travel State Persistence
     const [activeTravelPlan, setActiveTravelPlan] = useState<TravelState | null>(null);
@@ -615,6 +618,21 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         setLocationAndLog(newLocation);
     };
 
+    // Handle adding monster from Bestiary
+    const handleAddMonsterFromBestiary = (monster: BestiaryEntry, count: number) => {
+        // Add to location monsters list
+        if (location) {
+            const newMonsterNames = Array(count).fill(monster.name);
+            const updatedMonsters = [...(location.monsters || []), ...newMonsterNames];
+            
+            // Update location state
+            setLocation(prev => prev ? ({ ...prev, monsters: updatedMonsters }) : null);
+            
+            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Локация] Добавлено ${count} x ${monster.name} (из Бестиария)`, type: 'system' });
+            setShowBestiary(false);
+        }
+    };
+
     const filteredLore = lore.filter(region => 
         region.name.toLowerCase().includes(handbookSearch.toLowerCase()) ||
         region.locations.some(l => l.name.toLowerCase().includes(handbookSearch.toLowerCase()))
@@ -636,6 +654,13 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                 onGenerateLocation={handleSetGeneratedLocation}
                 onCancelTravel={() => setActiveTravelPlan(null)}
             />
+
+            {showBestiary && (
+                <BestiaryBrowser 
+                    onClose={() => setShowBestiary(false)} 
+                    onAddMonster={handleAddMonsterFromBestiary} 
+                />
+            )}
 
             {/* Add Custom Entity Modal */}
             {isAddModalOpen && (
@@ -1235,6 +1260,44 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                             );
                                         })}
                                     </ul>
+                                </div>
+
+                                {/* MONSTERS / BESTIARY SECTION */}
+                                <div>
+                                    <div className="flex justify-between items-center border-b border-gray-700 pb-1 mb-2 sticky top-0 bg-dnd-dark z-10 pt-2">
+                                        <h3 className="font-serif font-bold text-gray-400 uppercase text-sm flex items-center gap-2">
+                                            <Skull className="w-4 h-4"/> Бестиарий
+                                        </h3>
+                                        <div className="flex gap-1">
+                                            <button 
+                                                onClick={() => setShowBestiary(true)}
+                                                className="text-xs bg-indigo-900/50 hover:bg-indigo-800 border border-indigo-700 text-indigo-200 px-2 py-1 rounded flex items-center gap-1"
+                                            >
+                                                <BookOpen className="w-3 h-3"/> Открыть
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {(location.monsters || []).length === 0 && <p className="text-gray-600 text-sm italic">Нет монстров.</p>}
+                                    <div className="flex flex-wrap gap-2">
+                                        {(location.monsters || []).map((m, i) => (
+                                            <div key={i} className="bg-red-900/20 border border-red-900/50 rounded px-2 py-1 text-xs text-red-200 flex items-center gap-2">
+                                                <span>{m}</span>
+                                                <button 
+                                                    onClick={() => {
+                                                        const event = new CustomEvent('dmc-add-combatant', {
+                                                            detail: { name: m, type: 'MONSTER', hp: 20, initiative: 10, notes: `из локации ${location.name}` }
+                                                        });
+                                                        window.dispatchEvent(event);
+                                                        addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `${m} добавлен в бой.`, type: 'combat' });
+                                                    }}
+                                                    className="text-red-400 hover:text-white"
+                                                    title="В бой"
+                                                >
+                                                    <Swords className="w-3 h-3"/>
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
 
                                 {/* ... Secret Section ... */}

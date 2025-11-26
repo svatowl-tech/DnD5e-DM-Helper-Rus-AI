@@ -1,4 +1,5 @@
 
+
 export enum EntityType {
   PLAYER = 'PLAYER',
   NPC = 'NPC',
@@ -32,6 +33,28 @@ export interface Combatant {
   xp?: number; // Added for difficulty calculation
   hidden?: boolean; // Hidden from player view if connected to a VTT
   actions?: string[]; // New field for attack/action descriptions
+}
+
+// Local Bestiary Entry
+export interface BestiaryEntry {
+    id: string;
+    name: string;
+    type: string;
+    ac: number;
+    hp: number;
+    cr: string | number;
+    xp: number;
+    stats: {
+        str: number;
+        dex: number;
+        con: number;
+        int: number;
+        wis: number;
+        cha: number;
+    };
+    actions?: { name: string; desc: string }[];
+    description?: string;
+    source: 'local' | 'srd' | 'ai';
 }
 
 export interface InventoryItem {

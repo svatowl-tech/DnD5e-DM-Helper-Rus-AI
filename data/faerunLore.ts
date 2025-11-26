@@ -62,6 +62,13 @@ import { LORE_DEEPWASH } from "./lore/deepwash";
 import { LORE_MERE_OF_DEAD_MEN } from "./lore/mereOfDeadMen";
 import { LORE_HIGH_MOOR } from "./lore/highMoor";
 import { LORE_EVERMOORS } from "./lore/evermoors";
+import { LORE_TORTURED_LAND } from "./lore/torturedLand";
+import { LORE_GREENFIELDS } from "./lore/greenfields";
+import { LORE_GIANTS_PLAIN } from "./lore/giantsPlain";
+import { LORE_SHINING_PLAINS } from "./lore/shiningPlains";
+import { LORE_GOLDEN_WATER } from "./lore/goldenWater";
+import { LORE_NORTH_COUNTRY } from "./lore/northCountry";
+import { LORE_LAKE_OF_MISTS } from "./lore/lakeOfMists";
 
 export const FAERUN_LORE: LoreEntry[] = [
   ...LORE_ICEWIND_DALE,
@@ -123,5 +130,12 @@ export const FAERUN_LORE: LoreEntry[] = [
   ...LORE_DEEPWASH,
   ...LORE_MERE_OF_DEAD_MEN,
   ...LORE_HIGH_MOOR,
-  ...LORE_EVERMOORS
+  ...LORE_EVERMOORS,
+  ...LORE_TORTURED_LAND,
+  ...LORE_GREENFIELDS,
+  ...LORE_GIANTS_PLAIN,
+  ...LORE_SHINING_PLAINS,
+  ...LORE_GOLDEN_WATER,
+  ...LORE_NORTH_COUNTRY,
+  ...LORE_LAKE_OF_MISTS
 ];

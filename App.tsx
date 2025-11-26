@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, Suspense } from 'react';
 import { Tab, LogEntry, Note, SavedImage, PartyMember, LocationData, FullQuest, Combatant, EntityType, CampaignNpc } from './types';
 import { 
@@ -9,7 +8,10 @@ import {
   getActiveModel, 
   setActiveModel,
   getActiveImageModel,
-  setActiveImageModel
+  setActiveImageModel,
+  getCampaignMode,
+  setCampaignMode,
+  CampaignMode
 } from './services/polzaService';
 import { AudioProvider } from './contexts/AudioContext';
 import { 
@@ -116,6 +118,7 @@ const AppContent: React.FC = () => {
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [settingsModel, setSettingsModel] = useState('gemini-2.5-flash');
   const [settingsImageModel, setSettingsImageModel] = useState('seedream-v4');
+  const [campaignMode, setLocalCampaignMode] = useState<CampaignMode>('standard');
 
   // Global Detail Modal State
   const [detailModal, setDetailModal] = useState<{ open: boolean; title: string; content: any; type: string } | null>(null);
@@ -339,7 +342,7 @@ const AppContent: React.FC = () => {
       };
   }, []);
 
-  // 6. Switch Tab Listener
+  // 6. Switch Tab Listener & Open Settings Listener
   useEffect(() => {
     const handleSwitchTab = (e: CustomEvent) => {
         if (e.detail && Object.values(Tab).includes(e.detail as Tab)) {
@@ -350,8 +353,18 @@ const AppContent: React.FC = () => {
             setActiveTab(Tab.LOCATION);
         }
     };
+
+    const handleOpenSettings = () => {
+        setShowSettingsModal(true);
+    };
+
     window.addEventListener('dmc-switch-tab' as any, handleSwitchTab);
-    return () => window.removeEventListener('dmc-switch-tab' as any, handleSwitchTab);
+    window.addEventListener('dmc-open-settings' as any, handleOpenSettings);
+    
+    return () => {
+        window.removeEventListener('dmc-switch-tab' as any, handleSwitchTab);
+        window.removeEventListener('dmc-open-settings' as any, handleOpenSettings);
+    };
   }, []);
 
   // Handle PWA Install Prompt
@@ -365,12 +378,13 @@ const AppContent: React.FC = () => {
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
-  // Load API Key and Model
+  // Load API Key, Models and Campaign Mode
   useEffect(() => {
     const key = getCustomApiKey();
     if (key) setApiKeyInput(key);
     setSettingsModel(getActiveModel());
     setSettingsImageModel(getActiveImageModel());
+    setLocalCampaignMode(getCampaignMode());
   }, []);
 
   // Listen for Smart Links
@@ -424,6 +438,7 @@ const AppContent: React.FC = () => {
       setCustomApiKey(apiKeyInput);
       setActiveModel(settingsModel);
       setActiveImageModel(settingsImageModel);
+      setCampaignMode(campaignMode);
       setShowSettingsModal(false);
       alert("Настройки сохранены.");
   };
@@ -656,6 +671,27 @@ const AppContent: React.FC = () => {
                             onChange={e => setApiKeyInput(e.target.value)}
                         />
                     </div>
+                    
+                    {/* Campaign Mode Selector */}
+                    <div className="p-3 bg-gray-900/50 rounded border border-gray-700">
+                        <label className="block text-sm font-bold text-gray-300 mb-2 flex items-center gap-2">
+                            <ScrollText className="w-4 h-4 text-gold-500"/> Режим Кампании
+                        </label>
+                        <select
+                            value={campaignMode}
+                            onChange={(e) => setLocalCampaignMode(e.target.value as CampaignMode)}
+                            className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white focus:border-gold-500 outline-none mb-2"
+                        >
+                            <option value="standard">Стандартный (D&D 5e)</option>
+                            <option value="echoes">Предатели Реальности (Echoes)</option>
+                        </select>
+                        {campaignMode === 'echoes' && (
+                            <p className="text-xs text-purple-300 italic">
+                                Включен режим "Отголосков". AI будет генерировать контент, связанный с аномалиями, Тэем и мультивселенной.
+                            </p>
+                        )}
+                    </div>
+
                     <div>
                         <label className="block text-sm font-bold text-gray-300 mb-1 flex items-center gap-2">
                             <BrainCircuit className="w-4 h-4 text-gold-500"/> AI Текстовая Модель

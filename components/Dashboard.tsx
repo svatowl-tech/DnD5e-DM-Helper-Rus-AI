@@ -1,21 +1,8 @@
-
 import React, { useEffect, useState } from 'react';
 import { Combatant, EntityType, PartyMember, CampaignSettings, FullQuest, LogEntry, Note } from '../types';
 import { Sword, BrainCircuit, Users, Settings, Play, StopCircle, AlertTriangle, Eye, Target, Zap, MapPin, ScrollText, Key, Image as ImageIcon } from 'lucide-react';
 import SessionWizard from './SessionWizard';
-import { 
-    setCustomApiKey, 
-    getCustomApiKey, 
-    AVAILABLE_MODELS, 
-    AVAILABLE_IMAGE_MODELS,
-    getActiveModel, 
-    setActiveModel,
-    getActiveImageModel,
-    setActiveImageModel,
-    getCampaignMode,
-    setCampaignMode,
-    CampaignMode
-} from '../services/polzaService';
+import { getCampaignMode } from '../services/polzaService';
 
 interface DashboardProps {
     onChangeTab: (tab: any) => void;
@@ -36,18 +23,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
     });
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-    // Modal States for Global Settings
-    const [showGlobalSettings, setShowGlobalSettings] = useState(false);
-    const [apiKeyInput, setApiKeyInput] = useState('');
-    const [settingsModel, setSettingsModel] = useState(AVAILABLE_MODELS[0].id);
-    const [settingsImageModel, setSettingsImageModel] = useState(AVAILABLE_IMAGE_MODELS[0].id);
-    const [campaignMode, setLocalCampaignMode] = useState<CampaignMode>('standard');
-
     // DM Focus (Mental Load)
     const [dmFocus, setDmFocus] = useState(() => localStorage.getItem('dmc_focus') || '');
 
     // Session Wizard State
     const [wizardType, setWizardType] = useState<'start' | 'end' | null>(null);
+    
+    const currentMode = getCampaignMode();
 
     useEffect(() => {
         // Read all data safely with fallbacks to empty arrays
@@ -103,19 +85,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
                 if (parsed && typeof parsed === 'object') setSettings(parsed);
             } catch (e) { console.error("Failed to load settings", e); }
         }
-
-        // Load Global Settings
-        const key = getCustomApiKey();
-        if (key) setApiKeyInput(key);
-        setSettingsModel(getActiveModel());
-        setSettingsImageModel(getActiveImageModel());
-        setLocalCampaignMode(getCampaignMode());
-
-        // Listen for open settings event
-        const handleOpenSettings = () => setShowGlobalSettings(true);
-        window.addEventListener('dmc-open-settings', handleOpenSettings);
-        return () => window.removeEventListener('dmc-open-settings', handleOpenSettings);
-
     }, []);
 
     // Save DM Focus automatically
@@ -128,13 +97,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
         setIsSettingsOpen(false);
     };
 
-    const handleSaveGlobalSettings = () => {
-        setCustomApiKey(apiKeyInput);
-        setActiveModel(settingsModel);
-        setActiveImageModel(settingsImageModel);
-        setCampaignMode(campaignMode);
-        setShowGlobalSettings(false);
-        alert("Глобальные настройки сохранены.");
+    const openGlobalSettings = () => {
+        window.dispatchEvent(new CustomEvent('dmc-open-settings'));
     };
 
     const addLog = (entry: LogEntry) => {
@@ -166,84 +130,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
 
     return (
         <div className="space-y-6 h-full flex flex-col">
-            {/* Global Settings Modal */}
-            {showGlobalSettings && (
-                <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-                    <div className="bg-dnd-card border border-gold-600 w-full max-w-md rounded-lg shadow-2xl p-6 max-h-[80vh] overflow-y-auto">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-serif font-bold text-xl text-gold-500 flex items-center gap-2">
-                                <Settings className="w-5 h-5"/> Настройки AI
-                            </h3>
-                            <button onClick={() => setShowGlobalSettings(false)} className="text-gray-400 hover:text-white">X</button>
-                        </div>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-300 mb-1 flex items-center gap-2">
-                                    <Key className="w-4 h-4 text-gold-500"/> Polza API Key
-                                </label>
-                                <input 
-                                    type="password" 
-                                    className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white focus:border-gold-500 outline-none"
-                                    placeholder="sk-..."
-                                    value={apiKeyInput}
-                                    onChange={e => setApiKeyInput(e.target.value)}
-                                />
-                            </div>
-                            
-                            {/* Campaign Mode Selector */}
-                            <div className="p-3 bg-gray-900/50 rounded border border-gray-700">
-                                <label className="block text-sm font-bold text-gray-300 mb-2 flex items-center gap-2">
-                                    <ScrollText className="w-4 h-4 text-gold-500"/> Режим Кампании
-                                </label>
-                                <select
-                                    value={campaignMode}
-                                    onChange={(e) => setLocalCampaignMode(e.target.value as CampaignMode)}
-                                    className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white focus:border-gold-500 outline-none mb-2"
-                                >
-                                    <option value="standard">Стандартный (D&D 5e)</option>
-                                    <option value="echoes">Предатели Реальности (Echoes)</option>
-                                </select>
-                                {campaignMode === 'echoes' && (
-                                    <p className="text-xs text-purple-300 italic">
-                                        Включен режим "Отголосков". AI будет генерировать контент, связанный с аномалиями, Тэем и мультивселенной.
-                                    </p>
-                                )}
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-bold text-gray-300 mb-1 flex items-center gap-2">
-                                    <BrainCircuit className="w-4 h-4 text-gold-500"/> AI Текстовая Модель
-                                </label>
-                                <select
-                                    value={settingsModel}
-                                    onChange={(e) => setSettingsModel(e.target.value)}
-                                    className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white focus:border-gold-500 outline-none"
-                                >
-                                    {AVAILABLE_MODELS.map(m => (
-                                        <option key={m.id} value={m.id}>{m.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-300 mb-1 flex items-center gap-2">
-                                    <ImageIcon className="w-4 h-4 text-gold-500"/> AI Модель Изображений
-                                </label>
-                                <select
-                                    value={settingsImageModel}
-                                    onChange={(e) => setSettingsImageModel(e.target.value)}
-                                    className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white focus:border-gold-500 outline-none"
-                                >
-                                    {AVAILABLE_IMAGE_MODELS.map(m => (
-                                        <option key={m.id} value={m.id}>{m.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <button onClick={handleSaveGlobalSettings} className="w-full bg-gold-600 hover:bg-gold-500 text-black font-bold py-2 rounded shadow-lg">Сохранить</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* Session Wizard Modal */}
             <SessionWizard 
                 isOpen={!!wizardType}
@@ -264,7 +150,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
                 <div>
                     <div className="flex items-center gap-2">
                         <h1 className="text-3xl font-serif font-bold text-gold-500">Мастер Подземелий</h1>
-                        {campaignMode === 'echoes' && (
+                        {currentMode === 'echoes' && (
                             <span className="bg-purple-900/50 text-purple-200 text-[10px] uppercase px-2 py-0.5 rounded border border-purple-500/50 font-bold tracking-wider">
                                 Echoes
                             </span>
@@ -287,7 +173,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
                             </div>
                             <div className="flex gap-2">
                                 <button onClick={saveSettings} className="flex-1 bg-gold-600 text-black text-xs font-bold py-1 rounded">Сохранить настройки</button>
-                                <button onClick={() => setShowGlobalSettings(true)} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-1 rounded border border-gray-500">⚙️ Настройки AI / Режим</button>
+                                <button onClick={openGlobalSettings} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-1 rounded border border-gray-500">⚙️ Настройки AI / Режим</button>
                             </div>
                         </div>
                     )}

@@ -1,5 +1,6 @@
 
-import { CampaignSettings, FullQuest, CampaignNpc, TravelResult } from "../types";
+
+import { CampaignSettings, FullQuest, CampaignNpc, TravelResult, BestiaryEntry } from "../types";
 import { ECHOES_CAMPAIGN_PROMPT } from "../data/prompts/echoesPrompts";
 
 // Available models per user request
@@ -356,6 +357,49 @@ export const generateTravelScenario = async (
     });
 };
 
+export const generateMonster = async (prompt: string, cr?: string): Promise<BestiaryEntry> => {
+    const context = getCampaignContext();
+    const crText = cr ? `Challenge Rating (CR): ${cr}.` : "CR выбери подходящий под описание.";
+
+    const systemPrompt = `Ты геймдизайнер D&D 5e. Твоя задача — создать статблок монстра в формате JSON. ${context}
+    
+    Входной запрос: "${prompt}". ${crText}
+
+    Верни JSON со следующей структурой:
+    {
+        "name": "Имя монстра",
+        "type": "Тип (напр. Нежить, Зверь)",
+        "ac": Класс Доспеха (int),
+        "hp": Хиты (int),
+        "cr": "Показатель опасности (string, напр '1/2' или '5')",
+        "xp": Опыт за убийство (int),
+        "stats": {
+            "str": 10, "dex": 10, "con": 10, "int": 10, "wis": 10, "cha": 10
+        },
+        "actions": [
+            { "name": "Название атаки/действия", "desc": "Описание (урон, дальность, эффект)" }
+        ],
+        "description": "Краткое художественное описание внешности и поведения (2-3 предложения)."
+    }
+    
+    Отвечай ТОЛЬКО валидным JSON. Русский язык.`;
+
+    return withRetry(async () => {
+        const text = await makeRequest([
+            { role: "system", content: systemPrompt },
+            { role: "user", content: "Создай монстра." }
+        ], true);
+        
+        const data = JSON.parse(cleanText(text));
+        
+        return {
+            id: Date.now().toString(),
+            ...data,
+            source: 'ai'
+        };
+    });
+};
+
 export const generateItemCustomization = async (itemName: string, itemType: string, userContext?: string): Promise<any> => {
     const contextPrompt = userContext ? `Пожелания пользователя: "${userContext}".` : "";
     const context = getCampaignContext();
@@ -519,7 +563,8 @@ export const generateCombatLoot = async (monsters: string[], avgLevel: number): 
 export const generateTrinket = async (type: string): Promise<string> => {
     const context = getCampaignContext();
     const systemPrompt = `Ты генератор атмосферных мелочей для D&D. Формат ответа: HTML список. ${context}`;
-    const userPrompt = `Сгенерируй 5 предметов "карманного лута" или безделушек, которые можно найти: ${type}.`;
+    const userPrompt = `Сгенерируй 5 предметов "карманного лута" или безделушек, которые можно найти ${type} (например, в карманах бандита, на полке, в гнезде).
+    Предметы должны быть атмосферными, но не обязательно дорогими.`;
 
     return withRetry(async () => {
         const text = await makeRequest([
@@ -531,140 +576,51 @@ export const generateTrinket = async (type: string): Promise<string> => {
 };
 
 export const generateScenarioDescription = async (context: string): Promise<string> => {
-    const campContext = getCampaignContext();
-    const systemPrompt = `Ты профессиональный рассказчик (Нарратор). Твоя задача — описывать сцены для игроков D&D. ${campContext}`;
-    const userPrompt = `Напиши короткий, атмосферный текст (до 100 слов) для сцены: "${context}". 
-    Сфокусируйся на чувствах (запах, звук, свет). Русский язык.`;
-
+    const campaignContext = getCampaignContext();
+    const systemPrompt = `Ты мастер описаний D&D. Твоя цель — создать атмосферный художественный текст для чтения игрокам вслух (Read Aloud Text).
+    Используй сенсорику (звуки, запахи, свет). Объем до 100 слов.
+    Контекст кампании: ${campaignContext}`;
+    
     return withRetry(async () => {
         const text = await makeRequest([
             { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
+            { role: "user", content: `Опиши сцену/место: ${context}` }
         ]);
         return cleanText(text);
     });
 };
 
 export const generateQuest = async (level: string, context: string): Promise<string> => {
-    const campContext = getCampaignContext();
-    const systemPrompt = `Ты генератор квестов. Формат: HTML (<h3>, <p>). ${campContext}`;
-    const userPrompt = `Придумай короткий побочный квест для D&D. Уровень: ${level}. Контекст: ${context}.
-    Включи: Название, Завязку, Цель, Твист, Награду.`;
-
+    const campaignContext = getCampaignContext();
+    const systemPrompt = `Ты генератор квестов D&D. Формат ответа HTML. ${campaignContext}
+    Структура:
+    <h3>Название квеста</h3>
+    <p><strong>Завязка:</strong> ...</p>
+    <p><strong>Цель:</strong> ...</p>
+    <p><strong>Твист/Сложность:</strong> ...</p>
+    <p><strong>Награда:</strong> ...</p>`;
+    
     return withRetry(async () => {
         const text = await makeRequest([
             { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
+            { role: "user", content: `Квест для уровня ${level}. Контекст: ${context}` }
         ]);
         return cleanText(text);
     });
 };
 
-export const generateFullQuestTracker = async (level: number, theme: string): Promise<any> => {
-    const context = getCampaignContext();
-    const systemPrompt = `Ты мастер квестов. Создай структуру квеста в формате JSON. ${context}
-    Структура:
-    {
-      "title": "Название",
-      "giver": "Кто дает квест",
-      "summary": "Краткая суть (1 предложение)",
-      "description": "Полное описание для мастера (HTML)",
-      "objectives": ["Цель 1", "Цель 2"],
-      "threats": ["Имя монстра 1", "Имя монстра 2"],
-      "reward": "Награда"
-    }
-    Отвечай ТОЛЬКО валидным JSON.`;
-    
-    const userPrompt = `Создай квест для уровня ${level}. Тема: ${theme}.`;
-
-    return withRetry(async () => {
-        const text = await makeRequest([
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-        ], true);
-        return JSON.parse(cleanText(text));
-    });
-};
-
-export const enhanceQuest = async (questData: FullQuest): Promise<FullQuest> => {
-    const context = getCampaignContext();
-    const systemPrompt = `Ты опытный Dungeon Master. Твоя задача — улучшить и детализировать существующий набросок квеста. ${context}
-    Используй текущие данные, но распиши их подробнее, добавь драмы и конкретики.
-    Структура JSON (верни обновленный объект):
-    {
-      "title": "Название (можно улучшить)",
-      "giver": "Заказчик",
-      "summary": "Краткая суть (1 предложение)",
-      "description": "Детальное художественное описание для мастера (HTML, добавь атмосферы)",
-      "objectives": ["Список конкретных шагов/целей (3-5 шагов)"],
-      "threats": ["Список конкретных монстров, подходящих по смыслу"],
-      "reward": "Награда (золото + предмет)"
-    }
-    Отвечай ТОЛЬКО валидным JSON.`;
-
-    const inputData = {
-        title: questData.title,
-        description: questData.description,
-        giver: questData.giver,
-        summary: questData.summary
-    };
-
-    const userPrompt = `Улучши этот квест: ${JSON.stringify(inputData)}`;
-
-    return withRetry(async () => {
-        const text = await makeRequest([
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-        ], true);
-        
-        const enhancedData = JSON.parse(cleanText(text));
-        
-        return {
-            ...questData,
-            title: enhancedData.title || questData.title,
-            giver: enhancedData.giver || questData.giver,
-            summary: enhancedData.summary || questData.summary,
-            description: enhancedData.description || questData.description,
-            reward: enhancedData.reward || questData.reward,
-            objectives: Array.isArray(enhancedData.objectives) 
-                ? enhancedData.objectives.map((txt: string) => ({ id: Date.now().toString() + Math.random(), text: txt, completed: false }))
-                : questData.objectives,
-            threats: enhancedData.threats || questData.threats
-        };
-    });
-};
-
-export const parseQuestFromText = async (inputText: string): Promise<any> => {
-    const systemPrompt = `Ты аналитик текста D&D. Преобразуй входящий текст в структуру квеста JSON.
-    Структура:
-    {
-      "title": "Название",
-      "giver": "Заказчик",
-      "summary": "Суть",
-      "description": "Описание",
-      "objectives": ["Список целей"],
-      "threats": ["Список врагов"],
-      "reward": "Награда"
-    }
-    Если данных нет, придумай логичные заглушки.`;
-
-    return withRetry(async () => {
-        const text = await makeRequest([
-            { role: "system", content: systemPrompt },
-            { role: "user", content: `Текст: "${inputText.substring(0, 4000)}"` }
-        ], true);
-        return JSON.parse(cleanText(text));
-    });
-};
-
 export const generateShop = async (shopType: string, location: string): Promise<string> => {
     const context = getCampaignContext();
-    const userPrompt = `Создай магазин для D&D. Тип: ${shopType}. Место: ${location}.
-    Включи: Название, Владельца (с характером), Описание интерьера, Список 5-7 товаров с ценами (HTML таблица).`;
+    const systemPrompt = `Ты генератор магазинов D&D. Формат ответа HTML. ${context}`;
+    const userPrompt = `Создай магазин. Тип: ${shopType}. Место: ${location}.
+    Включи:
+    1. Название и имя владельца (с характером).
+    2. Интерьер.
+    3. Таблица товаров (5-7 шт) с ценами.`;
 
     return withRetry(async () => {
         const text = await makeRequest([
-            { role: "system", content: `Ты генератор магазинов D&D. Используй HTML. ${context}` },
+            { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
         ]);
         return cleanText(text);
@@ -673,11 +629,13 @@ export const generateShop = async (shopType: string, location: string): Promise<
 
 export const generateMinorLocation = async (type: string): Promise<string> => {
     const context = getCampaignContext();
-    const userPrompt = `Сгенерируй интересную "проходную" локацию: ${type}. Опиши внешний вид и одну интересную деталь/энкаунтер. Формат HTML.`;
+    const systemPrompt = `Ты генератор локаций D&D. Формат ответа HTML. ${context}`;
+    const userPrompt = `Опиши интересную "проходную" локацию (Point of Interest). Тип: ${type}.
+    Включи сенсорику и одну интерактивную деталь.`;
 
     return withRetry(async () => {
         const text = await makeRequest([
-            { role: "system", content: `Ты помощник ДМ. ${context}` },
+            { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
         ]);
         return cleanText(text);
@@ -686,11 +644,12 @@ export const generateMinorLocation = async (type: string): Promise<string> => {
 
 export const generateJobBoard = async (setting: string): Promise<string> => {
     const context = getCampaignContext();
-    const userPrompt = `Создай "Доску объявлений" для поселения: ${setting}. 4 объявления разного типа. Оформи как записки в HTML.`;
+    const systemPrompt = `Ты генератор досок объявлений D&D. Формат ответа HTML. ${context}`;
+    const userPrompt = `Создай 4 объявления для доски в поселении: ${setting}. Разные типы (охота, поиск, услуги).`;
 
     return withRetry(async () => {
         const text = await makeRequest([
-            { role: "system", content: `Ты помощник ДМ. ${context}` },
+            { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
         ]);
         return cleanText(text);
@@ -698,12 +657,14 @@ export const generateJobBoard = async (setting: string): Promise<string> => {
 };
 
 export const generatePuzzle = async (difficulty: string, theme: string): Promise<string> => {
-    const userPrompt = `Головоломка D&D. Сложность: ${difficulty}. Тема: ${theme}.
-    Включи: Описание комнаты, Механику, Решение, Подсказки, Последствия провала. Формат HTML.`;
+    const context = getCampaignContext();
+    const systemPrompt = `Ты дизайнер ловушек и загадок D&D. Формат ответа HTML. ${context}`;
+    const userPrompt = `Придумай головоломку. Сложность: ${difficulty}. Тема: ${theme}.
+    Включи: Описание комнаты, Механику, Решение, Подсказки, Наказание за ошибку.`;
 
     return withRetry(async () => {
         const text = await makeRequest([
-            { role: "system", content: "Ты дизайнер подземелий." },
+            { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
         ]);
         return cleanText(text);
@@ -711,51 +672,51 @@ export const generatePuzzle = async (difficulty: string, theme: string): Promise
 };
 
 export const parseLoreFromText = async (rawText: string): Promise<any> => {
-  const systemPrompt = `Ты аналитик лора D&D. Извлеки информацию о локации в JSON.
-  Структура JSON:
+  const systemPrompt = `Ты аналитик лора D&D. Проанализируй текст и извлеки информацию о локации.
+  Верни JSON:
   {
       "name": "Название",
-      "description": "Краткое описание (для мастера)",
-      "atmosphere": "Атмосфера (сенсорика)",
-      "npcs": [{"name": "", "race": "", "description": "", "personality": ""}],
-      "secrets": ["Список тайн"],
-      "monsters": ["Типы монстров"],
-      "loot": ["Интересные предметы"]
-  }
-  Отвечай ТОЛЬКО валидным JSON.`;
+      "description": "Краткое описание",
+      "atmosphere": "Атмосфера",
+      "npcs": [{ "name": "", "race": "", "description": "", "personality": "" }],
+      "secrets": ["Секрет 1"],
+      "monsters": ["Тип 1"],
+      "loot": ["Предмет 1"]
+  }`;
 
   return withRetry(async () => {
-    const text = await makeRequest([
-        { role: "system", content: systemPrompt },
-        { role: "user", content: `Текст: "${rawText.substring(0, 5000)}"` }
-    ], true);
-    return JSON.parse(cleanText(text));
+      const text = await makeRequest([
+          { role: "system", content: systemPrompt },
+          { role: "user", content: rawText.substring(0, 6000) }
+      ], true);
+      return JSON.parse(cleanText(text));
   });
 };
 
 export const generateFullLocation = async (regionName: string, locationType: string): Promise<any> => {
     const context = getCampaignContext();
-    const systemPrompt = `Ты создатель миров D&D. Создай детальную локацию в JSON. ${context}
+    const systemPrompt = `Ты креативный директор D&D кампании. Твоя задача — создать детальную локацию в формате JSON. ${context}
+    
+    Входные данные: Регион "${regionName}", Тип "${locationType}".
+    
     Структура JSON:
     {
       "name": "Название",
       "type": "Тип",
-      "description": "Описание",
-      "atmosphere": "Атмосфера",
-      "npcs": [{"name": "", "race": "", "description": "", "personality": ""}],
-      "secrets": ["Тайны"],
-      "monsters": ["Монстры"],
-      "loot": ["Лут"],
-      "quests": [{"title": "", "description": ""}]
+      "description": "Описание для ДМа",
+      "atmosphere": "Художественное описание (звуки, запахи)",
+      "npcs": [{ "name": "", "race": "", "description": "", "personality": "" }],
+      "secrets": ["Тайна 1", "Тайна 2"],
+      "monsters": ["Тип 1", "Тип 2"],
+      "loot": ["Предмет 1", "Предмет 2"],
+      "quests": [{ "title": "", "description": "" }]
     }
-    Отвечай ТОЛЬКО валидным JSON.`;
-
-    const userPrompt = `Регион: ${regionName}. Тип локации: ${locationType}. Впиши в лор Forgotten Realms.`;
+    Отвечай ТОЛЬКО валидным JSON. Русский язык.`;
 
     return withRetry(async () => {
         const text = await makeRequest([
             { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
+            { role: "user", content: "Создай локацию." }
         ], true);
         return JSON.parse(cleanText(text));
     });
@@ -763,17 +724,18 @@ export const generateFullLocation = async (regionName: string, locationType: str
 
 export const generateLocationContent = async (locationName: string, category: 'npc' | 'secret' | 'loot' | 'quest'): Promise<any[]> => {
     const context = getCampaignContext();
-    let systemPrompt = `Отвечай ТОЛЬКО валидным JSON массивом. ${context}`;
+    const systemPrompt = `Ты генератор контента D&D. Контекст: Локация "${locationName}". ${context}.
+    Верни JSON массив (Array).`;
+    
     let userPrompt = "";
-
     if (category === 'npc') {
-        userPrompt = `Придумай 2 интересных NPC для локации "${locationName}". Формат: [{"name":, "race":, "description":, "personality":}].`;
+        userPrompt = `Придумай 2 интересных NPC. JSON: [{ "name", "race", "description", "personality" }]`;
     } else if (category === 'quest') {
-        userPrompt = `Придумай 2 квеста для локации "${locationName}". Формат: [{"title":, "description":}].`;
+        userPrompt = `Придумай 2 коротких квеста. JSON: [{ "title", "description" }]`;
     } else if (category === 'secret') {
-        userPrompt = `Придумай 3 тайны для локации "${locationName}". Формат: ["тайна1", "тайна2"].`;
+        userPrompt = `Придумай 3 тайны/слуха. JSON: ["строка 1", "строка 2"]`;
     } else if (category === 'loot') {
-        userPrompt = `Придумай 5 предметов лута для локации "${locationName}". Формат: ["предмет1", "предмет2"].`;
+        userPrompt = `Придумай 5 предметов лута. JSON: ["строка 1", "строка 2"]`;
     }
 
     return withRetry(async () => {
@@ -787,13 +749,14 @@ export const generateLocationContent = async (locationName: string, category: 'n
 
 export const generateEncounterIntro = async (monsters: string[], location: string): Promise<string> => {
    const context = getCampaignContext();
-   const userPrompt = `Группа героев в локации "${location}". Начинается бой с: ${monsters.join(', ')}.
-   Напиши короткое, динамичное вступление (нарратив) к бою. Русский язык.`;
-   
+   const systemPrompt = `Ты рассказчик D&D. Напиши динамичное вступление к бою (1 абзац).
+   Локация: ${location}. Враги: ${monsters.join(', ')}.
+   Сфокусируйся на внезапности и угрозе. ${context}`;
+
    return withRetry(async () => {
        const text = await makeRequest([
-           { role: "system", content: `Ты нарратор боевых сцен D&D. ${context}` },
-           { role: "user", content: userPrompt }
+           { role: "system", content: systemPrompt },
+           { role: "user", content: "Начинай бой." }
        ]);
        return cleanText(text);
    });
@@ -801,27 +764,35 @@ export const generateEncounterIntro = async (monsters: string[], location: strin
 
 export const generateExtendedDetails = async (category: string, name: string, locationContext: string): Promise<string> => {
     const context = getCampaignContext();
-    const systemPrompt = `Ты Мастер Подземелий. Дай детальную справку в формате HTML. ${context}`;
+    const systemPrompt = `Ты энциклопедия D&D. Предоставь детальную информацию в формате HTML. ${context}`;
     let userPrompt = "";
-    
+
     switch (category) {
         case 'npc':
-            userPrompt = `NPC "${name}" в "${locationContext}". Статблок (рекомендация), отыгрыш, секреты, лут.`;
+            userPrompt = `Детально опиши NPC "${name}" в локации "${locationContext}".
+            Включи: Статблок (рекомендация), Советы по отыгрышу, Скрытые мотивы, Инвентарь.`;
             break;
         case 'quest':
-            userPrompt = `Квест "${name}" в "${locationContext}". План развития (3 шага), проверки навыков, награда.`;
+            userPrompt = `Распиши квест "${name}" в локации "${locationContext}".
+            Включи: План событий (3 шага), Проверки навыков (DC), Твист, Награда.`;
             break;
         case 'secret':
-            userPrompt = `Тайна "${name}" в "${locationContext}". Истина, последствия раскрытия.`;
+            userPrompt = `Раскрой тайну "${name}" в локации "${locationContext}".
+            Включи: Истину, Кто знает, Последствия раскрытия.`;
             break;
         case 'loot':
-            userPrompt = `Предмет "${name}" в "${locationContext}". Вид, история, ценность, свойства.`;
+            userPrompt = `Опиши предмет "${name}" из "${locationContext}".
+            Включи: Внешний вид, Свойства, Стоимость, Историю.`;
             break;
         case 'spell':
-            userPrompt = `Заклинание D&D 5e "${name}". Уровень, школа, время, эффект, усиление.`;
+            userPrompt = `Опиши заклинание D&D 5e "${name}".
+            Включи: Уровень, Школу, Время, Дистанцию, Компоненты, Эффект, Усиление.`;
+            break;
+        case 'glitch':
+            userPrompt = `Опиши аномалию "${name}". Как она влияет на физику и магию? Как её нейтрализовать?`;
             break;
         default:
-            userPrompt = `Подробности про "${name}" в контексте "${locationContext}".`;
+            userPrompt = `Расскажи подробнее про "${name}" в контексте "${locationContext}".`;
     }
 
     return withRetry(async () => {
@@ -833,45 +804,96 @@ export const generateExtendedDetails = async (category: string, name: string, lo
     });
 };
 
+// --- ECHOES SPECIFIC GENERATORS ---
 export const generateMultiverseBreach = async (): Promise<any> => {
-  const context = getCampaignContext();
-  const systemPrompt = `Ты генератор событий "Project Ark" (Мультивселенная D&D). Верни JSON. ${context}
-  Структура:
-  {
-    "name": "Название разлома",
-    "originWorld": "Мир происхождения (напр. Кибертрон, Азерот)",
-    "description": "Описание разлома",
-    "atmosphere": "Сенсорика",
-    "anomalyEffect": "Магическая аномалия",
-    "anchor": "Объект-якорь",
-    "npcs": [{"name": "", "race": "", "description": "", "personality": ""}],
-    "secrets": ["Список тайн"],
-    "monsters": ["Типы врагов"],
-    "loot": ["Артефакты или технологии"],
-    "quests": [{"title": "", "description": ""}],
-    "breachEvent": {"title": "", "description": "", "goal": "", "threats": []}
-  }
-  Отвечай ТОЛЬКО валидным JSON.`;
-
-  return withRetry(async () => {
-    const text = await makeRequest([
-        { role: "system", content: systemPrompt },
-        { role: "user", content: "Сгенерируй новый Разлом Мультивселенной. Заполни обитателей, тайны и лут." }
-    ], true);
-    return JSON.parse(cleanText(text));
-  });
-};
-
-export const generateRealityGlitch = async (locationName: string): Promise<any> => {
-    const context = getCampaignContext();
-    const systemPrompt = `Верни JSON: {"name": "Название сбоя", "effect": "Описание эффекта"}. ${context}`;
-    const userPrompt = `Придумай "Сбой Реальности" (Glitch) для локации "${locationName}". Странный физический или магический эффект.`;
+    const systemPrompt = `Ты генератор событий для кампании 'Предатели Реальности' (Echoes). 
+    Создай описание 'Разлома Мультивселенной'.
+    Верни JSON:
+    {
+        "name": "Название Разлома",
+        "type": "Тип (напр. Техно-магический, Биологический, Псионический)",
+        "originWorld": "Мир происхождения (напр. Эберрон, Равника, Дарк Сан, Киберпанк)",
+        "description": "Описание аномалии и окружения",
+        "atmosphere": "Звуки, запахи, визуальные искажения",
+        "monsters": ["Монстр 1", "Монстр 2"],
+        "loot": ["Артефакт 1"],
+        "breachEvent": {
+            "title": "Событие прорыва",
+            "description": "Что происходит прямо сейчас",
+            "goal": "Как закрыть разлом",
+            "threats": ["Угроза 1"]
+        }
+    }`;
 
     return withRetry(async () => {
         const text = await makeRequest([
             { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
+            { role: "user", content: "Сгенерируй новый разлом." }
         ], true);
         return JSON.parse(cleanText(text));
+    });
+};
+
+export const generateRealityGlitch = async (location: string): Promise<any> => {
+    const systemPrompt = `Ты генератор аномалий 'Глюк Реальности'.
+    Верни JSON: { "name": "Название", "effect": "Описание механического и визуального эффекта" }.`;
+    
+    return withRetry(async () => {
+        const text = await makeRequest([
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Локация: ${location}` }
+        ], true);
+        return JSON.parse(cleanText(text));
+    });
+};
+
+export const generateFullQuestTracker = async (level: number, theme: string): Promise<any> => {
+    const context = getCampaignContext();
+    const systemPrompt = `Ты генератор квестов для трекера. Верни JSON. ${context}
+    Структура:
+    {
+        "title": "Название",
+        "giver": "Кто дал",
+        "summary": "Краткая суть (1 предл)",
+        "description": "Полное описание (HTML)",
+        "objectives": ["Цель 1", "Цель 2", "Цель 3"],
+        "threats": ["Враг 1", "Враг 2"],
+        "reward": "Награда"
+    }`;
+
+    return withRetry(async () => {
+        const text = await makeRequest([
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Уровень ${level}, тема: ${theme}` }
+        ], true);
+        return JSON.parse(cleanText(text));
+    });
+};
+
+export const parseQuestFromText = async (rawText: string): Promise<any> => {
+    const systemPrompt = `Проанализируй текст и извлеки структуру квеста в JSON:
+    { "title", "giver", "summary", "description", "objectives": [], "threats": [], "reward" }`;
+
+    return withRetry(async () => {
+        const text = await makeRequest([
+            { role: "system", content: systemPrompt },
+            { role: "user", content: rawText.substring(0, 4000) }
+        ], true);
+        return JSON.parse(cleanText(text));
+    });
+};
+
+export const enhanceQuest = async (quest: FullQuest): Promise<FullQuest> => {
+    const context = getCampaignContext();
+    const systemPrompt = `Ты опытный ДМ. Улучши квест, добавь деталей, твистов и угроз. ${context}
+    Верни обновленный JSON той же структуры.`;
+
+    return withRetry(async () => {
+        const text = await makeRequest([
+            { role: "system", content: systemPrompt },
+            { role: "user", content: JSON.stringify(quest) }
+        ], true);
+        const enhanced = JSON.parse(cleanText(text));
+        return { ...quest, ...enhanced }; // Merge to keep IDs
     });
 };

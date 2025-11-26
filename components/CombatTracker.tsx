@@ -1,10 +1,10 @@
 
+
 import React, { useState, useEffect } from 'react';
-import { Combatant, EntityType, LogEntry, PartyMember, Condition } from '../types';
+import { Combatant, EntityType, LogEntry, PartyMember, Condition, BestiaryEntry } from '../types';
 import { CONDITIONS, SAMPLE_COMBATANTS } from '../constants';
 import { Shield, Heart, Sword, Skull, Play, RefreshCw, Plus, X, Trash2, Users, BookOpen, Coins, Loader, Flag, Zap, Activity, HelpCircle, Trophy, Star, Dices, Compass, ArrowLeft, Check } from 'lucide-react';
 import BestiaryBrowser from './BestiaryBrowser';
-import { ApiMonsterDetails } from '../services/dndApiService';
 import { generateCombatLoot } from '../services/polzaService';
 import { calculateEncounterDifficulty, EncounterResult } from '../services/encounterService';
 import { useAudio } from '../contexts/AudioContext';
@@ -330,29 +330,25 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
     }
   };
 
-  const addApiMonster = (monster: ApiMonsterDetails, count: number) => {
+  const addMonsterToTracker = (monster: BestiaryEntry, count: number) => {
     const newMonsters: Combatant[] = [];
-    const getAcValue = (m: ApiMonsterDetails) => {
-      if (Array.isArray(m.armor_class)) return m.armor_class[0]?.value || 10;
-      return m.armor_class || 10;
-    };
 
     for (let i = 1; i <= count; i++) {
-        const dexMod = Math.floor((monster.dexterity - 10) / 2);
+        const dexMod = Math.floor((monster.stats.dex - 10) / 2);
         const initRoll = Math.floor(Math.random() * 20) + 1 + dexMod;
         const name = count > 1 ? `${monster.name} ${i}` : monster.name;
-        const actions = (monster as any).actions?.map((a: any) => `<b>${a.name}:</b> ${a.desc}`) || [];
+        const actions = monster.actions?.map(a => `<b>${a.name}:</b> ${a.desc}`) || [];
 
         newMonsters.push({
             id: Date.now().toString() + i + Math.random(),
             name: name,
             type: EntityType.MONSTER,
             initiative: initRoll,
-            hp: monster.hit_points,
-            maxHp: monster.hit_points,
-            ac: getAcValue(monster),
+            hp: monster.hp,
+            maxHp: monster.hp,
+            ac: monster.ac,
             conditions: [],
-            notes: `CR ${monster.challenge_rating}`,
+            notes: `CR ${monster.cr} (${monster.type})`,
             xp: monster.xp,
             actions
         });
@@ -361,12 +357,12 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
     setCombatants(prev => {
         const monstersBefore = prev.filter(c => c.type === EntityType.MONSTER).length;
         if (monstersBefore === 0) {
-             const contextText = `${monster.name} ${monster.type} CR ${monster.challenge_rating}`;
+             const contextText = `${monster.name} ${monster.type} CR ${monster.cr}`;
              autoPlayMusic('combat', contextText);
         }
         return [...prev, ...newMonsters];
     });
-    addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Добавлено ${count} x ${monster.name} (API).`, type: 'system' });
+    addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Добавлено ${count} x ${monster.name}.`, type: 'system' });
   };
 
   const returnToTravel = () => {
@@ -426,7 +422,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
       {showBestiary && (
         <BestiaryBrowser 
             onClose={() => setShowBestiary(false)} 
-            onAddMonster={addApiMonster} 
+            onAddMonster={addMonsterToTracker} 
         />
       )}
 
