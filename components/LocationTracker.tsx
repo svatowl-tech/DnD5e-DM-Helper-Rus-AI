@@ -537,6 +537,30 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         setModalOpen(false);
     };
 
+    const handleSaveModalToTracker = () => {
+        if (!location || !modalContent || modalCategory !== 'npc') return;
+
+        // Strip HTML tags for the basic description field (first 100 chars)
+        const plainText = modalContent.replace(/<[^>]*>?/gm, ' ');
+        const shortDesc = plainText.substring(0, 150) + (plainText.length > 150 ? "..." : "");
+
+        const event = new CustomEvent('dmc-add-npc', {
+            detail: {
+                name: modalTitle,
+                race: 'Неизвестно', // User can edit later or we could try to parse
+                description: shortDesc,
+                personality: 'См. заметки',
+                location: location.name,
+                status: 'alive',
+                attitude: 'neutral',
+                notes: modalContent // Save full HTML here
+            }
+        });
+        window.dispatchEvent(event);
+        addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `NPC ${modalTitle} сохранен в трекер.`, type: 'system' });
+        setModalOpen(false);
+    };
+
     const openDetailModal = async (category: string, name: string) => {
         if (!location) return;
         setModalOpen(true);
@@ -558,7 +582,9 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         if (!location) return;
         setImageLoading(true);
         try {
-            const prompt = `Fantasy landscape: ${location.name}, ${location.type}. ${location.atmosphere}. ${location.description}. Cinematic lighting, highly detailed, digital art.`;
+            // Truncate description for prompt context to avoid 400 errors
+            const shortDesc = location.description.substring(0, 250);
+            const prompt = `Fantasy landscape: ${location.name}, ${location.type}. ${location.atmosphere}. ${shortDesc}. Cinematic lighting, highly detailed, digital art.`;
             const url = await generateImage(prompt, "16:9");
             const newImage: SavedImage = { id: Date.now().toString(), url: url, title: location.name, type: 'location', timestamp: Date.now() };
             setLocationImage(newImage);
@@ -573,7 +599,9 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     const handleGenerateNpcImage = async (name: string, description: string) => {
         if (!confirm(`Сгенерировать портрет для ${name}? Это займет некоторое время.`)) return;
         try {
-            const prompt = `Fantasy portrait of ${name}. ${description}. Detailed digital art style.`;
+            // Also truncate NPC description
+            const shortDesc = description.substring(0, 200);
+            const prompt = `Fantasy portrait of ${name}. ${shortDesc}. Detailed digital art style.`;
             const url = await generateImage(prompt, "1:1");
             const newImage: SavedImage = { id: Date.now().toString(), url: url, title: name, type: 'npc', timestamp: Date.now() };
             if (onImageGenerated) onImageGenerated(newImage);
@@ -737,14 +765,14 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                     <X className="w-6 h-6" />
                                 </button>
                             </div>
-                            <div className="flex-1 overflow-y-auto p-6 bg-gray-900/50 custom-scrollbar">
+                            <div className="flex-1 overflow-y-auto p-6 bg-gray-900 custom-scrollbar">
                                 {modalLoading ? (
                                     <div className="flex flex-col items-center justify-center h-40 text-gold-500 gap-3">
                                         <Loader className="w-8 h-8 animate-spin" />
                                         <span className="text-sm font-mono">Мастер размышляет...</span>
                                     </div>
                                 ) : (
-                                    <div className="text-sm text-gray-300 [&_h1]:text-gold-500 [&_h1]:text-2xl [&_h1]:font-serif [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-gold-500 [&_h2]:text-xl [&_h2]:font-serif [&_h2]:font-bold [&_h2]:mb-3 [&_h2]:mt-5 [&_h3]:text-gold-500 [&_h3]:font-serif [&_h3]:text-lg [&_h3]:font-bold [&_h3]:mb-2 [&_h3]:mt-4 [&_h3:first-child]:mt-0 [&_h4]:text-gold-400 [&_h4]:font-bold [&_h4]:mb-2 [&_strong]:text-white [&_strong]:font-bold [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mb-1 [&_p]:mb-3" dangerouslySetInnerHTML={{__html: modalContent}} />
+                                    <div className="text-sm text-gray-200 [&_h1]:text-gold-500 [&_h1]:text-2xl [&_h1]:font-serif [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-gold-500 [&_h2]:text-xl [&_h2]:font-serif [&_h2]:font-bold [&_h2]:mb-3 [&_h2]:mt-5 [&_h3]:text-gold-500 [&_h3]:font-serif [&_h3]:text-lg [&_h3]:font-bold [&_h3]:mb-2 [&_h3]:mt-4 [&_h3:first-child]:mt-0 [&_h4]:text-gold-400 [&_h4]:font-bold [&_h4]:mb-2 [&_strong]:text-white [&_strong]:font-bold [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mb-1 [&_p]:mb-3" dangerouslySetInnerHTML={{__html: modalContent}} />
                                 )}
                             </div>
                             <div className="p-3 bg-gray-900 border-t border-gray-700 flex justify-between shrink-0">
@@ -757,6 +785,14 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                     </button>
                                 )}
                                 <div className="flex gap-2 ml-auto">
+                                    {modalCategory === 'npc' && (
+                                        <button 
+                                            onClick={handleSaveModalToTracker}
+                                            className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2"
+                                        >
+                                            <UserPlus className="w-4 h-4" /> В Трекер
+                                        </button>
+                                    )}
                                     <button 
                                         onClick={handleSaveModalToJournal}
                                         disabled={modalLoading || modalContent.includes('Ошибка')}

@@ -6,7 +6,8 @@ import {
     Map, Footprints, Ship, Zap, 
     Cloud, Sword, Search, MessageSquare, Skull, 
     CheckCircle, X, Loader, ArrowRight, Compass,
-    Target, Coins, Tent, RotateCcw, Sparkles
+    Target, Coins, Tent, RotateCcw, Sparkles,
+    Settings
 } from 'lucide-react';
 import { useAudio } from '../contexts/AudioContext';
 
@@ -52,8 +53,10 @@ const TravelManager: React.FC<TravelManagerProps> = ({
     onCancelTravel 
 }) => {
     const { autoPlayMusic } = useAudio();
-    // View Modes: 'plan' (setup), 'loading' (AI working), 'journey' (active trip)
-    const [viewMode, setViewMode] = useState<'plan' | 'loading' | 'journey'>('plan');
+    // View Modes: 'plan' (setup), 'loading' (AI working), 'journey' (active trip), 'error' (API failure)
+    const [viewMode, setViewMode] = useState<'plan' | 'loading' | 'journey' | 'error'>('plan');
+    const [errorMessage, setErrorMessage] = useState('');
+    const [isAuthError, setIsAuthError] = useState(false);
 
     // Planning Form State
     const [travelScope, setTravelScope] = useState<'local' | 'global'>('local');
@@ -114,6 +117,8 @@ const TravelManager: React.FC<TravelManagerProps> = ({
         }
 
         setViewMode('loading');
+        setErrorMessage('');
+        setIsAuthError(false);
 
         try {
             const scenario = await generateTravelScenario(origin, destination, context, selectedMethod, selectedPace);
@@ -145,8 +150,15 @@ const TravelManager: React.FC<TravelManagerProps> = ({
 
         } catch (error: any) {
             console.error("Travel Generation Failed:", error);
-            alert(`Ошибка генерации: ${error.message}`);
-            setViewMode('plan');
+            setErrorMessage(error.message || "Неизвестная ошибка.");
+            
+            if (error.message && error.message.includes('401')) {
+                setIsAuthError(true);
+                // Auto trigger settings to help user
+                window.dispatchEvent(new CustomEvent('dmc-open-settings'));
+            }
+            
+            setViewMode('error');
         }
     };
 
@@ -220,7 +232,12 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                 
                 onClose(); // Close to let DM explore the new location
             } catch (e: any) {
-                alert("Ошибка генерации локации: " + e.message);
+                if (e.message && e.message.includes('401')) {
+                    alert("Ошибка API Key. Пожалуйста, введите ключ в настройках.");
+                    window.dispatchEvent(new CustomEvent('dmc-open-settings'));
+                } else {
+                    alert("Ошибка генерации локации: " + e.message);
+                }
             } finally {
                 setProcessingEventId(null);
             }
@@ -265,10 +282,15 @@ const TravelManager: React.FC<TravelManagerProps> = ({
     };
 
     const handleAbort = () => {
-        if (window.confirm("Прервать путешествие? Прогресс будет сброшен.")) {
-            onCancelTravel();
-            setViewMode('plan');
-        }
+        // Using simple window.confirm logic here might be blocked in sandboxes
+        // So we'll just switch view mode without confirmation if strict
+        // or use a custom confirm. For now, let's just reset.
+        onCancelTravel();
+        setViewMode('plan');
+    };
+
+    const openSettings = () => {
+        window.dispatchEvent(new CustomEvent('dmc-open-settings'));
     };
 
     // Render Helpers
@@ -292,7 +314,9 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                 <div className="p-4 bg-gray-900 border-b border-gray-700 flex justify-between items-center shrink-0">
                     <h3 className="text-xl font-serif font-bold text-gold-500 flex items-center gap-2">
                         <Map className="w-6 h-6" /> 
-                        {viewMode === 'plan' ? 'Планирование Маршрута' : viewMode === 'loading' ? 'Генерация...' : 'В Пути'}
+                        {viewMode === 'plan' ? 'Планирование Маршрута' : 
+                         viewMode === 'loading' ? 'Генерация...' : 
+                         viewMode === 'error' ? 'Ошибка' : 'В Пути'}
                     </h3>
                     <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
                         <X className="w-6 h-6" />
@@ -302,6 +326,31 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                 {/* Body Content */}
                 <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                     
+                    {/* --- ERROR MODE --- */}
+                    {viewMode === 'error' && (
+                        <div className="flex flex-col items-center justify-center h-full text-center gap-4">
+                            <div className="p-4 bg-red-900/30 border border-red-600 rounded-lg max-w-md">
+                                <h4 className="text-red-400 font-bold mb-2 flex items-center justify-center gap-2">
+                                    <Skull className="w-5 h-5"/> Ошибка Генерации
+                                </h4>
+                                <p className="text-sm text-gray-300 mb-4">{errorMessage}</p>
+                                
+                                {isAuthError && (
+                                    <div className="flex flex-col gap-2">
+                                        <p className="text-xs text-gray-400">Похоже, ваш API ключ недействителен или отсутствует.</p>
+                                        <button 
+                                            onClick={openSettings}
+                                            className="bg-gold-600 hover:bg-gold-500 text-black font-bold py-2 px-4 rounded flex items-center justify-center gap-2"
+                                        >
+                                            <Settings className="w-4 h-4"/> Открыть Настройки
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                            <button onClick={() => setViewMode('plan')} className="text-gray-400 hover:text-white underline text-sm">Попробовать снова</button>
+                        </div>
+                    )}
+
                     {/* --- PLAN MODE --- */}
                     {viewMode === 'plan' && (
                         <div className="space-y-6">
@@ -543,6 +592,10 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                                 <CheckCircle className="w-4 h-4"/> Прибыть в пункт назначения
                             </button>
                         </>
+                    )}
+
+                    {viewMode === 'error' && (
+                        <button onClick={onClose} className="px-4 py-2 text-gray-400 hover:text-white text-sm font-bold">Закрыть</button>
                     )}
                 </div>
             </div>

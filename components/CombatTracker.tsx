@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Combatant, EntityType, LogEntry, PartyMember, Condition } from '../types';
 import { CONDITIONS, SAMPLE_COMBATANTS } from '../constants';
-import { Shield, Heart, Sword, Skull, Play, RefreshCw, Plus, X, Trash2, Users, BookOpen, Coins, Loader, Flag, Zap, Activity, HelpCircle, Trophy, Star, Dices, Compass, ArrowLeft } from 'lucide-react';
+import { Shield, Heart, Sword, Skull, Play, RefreshCw, Plus, X, Trash2, Users, BookOpen, Coins, Loader, Flag, Zap, Activity, HelpCircle, Trophy, Star, Dices, Compass, ArrowLeft, Check } from 'lucide-react';
 import BestiaryBrowser from './BestiaryBrowser';
 import { ApiMonsterDetails } from '../services/dndApiService';
 import { generateCombatLoot } from '../services/polzaService';
@@ -45,6 +45,10 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
   const [victoryLoot, setVictoryLoot] = useState<string>('');
   const [showInitModal, setShowInitModal] = useState(false);
   const [initRolls, setInitRolls] = useState<Record<string, number>>({});
+  
+  // Custom Confirmation State (replaces window.confirm)
+  const [confirmAction, setConfirmAction] = useState<{ message: string, onConfirm: () => void } | null>(null);
+
   const [newCombatant, setNewCombatant] = useState<Partial<Combatant>>({
     name: '', initiative: 10, hp: 10, maxHp: 10, ac: 10, type: EntityType.MONSTER
   });
@@ -213,7 +217,14 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
 
   const handleEndCombatClick = () => {
       if (combatants.filter(c => c.type === EntityType.MONSTER).length === 0) {
-          if (window.confirm("В бою нет монстров. Просто очистить?")) cleanCombatState();
+          // Use custom confirm instead of window.confirm
+          setConfirmAction({
+              message: "В бою нет монстров. Просто очистить трекер и закончить?",
+              onConfirm: () => {
+                  cleanCombatState();
+                  setConfirmAction(null);
+              }
+          });
           return;
       }
       const activePlayers = combatants.filter(c => c.type === EntityType.PLAYER);
@@ -275,7 +286,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
           const players = combatants.filter(c => c.type === EntityType.PLAYER);
           const avgLevel = players.length > 0 ? 3 : 1; 
           const names = monsters.map(m => m.name);
-          // Fallback for empty names
           const namesToUse = names.length > 0 ? names : ["Неизвестный враг"];
           
           const result = await generateCombatLoot(namesToUse, avgLevel);
@@ -331,7 +341,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
         const dexMod = Math.floor((monster.dexterity - 10) / 2);
         const initRoll = Math.floor(Math.random() * 20) + 1 + dexMod;
         const name = count > 1 ? `${monster.name} ${i}` : monster.name;
-        // Map API actions
         const actions = (monster as any).actions?.map((a: any) => `<b>${a.name}:</b> ${a.desc}`) || [];
 
         newMonsters.push({
@@ -352,7 +361,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
     setCombatants(prev => {
         const monstersBefore = prev.filter(c => c.type === EntityType.MONSTER).length;
         if (monstersBefore === 0) {
-             // Trigger auto music based on monster name/type
              const contextText = `${monster.name} ${monster.type} CR ${monster.challenge_rating}`;
              autoPlayMusic('combat', contextText);
         }
@@ -362,15 +370,20 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
   };
 
   const returnToTravel = () => {
-      if (window.confirm("Завершить бой и вернуться к путешествию?")) {
-          cleanCombatState();
-          // Switch to Location tab and trigger travel modal open
-          window.dispatchEvent(new CustomEvent('dmc-switch-tab', { detail: 'location' }));
-          setTimeout(() => window.dispatchEvent(new CustomEvent('dmc-open-travel')), 100);
-          
-          // Switch back to travel music
-          autoPlayMusic('travel');
-      }
+      // Custom confirm for returning to travel
+      setConfirmAction({
+          message: "Завершить бой и вернуться к экрану путешествия?",
+          onConfirm: () => {
+              cleanCombatState();
+              // Switch to Location tab and trigger travel modal open
+              window.dispatchEvent(new CustomEvent('dmc-switch-tab', { detail: 'location' }));
+              setTimeout(() => window.dispatchEvent(new CustomEvent('dmc-open-travel')), 100);
+              
+              // Switch back to travel music
+              autoPlayMusic('travel');
+              setConfirmAction(null);
+          }
+      });
   };
 
   const activeCombatant = combatants.find(c => c.id === activeId);
@@ -387,6 +400,29 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
 
   return (
     <div className="h-full flex flex-col space-y-4 relative">
+      {/* Custom Confirmation Modal */}
+      {confirmAction && (
+          <div className="fixed inset-0 z-[70] bg-black/90 flex items-center justify-center p-4 animate-in fade-in">
+              <div className="bg-gray-900 border border-gold-600 p-6 rounded-lg max-w-sm w-full text-center">
+                  <h3 className="text-lg font-bold text-white mb-4">{confirmAction.message}</h3>
+                  <div className="flex gap-4 justify-center">
+                      <button 
+                        onClick={() => setConfirmAction(null)} 
+                        className="px-4 py-2 text-gray-400 hover:text-white border border-gray-700 rounded"
+                      >
+                          Отмена
+                      </button>
+                      <button 
+                        onClick={confirmAction.onConfirm} 
+                        className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded font-bold shadow-lg"
+                      >
+                          Подтвердить
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {showBestiary && (
         <BestiaryBrowser 
             onClose={() => setShowBestiary(false)} 
@@ -394,7 +430,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
         />
       )}
 
-      {/* ... Init & Victory Modals (Existing Code) ... */}
+      {/* Init Modal */}
       {showInitModal && (
           <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
               <div className="bg-dnd-card border-2 border-gold-600 w-full max-w-lg rounded-lg shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
@@ -444,7 +480,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
           </div>
       )}
 
-      {/* --- Victory Modal --- */}
+      {/* Victory Modal */}
       {showVictoryModal && (
           <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95">
               <div className="bg-dnd-card border-2 border-gold-600 w-full max-w-lg rounded-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -517,7 +553,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
                 {difficulty && difficulty.difficulty !== 'Trivial' && (
                     <div className={`text-xs flex items-center gap-1 border px-2 py-1 rounded bg-gray-900/50 border-gray-700 ${getDifficultyColor(difficulty.difficulty)}`}>
                         <Skull className="w-3 h-3"/>
-                        <span className="uppercase font-bold tracking-wider">{difficulty.difficulty === 'Deadly' ? 'Смертельно' : difficulty.difficulty === 'Hard' ? 'Сложно' : difficulty.difficulty === 'Medium' ? 'Средне' : 'Легко'}</span>
+                        <span className="uppercase font-bold tracking-wider hidden sm:inline">{difficulty.difficulty === 'Deadly' ? 'Смертельно' : difficulty.difficulty === 'Hard' ? 'Сложно' : difficulty.difficulty === 'Medium' ? 'Средне' : 'Легко'}</span>
                         <span className="text-gray-500 ml-1">({Math.round(difficulty.adjustedXp)} XP)</span>
                     </div>
                 )}
@@ -527,15 +563,18 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
                 {hasActiveTravel && (
                     <button 
                         onClick={returnToTravel}
-                        className="hidden sm:flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gold-500 border border-gold-600/50 px-4 py-2 rounded font-bold transition-colors"
+                        className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gold-500 border border-gold-600/50 px-3 py-2 rounded font-bold transition-colors text-xs sm:text-sm"
                         title="Вернуться к экрану путешествия"
                     >
-                        <Compass className="w-4 h-4" /> В Путешествие
+                        <Compass className="w-4 h-4" /> <span>В Путь</span>
                     </button>
                 )}
+                <button onClick={handleEndCombatClick} className="flex items-center gap-2 bg-gray-800 hover:bg-green-900 text-gray-300 hover:text-green-300 px-3 py-2 rounded font-bold border border-gray-700 transition-colors text-xs sm:text-sm">
+                    <Flag className="w-4 h-4" /> <span>Завершить</span>
+                </button>
                 <button 
                     onClick={nextTurn}
-                    className="flex items-center gap-2 bg-dnd-red hover:bg-red-700 text-white px-4 py-2 rounded font-bold transition-colors shadow-md"
+                    className="flex items-center gap-2 bg-dnd-red hover:bg-red-700 text-white px-4 py-2 rounded font-bold transition-colors shadow-md text-xs sm:text-sm"
                 >
                     <Play className="w-4 h-4" /> След. ход
                 </button>
@@ -587,16 +626,11 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
             <button onClick={sortCombatants} className="text-gray-400 hover:text-white p-2 rounded hover:bg-gray-800" title="Сортировать по инициативе">
               <RefreshCw className="w-4 h-4" />
             </button>
-            <div className="w-[1px] h-6 bg-gray-700 mx-1"></div>
-            <button onClick={handleEndCombatClick} className="text-gray-400 hover:text-green-500 p-2 rounded hover:bg-gray-800" title="Закончить бой">
-              <Flag className="w-4 h-4" />
-            </button>
         </div>
       </div>
 
-      {/* Combatant List (Existing) */}
+      {/* Combatant List */}
       <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-        {/* ... list mapping ... */}
         {combatants.map((c) => {
           const isActive = c.id === activeId;
           const isDead = c.hp === 0;
@@ -609,9 +643,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
               id={`combatant-${c.id}`}
               className={`relative p-2 sm:p-3 rounded-lg border flex flex-col sm:flex-row gap-2 sm:items-center ${isActive ? 'border-gold-500 bg-gray-900 ring-1 ring-gold-500/30' : 'border-gray-700 bg-dnd-card'} transition-all`}
             >
-                {/* ... (existing card content) ... */}
-                
-                {/* Added Stats/Actions display for monsters */}
                 <div className="flex-1">
                     <div className="flex items-center justify-between sm:justify-start sm:gap-3">
                          <div className="flex items-center gap-3">
@@ -654,7 +685,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
                          </div>
                     </div>
                     
-                    {/* Expanded actions view when active or hovered? For now just show simple notes or actions if present */}
                     {c.type === EntityType.MONSTER && isActive && c.actions && c.actions.length > 0 && (
                         <div className="mt-2 text-xs text-gray-300 bg-black/20 p-2 rounded border border-gray-800">
                             <ul className="space-y-1 list-disc list-inside">
@@ -666,7 +696,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
                     )}
                 </div>
 
-                {/* HP Controls (Existing) */}
                 <div className="flex items-center justify-between sm:justify-center gap-2 bg-gray-900/30 p-1 rounded sm:bg-transparent sm:p-0 min-w-[120px]">
                     <button onClick={() => updateHp(c.id, -1)} className="w-8 h-8 flex items-center justify-center bg-red-900/30 rounded text-red-400 border border-red-900/50 active:scale-95"><Sword className="w-4 h-4" /></button>
                     
@@ -684,7 +713,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
                     <button onClick={() => updateHp(c.id, 1)} className="w-8 h-8 flex items-center justify-center bg-green-900/30 rounded text-green-400 border border-green-900/50 active:scale-95"><Plus className="w-4 h-4" /></button>
                 </div>
 
-                {/* Desktop Controls */}
                 <div className="hidden sm:flex items-center gap-1 ml-2">
                     <button onClick={() => setEditingConditionsId(isEditingConditions ? null : c.id)} className={`p-2 rounded hover:bg-gray-800 transition-colors ${currentConditions.length > 0 ? 'text-red-400' : 'text-gray-500 hover:text-white'}`}>
                         <Activity className="w-5 h-5"/>
@@ -694,7 +722,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
                     </button>
                 </div>
 
-                {/* Condition Popover (Existing) */}
                 {isEditingConditions && (
                     <div className="absolute top-full left-0 right-0 z-20 bg-gray-900 border border-gold-500 rounded-b-lg shadow-xl p-3 animate-in fade-in slide-in-from-top-2">
                         <div className="flex justify-between items-center mb-2 border-b border-gray-700 pb-1">
@@ -719,9 +746,8 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
         })}
       </div>
 
-      {/* Add New Manual Form (Existing) */}
+      {/* Add New Manual Form */}
       <div className="bg-gray-900 p-3 rounded border border-gray-800 flex flex-col sm:flex-row gap-2 items-end shrink-0">
-        {/* ... inputs ... */}
         <div className="w-full sm:flex-1">
             <input 
                 className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-2 text-sm text-white focus:border-gold-500 outline-none"

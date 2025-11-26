@@ -111,6 +111,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
         setSettingsImageModel(getActiveImageModel());
         setLocalCampaignMode(getCampaignMode());
 
+        // Listen for open settings event
+        const handleOpenSettings = () => setShowGlobalSettings(true);
+        window.addEventListener('dmc-open-settings', handleOpenSettings);
+        return () => window.removeEventListener('dmc-open-settings', handleOpenSettings);
+
     }, []);
 
     // Save DM Focus automatically
@@ -282,7 +287,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
                             </div>
                             <div className="flex gap-2">
                                 <button onClick={saveSettings} className="flex-1 bg-gold-600 text-black text-xs font-bold py-1 rounded">Сохранить настройки</button>
-                                <button onClick={() => setShowGlobalSettings(true)} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-1 rounded border border-gray-500">Настройки AI</button>
+                                <button onClick={() => setShowGlobalSettings(true)} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-1 rounded border border-gray-500">⚙️ Настройки AI / Режим</button>
                             </div>
                         </div>
                     )}

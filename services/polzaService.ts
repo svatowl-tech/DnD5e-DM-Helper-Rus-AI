@@ -24,7 +24,7 @@ export const AVAILABLE_IMAGE_MODELS = [
 const STORAGE_KEY_API = 'dmc_polza_api_key';
 const STORAGE_KEY_MODEL = 'dmc_ai_model';
 const STORAGE_KEY_IMG_MODEL = 'dmc_ai_image_model';
-const STORAGE_KEY_MODE = 'dmc_campaign_mode';
+const STORAGE_KEY_MODE = 'dmc_campaign_mode'; // New key for mode
 const BASE_API_URL = 'https://api.polza.ai/api/v1';
 
 export const setCustomApiKey = (key: string) => {
@@ -86,8 +86,10 @@ const getCampaignContext = (): string => {
         }
 
         if (mode === 'echoes') {
+            // Inject the massive prompt + local settings
             return `${ECHOES_CAMPAIGN_PROMPT}\n\n${baseSettings}`;
         } else {
+            // Standard mode
             return `КОНТЕКСТ КАМПАНИИ: ${baseSettings} Учитывай это при генерации.`;
         }
     } catch (e) {
@@ -198,20 +200,25 @@ async function initiateImageGeneration(prompt: string, requestedRatio: string = 
 
     const model = getActiveImageModel();
     
+    // Truncate prompt to avoid 400 Error (Prompt too long)
+    // Most models have a limit (e.g. 1000 chars), we limit to 950 to be safe.
+    const safePrompt = prompt.substring(0, 950);
+
     const body: any = {
         model: model,
-        prompt: prompt 
+        prompt: safePrompt 
     };
 
     // Resolution Mapping
     let size = "1024x1024"; 
     
-    if (requestedRatio === "16:9") size = "1024x1024"; 
     if (model === 'seedream-v4' || model === 'gpt4o-image') {
         if (requestedRatio === "16:9") size = "1792x1024"; 
         else if (requestedRatio === "9:16") size = "1024x1792";
         else size = "1024x1024";
     } else {
+        // For other models (like nano-banana), stick to 1024x1024 to ensure compatibility 
+        // and avoid 400s on unsupported dimensions like 1792x1024.
         size = "1024x1024";
     }
 
