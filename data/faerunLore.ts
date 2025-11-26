@@ -53,6 +53,15 @@ import { LORE_GREAT_ICE_SEA } from "./lore/greatIceSea";
 import { LORE_LAKE_OF_STEAM } from "./lore/lakeOfSteam";
 import { LORE_ALAMBER_SEA } from "./lore/alamberSea";
 import { LORE_VILHON_REACH } from "./lore/vilhonReach";
+import { LORE_DRAGONMERE } from "./lore/dragonmere";
+import { LORE_SEA_OF_DLURG } from "./lore/seaOfDlurg";
+import { LORE_EASTING_REACH } from "./lore/eastingReach";
+import { LORE_DRAGON_REACH } from "./lore/dragonReach";
+import { LORE_PIRATE_ISLES } from "./lore/pirateIsles";
+import { LORE_DEEPWASH } from "./lore/deepwash";
+import { LORE_MERE_OF_DEAD_MEN } from "./lore/mereOfDeadMen";
+import { LORE_HIGH_MOOR } from "./lore/highMoor";
+import { LORE_EVERMOORS } from "./lore/evermoors";
 
 export const FAERUN_LORE: LoreEntry[] = [
   ...LORE_ICEWIND_DALE,
@@ -105,5 +114,14 @@ export const FAERUN_LORE: LoreEntry[] = [
   ...LORE_GREAT_ICE_SEA,
   ...LORE_LAKE_OF_STEAM,
   ...LORE_ALAMBER_SEA,
-  ...LORE_VILHON_REACH
+  ...LORE_VILHON_REACH,
+  ...LORE_DRAGONMERE,
+  ...LORE_SEA_OF_DLURG,
+  ...LORE_EASTING_REACH,
+  ...LORE_DRAGON_REACH,
+  ...LORE_PIRATE_ISLES,
+  ...LORE_DEEPWASH,
+  ...LORE_MERE_OF_DEAD_MEN,
+  ...LORE_HIGH_MOOR,
+  ...LORE_EVERMOORS
 ];
