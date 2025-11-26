@@ -51,6 +51,8 @@ import {
 } from 'lucide-react';
 import { CONDITIONS } from './constants';
 import { RULES_DATA } from './data/rulesData';
+// Import API service for enriching monsters
+import { searchMonsters, getMonsterDetails } from './services/dndApiService';
 
 // Static imports for critical components
 import GlobalPlayer from './components/GlobalPlayer';
@@ -166,10 +168,12 @@ const AppContent: React.FC = () => {
           });
       };
 
-      // 2. Add Combatant
-      const handleAddCombatant = (e: CustomEvent) => {
+      // 2. Add Combatant (ENHANCED)
+      const handleAddCombatant = async (e: CustomEvent) => {
           const details = e.detail;
-          const newC: Combatant = {
+          
+          // Basic default monster
+          let newC: Combatant = {
               id: Date.now().toString() + Math.random(),
               name: details.name,
               type: details.type as EntityType,
@@ -179,8 +183,39 @@ const AppContent: React.FC = () => {
               ac: details.ac || 10,
               conditions: [],
               notes: details.notes || '',
-              xp: details.xp || 100
+              xp: details.xp || 50,
+              actions: [] // Initialize actions
           };
+
+          // If it's a monster and looks like a generic one (low HP default), try to enrich it via API
+          // Check if name exists and it's likely a generic import (20 HP is default in TravelManager)
+          if (newC.type === EntityType.MONSTER && details.hp === 20) {
+             try {
+                 const searchResults = await searchMonsters(newC.name);
+                 if (searchResults && searchResults.length > 0) {
+                     // Find exact match or first result
+                     const exact = searchResults.find(r => r.name.toLowerCase() === newC.name.toLowerCase());
+                     const target = exact || searchResults[0];
+                     const fullStats = await getMonsterDetails(target.index);
+                     
+                     if (fullStats) {
+                         newC.hp = fullStats.hit_points;
+                         newC.maxHp = fullStats.hit_points;
+                         newC.ac = typeof fullStats.armor_class === 'number' ? fullStats.armor_class : (fullStats.armor_class as any)[0]?.value || 10;
+                         newC.xp = fullStats.xp;
+                         newC.notes = `CR ${fullStats.challenge_rating} (${fullStats.type}). ${newC.notes}`;
+                         
+                         // Parse actions if available in API response (assuming simplified mapping here)
+                         // The real API returns an array of action objects. We'd format them to strings.
+                         if ((fullStats as any).actions) {
+                             newC.actions = (fullStats as any).actions.map((a: any) => `<b>${a.name}:</b> ${a.desc}`);
+                         }
+                     }
+                 }
+             } catch (err) {
+                 console.warn("Failed to enrich monster stats:", err);
+             }
+          }
 
           const existingCombatants = JSON.parse(localStorage.getItem('dmc_combatants') || '[]');
           const updatedCombatants = [...existingCombatants, newC];
@@ -311,6 +346,8 @@ const AppContent: React.FC = () => {
             setActiveTab(e.detail as Tab);
         } else if (e.detail === 'combat') {
             setActiveTab(Tab.COMBAT);
+        } else if (e.detail === 'location') {
+            setActiveTab(Tab.LOCATION);
         }
     };
     window.addEventListener('dmc-switch-tab' as any, handleSwitchTab);

@@ -165,6 +165,16 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         }
     }, [activeTravelPlan]);
 
+    // NEW: Listen for request to open travel manager (from combat return)
+    useEffect(() => {
+        const handleOpenTravel = () => {
+            // Slight delay to allow tab switch render
+            setTimeout(() => setShowTravel(true), 100);
+        };
+        window.addEventListener('dmc-open-travel', handleOpenTravel);
+        return () => window.removeEventListener('dmc-open-travel', handleOpenTravel);
+    }, []);
+
     // --- DATA MERGING LOGIC ---
 
     const getMergedNpcs = () => {

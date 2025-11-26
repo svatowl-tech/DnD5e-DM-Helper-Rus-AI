@@ -122,12 +122,6 @@ async function makeRequest(messages: Array<{role: string, content: string}>, jso
         stream: false
     };
 
-    // Force JSON mode via prompt injection is usually safer across models than relying on API flags
-    if (jsonMode) {
-        // Ensure the system prompt explicitly asks for JSON if not already present in messages
-        // (This logic is usually handled by the caller, but good to note)
-    }
-
     const response = await fetch(`${BASE_API_URL}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -186,16 +180,14 @@ async function initiateImageGeneration(prompt: string, requestedRatio: string = 
     };
 
     // Resolution Mapping
-    // Models require specific resolutions, not just strings like "16:9".
     let size = "1024x1024"; 
     
-    if (requestedRatio === "16:9") size = "1024x1024"; // Default fallback for stability
+    if (requestedRatio === "16:9") size = "1024x1024"; 
     if (model === 'seedream-v4' || model === 'gpt4o-image') {
         if (requestedRatio === "16:9") size = "1792x1024"; 
         else if (requestedRatio === "9:16") size = "1024x1792";
         else size = "1024x1024";
     } else {
-        // Default 1024x1024 for most models to ensure compatibility
         size = "1024x1024";
     }
 
@@ -216,7 +208,6 @@ async function initiateImageGeneration(prompt: string, requestedRatio: string = 
     }
 
     const data = await response.json();
-    // Some endpoints return the ID immediately in `id`, others in `requestId`
     return data.requestId || data.id; 
 }
 
@@ -249,15 +240,12 @@ export const generateImage = async (prompt: string, aspectRatio: string = "1:1")
         try {
             const result = await checkImageStatus(requestId);
             const status = (result.status || result.state || '').toLowerCase();
-            console.log(`Polling image ${requestId}: status=${status}`, result);
 
             if (status === 'completed' || status === 'succeeded' || status === 'success' || status === 'done' || status === 'finished' || status === 'ready' || status === 'generated') {
                 if (Array.isArray(result.output) && result.output.length > 0) return result.output[0];
                 if (result.url) return result.url;
                 if (result.image) return result.image;
                 if (typeof result.output === 'string') return result.output;
-                
-                // Fallback: sometimes result IS the url if it's a direct link in `output` object key
                 if (result.output && typeof result.output.url === 'string') return result.output.url;
 
                 throw new Error("API вернуло успех, но ссылка на изображение не найдена.");
@@ -268,7 +256,6 @@ export const generateImage = async (prompt: string, aspectRatio: string = "1:1")
             if (e.message.includes('Генерация не удалась') || e.message.includes('ссылка на изображение не найдена')) {
                 throw e;
             }
-            // Ignore network blips during polling
         }
         attempts++;
     }
@@ -312,8 +299,8 @@ export const generateTravelScenario = async (
         }
       ]
     }
-    Сгенерируй от 2 до 5 событий в зависимости от расстояния и опасности региона. 
-    Используй русский язык. Отвечай ТОЛЬКО валидным JSON. Не добавляй никакого текста, комментариев или markdown разметки кроме самого JSON.`;
+    Сгенерируй от 2 до 5 событий. 
+    Используй русский язык. Отвечай ТОЛЬКО валидным JSON.`;
 
     return withRetry(async () => {
         const text = await makeRequest([
@@ -325,11 +312,9 @@ export const generateTravelScenario = async (
         try {
             parsed = JSON.parse(cleanText(text));
         } catch (e) {
-            console.warn("Initial JSON parse failed, attempted cleanup. Raw text:", text);
             throw new Error("Не удалось прочитать ответ AI (ошибка JSON). Попробуйте снова.");
         }
         
-        // Validation: ensure essential fields exist to prevent UI crashes
         if (!parsed || typeof parsed !== 'object') throw new Error("AI returned invalid data structure");
         
         return {
@@ -478,16 +463,25 @@ export const generateLoot = async (level: number, type: string): Promise<string>
 
 export const generateCombatLoot = async (monsters: string[], avgLevel: number): Promise<string> => {
   const context = getCampaignContext();
-  const systemPrompt = `Ты помощник ДМ. Генерируй списки боевой добычи в формате HTML. Кратко и по делу. ${context}`;
-  const userPrompt = `Бой завершен. Побеждены враги: ${monsters.join(', ')}. Средний уровень группы: ${avgLevel}.
-  Сгенерируй список добычи (монеты, трофеи, расходники).`;
+  const systemPrompt = `Ты генератор лута для D&D 5e. Твоя задача - создать список добычи.
+  Контекст кампании: ${context}.
+  Формат ответа: HTML список (<ul>, <li>).
+  
+  Правила:
+  1. Всегда возвращай хотя бы монеты.
+  2. Если монстр разумный, добавь оружие или безделушку.
+  3. Если монстр зверь, добавь шкуры или ингредиенты.
+  4. Не пиши вступлений типа "Вот ваш лут". Только список.`;
+  
+  const userPrompt = `Бой завершен. Враги: ${monsters.join(', ')}. Уровень группы: ${avgLevel}.
+  Что нашли герои на телах?`;
 
   return withRetry(async () => {
     const text = await makeRequest([
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
     ]);
-    return cleanText(text);
+    return cleanText(text) || "<ul><li>Несколько медных монет.</li></ul>";
   });
 };
 
@@ -577,7 +571,6 @@ export const enhanceQuest = async (questData: FullQuest): Promise<FullQuest> => 
     }
     Отвечай ТОЛЬКО валидным JSON.`;
 
-    // Create a stripped down version to save tokens, removing IDs and UI state
     const inputData = {
         title: questData.title,
         description: questData.description,
@@ -595,7 +588,6 @@ export const enhanceQuest = async (questData: FullQuest): Promise<FullQuest> => 
         
         const enhancedData = JSON.parse(cleanText(text));
         
-        // Merge back, preserving ID and status
         return {
             ...questData,
             title: enhancedData.title || questData.title,
@@ -603,7 +595,6 @@ export const enhanceQuest = async (questData: FullQuest): Promise<FullQuest> => 
             summary: enhancedData.summary || questData.summary,
             description: enhancedData.description || questData.description,
             reward: enhancedData.reward || questData.reward,
-            // Convert plain strings back to Objective objects if returned as strings
             objectives: Array.isArray(enhancedData.objectives) 
                 ? enhancedData.objectives.map((txt: string) => ({ id: Date.now().toString() + Math.random(), text: txt, completed: false }))
                 : questData.objectives,

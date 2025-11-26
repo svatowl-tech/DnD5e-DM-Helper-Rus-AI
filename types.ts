@@ -31,6 +31,7 @@ export interface Combatant {
   notes: string;
   xp?: number; // Added for difficulty calculation
   hidden?: boolean; // Hidden from player view if connected to a VTT
+  actions?: string[]; // New field for attack/action descriptions
 }
 
 export interface InventoryItem {
