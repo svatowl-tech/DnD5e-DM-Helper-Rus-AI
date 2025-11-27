@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { FullQuest, QuestObjective, Combatant, EntityType, QuestTrackerProps } from '../types';
 import { generateFullQuestTracker, parseQuestFromText, enhanceQuest } from '../services/polzaService';
@@ -13,7 +14,12 @@ import SmartText from './SmartText';
 const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
     const [quests, setQuests] = useState<FullQuest[]>(() => {
         const saved = localStorage.getItem('dmc_quests');
-        return saved ? JSON.parse(saved) : [];
+        try {
+            return saved ? JSON.parse(saved) : [];
+        } catch (e) {
+            console.error("Failed to parse quests from storage", e);
+            return [];
+        }
     });
     const [activeQuestId, setActiveQuestId] = useState<string | null>(null);
     const [isMobileList, setIsMobileList] = useState(true); // Mobile master/detail view
@@ -43,7 +49,9 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
         const handleUpdateQuests = () => {
             const saved = localStorage.getItem('dmc_quests');
             if (saved) {
-                setQuests(JSON.parse(saved));
+                try {
+                    setQuests(JSON.parse(saved));
+                } catch (e) { console.error("External update parsing failed", e); }
             }
         };
 
@@ -113,7 +121,7 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
         const quest = quests.find(q => q.id === questId);
         if (!quest) return;
         
-        const updated = quest.objectives.map(o => {
+        const updated = (quest.objectives || []).map(o => {
             if (o.id === objId) {
                 const newState = !o.completed;
                 // Log objective completion
@@ -251,26 +259,28 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
             // Force convert to array if it's a single string or undefined
             const rawObjectives = Array.isArray(result.objectives) 
                 ? result.objectives 
-                : (typeof result.objectives === 'string' ? [result.objectives] : []);
+                : (typeof result.objectives === 'string' && result.objectives ? [result.objectives] : []);
                 
             const rawThreats = Array.isArray(result.threats) 
                 ? result.threats 
-                : (typeof result.threats === 'string' ? [result.threats] : []);
+                : (typeof result.threats === 'string' && result.threats ? [result.threats] : []);
 
             // Convert plain strings to Objective objects safely
-            const formattedObjectives = rawObjectives.map((txt: any) => {
-                let textContent = 'Цель';
-                if (typeof txt === 'string') textContent = txt;
-                else if (typeof txt === 'object' && txt !== null) {
-                    // Handle case where AI returns object { text: "..." } or similar
-                    textContent = txt.text || txt.description || txt.objective || JSON.stringify(txt);
-                }
-                return {
-                    id: Date.now().toString() + Math.random(),
-                    text: String(textContent),
-                    completed: false
-                };
-            });
+            const formattedObjectives = rawObjectives
+                .filter((txt: any) => txt !== null && txt !== undefined) // Filter out nulls
+                .map((txt: any) => {
+                    let textContent = 'Цель';
+                    if (typeof txt === 'string') textContent = txt;
+                    else if (typeof txt === 'object' && txt !== null) {
+                        // Handle case where AI returns object { text: "..." } or similar
+                        textContent = txt.text || txt.description || txt.objective || JSON.stringify(txt);
+                    }
+                    return {
+                        id: Date.now().toString() + Math.random(),
+                        text: String(textContent),
+                        completed: false
+                    };
+                });
 
             const newQuest: FullQuest = {
                 id: Date.now().toString(),
@@ -280,7 +290,7 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
                 summary: String(result.summary || ''),
                 description: String(result.description || ''),
                 objectives: formattedObjectives,
-                threats: rawThreats.map((t: any) => String(t)), // Force string conversion
+                threats: rawThreats.map((t: any) => String(t || "Враг")), // Force string conversion
                 reward: String(result.reward || '')
             };
 

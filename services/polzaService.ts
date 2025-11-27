@@ -104,31 +104,27 @@ const cleanText = (text: string): string => {
 
   // 1. Try regex for code blocks first as it's safest
   const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-  if (codeBlockMatch) return codeBlockMatch[1].trim();
+  if (codeBlockMatch) {
+      return codeBlockMatch[1].trim();
+  }
   
-  // 2. Try finding JSON object/array directly by brackets
+  // 2. Try finding JSON object directly by brackets
   const openBrace = text.indexOf('{');
-  const openBracket = text.indexOf('[');
   const closeBrace = text.lastIndexOf('}');
+  
+  if (openBrace !== -1 && closeBrace !== -1 && closeBrace > openBrace) {
+      return text.substring(openBrace, closeBrace + 1);
+  }
+  
+  // 3. Try finding JSON array
+  const openBracket = text.indexOf('[');
   const closeBracket = text.lastIndexOf(']');
-  
-  let start = -1;
-  let end = -1;
-  
-  // Determine if it's an Object or Array likely
-  if (openBrace !== -1 && (openBracket === -1 || openBrace < openBracket)) {
-      start = openBrace;
-      end = closeBrace;
-  } else if (openBracket !== -1) {
-      start = openBracket;
-      end = closeBracket;
+
+  if (openBracket !== -1 && closeBracket !== -1 && closeBracket > openBracket) {
+      return text.substring(openBracket, closeBracket + 1);
   }
   
-  if (start !== -1 && end !== -1 && end > start) {
-      return text.substring(start, end + 1);
-  }
-  
-  // 3. Last resort: strip markdown but keep content
+  // 4. Last resort: strip markdown but keep content
   return text.replace(/```(?:json|html|xml|markdown)?/g, '').replace(/```/g, '').trim();
 };
 
@@ -854,14 +850,15 @@ export const generateRealityGlitch = async (location: string): Promise<any> => {
 
 export const generateFullQuestTracker = async (level: number, theme: string): Promise<any> => {
     const context = getCampaignContext();
+    
+    // IMPORTANT: Place JSON format instruction last to ensure it overrides context style instructions.
     const systemPrompt = `
     ${context}
 
     ТВОЯ ЗАДАЧА: Сгенерировать квест для D&D 5e в формате JSON.
     Игнорируй любые предыдущие инструкции, если они противоречат требованию вернуть JSON.
-
     ОТВЕТ ДОЛЖЕН БЫТЬ ТОЛЬКО JSON ОБЪЕКТОМ. БЕЗ ВСТУПЛЕНИЙ, БЕЗ КОММЕНТАРИЕВ.
-
+    
     Структура JSON:
     {
         "title": "Название квеста",
