@@ -1,11 +1,13 @@
 
 const BASE_URL = 'https://www.dnd5eapi.co/api';
 
-export interface ApiMonsterSummary {
+export interface ApiReference {
   index: string;
   name: string;
   url: string;
 }
+
+export type ApiMonsterSummary = ApiReference;
 
 export interface ApiMonsterDetails {
   index: string;
@@ -16,55 +18,66 @@ export interface ApiMonsterDetails {
   challenge_rating: number;
   xp: number;
   type: string;
+  actions?: { name: string; desc: string }[];
 }
 
-export const searchMonsters = async (query: string): Promise<ApiMonsterSummary[]> => {
-  if (!query || query.length < 2) return [];
-  
-  try {
-    const response = await fetch(`${BASE_URL}/monsters?name=${query}`);
-    const data = await response.json();
-    return data.results || [];
-  } catch (error) {
-    console.error("Error searching monsters:", error);
-    return [];
-  }
+// Generic Search
+export const searchEndpoint = async (endpoint: string, query: string): Promise<ApiReference[]> => {
+    if (!query || query.length < 2) return [];
+    try {
+        const response = await fetch(`${BASE_URL}/${endpoint}?name=${query}`);
+        const data = await response.json();
+        return data.results || [];
+    } catch (error) {
+        console.error(`Error searching ${endpoint}:`, error);
+        return [];
+    }
 };
 
-export const getMonsterDetails = async (index: string): Promise<ApiMonsterDetails | null> => {
-  try {
-    const response = await fetch(`${BASE_URL}/monsters/${index}`);
-    if (!response.ok) throw new Error('Network response was not ok');
-    return await response.json();
-  } catch (error) {
-    console.error("Error fetching monster details:", error);
-    return null;
-  }
+export const getDetails = async (endpoint: string, index: string): Promise<any> => {
+    try {
+        const response = await fetch(`${BASE_URL}/${endpoint}/${index}`);
+        if (!response.ok) throw new Error('Network response was not ok');
+        return await response.json();
+    } catch (error) {
+        console.error(`Error fetching details for ${endpoint}/${index}:`, error);
+        return null;
+    }
 };
+
+// Specific Helpers (Legacy support + Type Safety)
+
+export const searchMonsters = async (query: string) => searchEndpoint('monsters', query);
+export const getMonsterDetails = async (index: string) => getDetails('monsters', index);
+
+export const searchSpells = async (query: string) => searchEndpoint('spells', query);
+export const getSpellDetails = async (index: string) => getDetails('spells', index);
+
+export const searchEquipment = async (query: string) => searchEndpoint('equipment', query);
+export const getEquipmentDetails = async (index: string) => getDetails('equipment', index);
+
+export const searchMagicItems = async (query: string) => searchEndpoint('magic-items', query);
+export const getMagicItemDetails = async (index: string) => getDetails('magic-items', index);
+
+export const searchRules = async (query: string) => searchEndpoint('rule-sections', query);
+export const getRuleDetails = async (index: string) => getDetails('rule-sections', index);
 
 // New function to find monsters by CR range and optionally type
-export const getMonstersByCr = async (minCr: number, maxCr: number, type?: string): Promise<ApiMonsterSummary[]> => {
+export const getMonstersByCr = async (minCr: number, maxCr: number, type?: string): Promise<ApiReference[]> => {
   try {
-    // Optimization: In a real app, we would cache the full list.
-    // D&D API supports query params? No, filtering happens client side usually with this API.
     const response = await fetch(`${BASE_URL}/monsters`);
     const data = await response.json();
-    let allMonsters: ApiMonsterSummary[] = data.results;
+    let allMonsters: ApiReference[] = data.results;
 
     // Simple shuffling
     allMonsters = allMonsters.sort(() => 0.5 - Math.random());
 
-    const matches: ApiMonsterSummary[] = [];
+    const matches: ApiReference[] = [];
     
-    // We fetch details for candidates until we fill a small encounter group (1-4 monsters)
     // Limit checks to 20 to avoid rate limits/slow UI
     let checks = 0;
     for (const m of allMonsters) {
         if (checks > 20 || matches.length >= 3) break;
-        
-        // Basic name filtering to skip obviously wrong things if type is provided loosely
-        // e.g. if type is "Undead", maybe skip things with "Dragon" in name to save a call? 
-        // Not reliable, so we check details.
         
         const details = await getMonsterDetails(m.index);
         checks++;

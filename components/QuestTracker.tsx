@@ -242,10 +242,19 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
                 result = await parseQuestFromText(aiText);
             }
 
-            // Convert plain strings to Objective objects
-            const formattedObjectives = (result.objectives || []).map((txt: string) => ({
+            // SAFE GUARD: Ensure we have an object
+            if (!result || typeof result !== 'object') {
+                throw new Error("AI вернул некорректные данные.");
+            }
+
+            // SAFE GUARD: Handle missing arrays or wrong types for objectives/threats
+            const rawObjectives = Array.isArray(result.objectives) ? result.objectives : [];
+            const rawThreats = Array.isArray(result.threats) ? result.threats : [];
+
+            // Convert plain strings to Objective objects safely
+            const formattedObjectives = rawObjectives.map((txt: any) => ({
                 id: Date.now().toString() + Math.random(),
-                text: txt,
+                text: typeof txt === 'string' ? txt : 'Цель',
                 completed: false
             }));
 
@@ -257,7 +266,7 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
                 summary: result.summary || '',
                 description: result.description || '',
                 objectives: formattedObjectives,
-                threats: result.threats || [],
+                threats: rawThreats.map((t: any) => typeof t === 'string' ? t : 'Враг'),
                 reward: result.reward || ''
             };
 
@@ -274,7 +283,8 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
             setShowAiModal(false);
             setAiText('');
         } catch (e: any) {
-            alert(`Ошибка AI: ${e.message}`);
+            console.error(e);
+            alert(`Ошибка AI: ${e.message}. Попробуйте еще раз.`);
         } finally {
             setLoading(false);
         }

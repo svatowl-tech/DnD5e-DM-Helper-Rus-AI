@@ -849,8 +849,12 @@ export const generateRealityGlitch = async (location: string): Promise<any> => {
 
 export const generateFullQuestTracker = async (level: number, theme: string): Promise<any> => {
     const context = getCampaignContext();
-    const systemPrompt = `Ты генератор квестов для трекера. Верни JSON. ${context}
-    Структура:
+    const systemPrompt = `Ты генератор квестов для трекера.
+    ${context}
+
+    ВАЖНО: Твой ответ должен быть ТОЛЬКО валидным JSON объектом. Не пиши вступлений, не пиши "Вот ваш квест". Только JSON.
+
+    Структура JSON:
     {
         "title": "Название",
         "giver": "Кто дал",

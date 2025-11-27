@@ -1,12 +1,36 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Combatant, EntityType, PartyMember, CampaignSettings, FullQuest, LogEntry, Note } from '../types';
-import { Sword, BrainCircuit, Users, Settings, Play, StopCircle, AlertTriangle, Eye, Target, Zap, MapPin, ScrollText, Key, Image as ImageIcon } from 'lucide-react';
+import { Sword, BrainCircuit, Users, Settings, Play, StopCircle, AlertTriangle, Eye, Target, Zap, MapPin, ScrollText, Key, Image as ImageIcon, Download, Upload, Database, FileJson } from 'lucide-react';
 import SessionWizard from './SessionWizard';
 import { getCampaignMode } from '../services/polzaService';
 
 interface DashboardProps {
     onChangeTab: (tab: any) => void;
 }
+
+// All keys used in localStorage for the app
+const STORAGE_KEYS = [
+    'dmc_campaign_settings',
+    'dmc_session_logs',
+    'dmc_party',
+    'dmc_combatants',
+    'dmc_notes',
+    'dmc_quests',
+    'dmc_npcs',
+    'dmc_gallery',
+    'dmc_local_bestiary',
+    'dmc_playlists',
+    'dmc_active_location',
+    'dmc_active_region_id',
+    'dmc_focus',
+    'dmc_polza_api_key',
+    'dmc_ai_model',
+    'dmc_ai_image_model',
+    'dmc_campaign_mode',
+    'dmc_active_travel',
+    'dmc_combat_round',
+    'dmc_combat_turn'
+];
 
 const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
     const [combatants, setCombatants] = useState<Combatant[]>([]);
@@ -28,6 +52,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
 
     // Session Wizard State
     const [wizardType, setWizardType] = useState<'start' | 'end' | null>(null);
+    
+    // Import ref
+    const fileInputRef = useRef<HTMLInputElement>(null);
     
     const currentMode = getCampaignMode();
 
@@ -122,6 +149,79 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
     const updateParty = (updatedParty: PartyMember[]) => {
         setParty(updatedParty);
         localStorage.setItem('dmc_party', JSON.stringify(updatedParty));
+    };
+
+    // --- IMPORT / EXPORT LOGIC ---
+
+    const handleExport = () => {
+        const exportData: Record<string, any> = {
+            meta: {
+                version: 1,
+                timestamp: new Date().toISOString(),
+                app: "DM Codex"
+            },
+            data: {}
+        };
+
+        STORAGE_KEYS.forEach(key => {
+            const value = localStorage.getItem(key);
+            if (value !== null) {
+                exportData.data[key] = value;
+            }
+        });
+
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        const dateStr = new Date().toISOString().split('T')[0];
+        link.download = `dm-codex-backup-${dateStr}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleImportClick = () => {
+        if (fileInputRef.current) {
+            fileInputRef.current.click();
+        }
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const content = event.target?.result as string;
+                const parsed = JSON.parse(content);
+
+                if (!parsed.data) {
+                    throw new Error("Неверный формат файла");
+                }
+
+                if (window.confirm(`Найден бэкап от ${new Date(parsed.meta?.timestamp).toLocaleString()}. \n\nВНИМАНИЕ: Текущие данные будут заменены! Продолжить?`)) {
+                    
+                    // Restore Keys
+                    Object.keys(parsed.data).forEach(key => {
+                        // Only restore known keys to prevent pollution
+                        if (STORAGE_KEYS.includes(key)) {
+                            localStorage.setItem(key, parsed.data[key]);
+                        }
+                    });
+
+                    alert("Данные успешно импортированы. Приложение будет перезагружено.");
+                    window.location.reload();
+                }
+            } catch (err) {
+                alert("Ошибка при чтении файла: " + err);
+            }
+        };
+        reader.readAsText(file);
+        // Reset input
+        e.target.value = '';
     };
 
     const activeQuests = (quests || []).filter(q => q.status === 'active');
@@ -243,8 +343,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
                 </div>
 
                 {/* Col 2: Mental Load (Focus) */}
-                <div className="flex flex-col h-full">
-                    <div className="bg-indigo-950/20 border border-indigo-500/30 p-4 rounded-lg relative group h-full shadow-md flex flex-col">
+                <div className="flex flex-col h-full gap-4">
+                    <div className="bg-indigo-950/20 border border-indigo-500/30 p-4 rounded-lg relative group flex-1 shadow-md flex flex-col">
                         <div className="flex items-center gap-2 mb-3 text-indigo-400 font-bold text-sm uppercase tracking-wider">
                             <Eye className="w-4 h-4"/> Фокус Мастера
                         </div>
@@ -312,6 +412,38 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
                         </div>
                         <Eye className="w-4 h-4 text-gray-600 group-hover:text-white"/>
                     </button>
+                </div>
+            </div>
+
+            {/* Data Management Footer */}
+            <div className="mt-auto pt-4 border-t border-gray-700">
+                <div className="bg-gray-900/80 p-3 rounded-lg flex flex-col sm:flex-row justify-between items-center gap-3 border border-gray-800">
+                    <div className="text-xs text-gray-400 flex items-center gap-2">
+                        <Database className="w-4 h-4 text-gray-500"/>
+                        <span>Управление данными</span>
+                        <span className="text-[10px] bg-gray-800 px-2 py-0.5 rounded border border-gray-700">Все данные хранятся в браузере</span>
+                    </div>
+                    <div className="flex gap-2 w-full sm:w-auto">
+                        <button 
+                            onClick={handleExport}
+                            className="flex-1 sm:flex-none bg-blue-900/30 hover:bg-blue-800 text-blue-200 px-4 py-2 rounded text-xs font-bold flex items-center justify-center gap-2 border border-blue-800 transition-colors"
+                        >
+                            <Download className="w-4 h-4"/> Экспорт (Backup)
+                        </button>
+                        <button 
+                            onClick={handleImportClick}
+                            className="flex-1 sm:flex-none bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded text-xs font-bold flex items-center justify-center gap-2 border border-gray-600 transition-colors"
+                        >
+                            <Upload className="w-4 h-4"/> Импорт
+                        </button>
+                        <input 
+                            type="file" 
+                            ref={fileInputRef}
+                            onChange={handleFileChange}
+                            className="hidden"
+                            accept=".json"
+                        />
+                    </div>
                 </div>
             </div>
         </div>
