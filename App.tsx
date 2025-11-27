@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, Suspense } from 'react';
 import { Tab, LogEntry, Note, SavedImage, PartyMember, LocationData, FullQuest, Combatant, EntityType, CampaignNpc } from './types';
 import { 
@@ -840,6 +841,7 @@ const AppContent: React.FC = () => {
                       <MobileMenuBtn onClick={() => changeTabMobile(Tab.SOUNDS)} icon={<Music/>} label="Атмосфера" active={activeTab === Tab.SOUNDS}/>
                       <MobileMenuBtn onClick={() => changeTabMobile(Tab.SCREEN)} icon={<ScrollText/>} label="Ширма" active={activeTab === Tab.SCREEN}/>
                       <MobileMenuBtn onClick={() => changeTabMobile(Tab.GALLERY)} icon={<ImageIcon/>} label="Галерея" active={activeTab === Tab.GALLERY}/>
+                      <MobileMenuBtn onClick={() => changeTabMobile(Tab.GENERATORS)} icon={<BrainCircuit/>} label="AI Генератор" active={activeTab === Tab.GENERATORS}/>
                       <MobileMenuBtn onClick={() => changeTabMobile(Tab.DASHBOARD)} icon={<LayoutDashboard/>} label="Главная" active={activeTab === Tab.DASHBOARD}/>
                   </div>
                   

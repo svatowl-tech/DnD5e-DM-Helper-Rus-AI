@@ -63,7 +63,7 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
         const newQuest: FullQuest = {
             id: Date.now().toString(),
             title: 'Новый квест',
-            status: 'active',
+            status: 'unreceived', // Default to not received
             giver: '',
             summary: '',
             description: '',
@@ -76,7 +76,7 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
         addLog({
             id: Date.now().toString(),
             timestamp: Date.now(),
-            text: `[Квест] Создан новый квест: "${newQuest.title}"`,
+            text: `[Квест] Создан новый квест (черновик): "${newQuest.title}"`,
             type: 'story'
         });
     };
@@ -88,9 +88,15 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
         // Log status changes
         if (prev && updates.status && updates.status !== prev.status) {
             let statusText = "";
-            if (updates.status === 'completed') statusText = "завершен";
-            else if (updates.status === 'failed') statusText = "провален";
-            else if (updates.status === 'active') statusText = "активирован";
+            switch(updates.status) {
+                case 'completed': statusText = "завершен"; break;
+                case 'failed': statusText = "провален"; break;
+                case 'active': statusText = "активирован"; break;
+                case 'received': statusText = "получен"; break;
+                case 'background': statusText = "переведен в фон"; break;
+                case 'unreceived': statusText = "отложен"; break;
+                default: statusText = "обновлен";
+            }
             
             addLog({
                 id: Date.now().toString(),
@@ -285,7 +291,7 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
             const newQuest: FullQuest = {
                 id: Date.now().toString(),
                 title: String(result.title || 'AI Квест'),
-                status: 'active',
+                status: 'unreceived', // Created as unreceived by default
                 giver: String(result.giver || 'Неизвестно'),
                 summary: String(result.summary || ''),
                 description: String(result.description || ''),
@@ -333,6 +339,31 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
             alert(`Ошибка улучшения: ${e.message}`);
         } finally {
             setEnhancing(false);
+        }
+    };
+
+    // Helper for badge colors
+    const getStatusBadge = (status: string) => {
+        switch(status) {
+            case 'active': return 'bg-blue-900/80 text-blue-200';
+            case 'received': return 'bg-teal-900/80 text-teal-200';
+            case 'completed': return 'bg-green-900/80 text-green-200';
+            case 'failed': return 'bg-red-900/80 text-red-200';
+            case 'background': return 'bg-purple-900/80 text-purple-200';
+            case 'unreceived': return 'bg-gray-800 text-gray-400 border border-gray-700';
+            default: return 'bg-gray-800 text-gray-300';
+        }
+    };
+
+    const getStatusLabel = (status: string) => {
+         switch(status) {
+            case 'active': return 'Активен';
+            case 'received': return 'Получен';
+            case 'completed': return 'Завершен';
+            case 'failed': return 'Провален';
+            case 'background': return 'В фоне';
+            case 'unreceived': return 'Не получен';
+            default: return 'Статус';
         }
     };
 
@@ -426,17 +457,14 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
                         <div 
                             key={q.id}
                             onClick={() => setActiveQuestId(q.id)}
-                            className={`p-3 rounded border cursor-pointer transition-all hover:bg-gray-800 ${activeQuestId === q.id ? 'bg-gray-800 border-gold-500 shadow-md' : 'bg-dnd-card border-gray-700 opacity-80'}`}
+                            className={`p-3 rounded border cursor-pointer transition-all hover:bg-gray-800 ${activeQuestId === q.id ? 'bg-gray-800 border-gold-500 shadow-md' : 'bg-dnd-card border-gray-700 opacity-80'} ${q.status === 'unreceived' ? 'opacity-60 border-dashed' : ''}`}
                         >
                             <div className="flex justify-between items-start">
                                 <h4 className={`font-bold ${q.status === 'completed' ? 'text-green-500 line-through decoration-gray-500' : q.status === 'failed' ? 'text-red-500' : 'text-gray-200'}`}>
                                     {q.title}
                                 </h4>
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wider font-bold ${
-                                    q.status === 'active' ? 'bg-blue-900 text-blue-200' : 
-                                    q.status === 'completed' ? 'bg-green-900 text-green-200' : 'bg-red-900 text-red-200'
-                                }`}>
-                                    {q.status === 'active' ? 'Активен' : q.status === 'completed' ? 'Завершен' : 'Провален'}
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wider font-bold ${getStatusBadge(q.status)}`}>
+                                    {getStatusLabel(q.status)}
                                 </span>
                             </div>
                             {q.location && <div className="flex items-center gap-1 mt-1 text-xs text-gold-600"><MapPin className="w-3 h-3"/> {q.location}</div>}
@@ -478,11 +506,14 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
                             
                             <div className="flex gap-2">
                                 <select 
-                                    className="bg-gray-900 border border-gray-700 rounded text-xs text-gray-300 px-2 py-1 outline-none focus:border-gold-500"
+                                    className={`bg-gray-900 border border-gray-700 rounded text-xs font-bold px-2 py-1 outline-none focus:border-gold-500 ${activeQuest.status === 'active' ? 'text-blue-300' : activeQuest.status === 'completed' ? 'text-green-300' : 'text-gray-300'}`}
                                     value={activeQuest.status}
                                     onChange={e => updateQuest(activeQuest.id, { status: e.target.value as any })}
                                 >
+                                    <option value="unreceived">Не получен</option>
+                                    <option value="received">Получен</option>
                                     <option value="active">Активен</option>
+                                    <option value="background">В фоне</option>
                                     <option value="completed">Завершен</option>
                                     <option value="failed">Провален</option>
                                 </select>

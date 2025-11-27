@@ -126,7 +126,7 @@ export interface FullQuest {
     id: string;
     title: string;
     location?: string; // Location binding
-    status: 'active' | 'completed' | 'failed';
+    status: 'active' | 'completed' | 'failed' | 'unreceived' | 'received' | 'background';
     giver: string;
     summary: string;
     description: string; // Full text / HTML
