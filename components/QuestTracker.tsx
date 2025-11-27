@@ -244,30 +244,44 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
 
             // SAFE GUARD: Ensure we have an object
             if (!result || typeof result !== 'object') {
-                throw new Error("AI вернул некорректные данные.");
+                throw new Error("AI вернул некорректные данные (не JSON объект).");
             }
 
             // SAFE GUARD: Handle missing arrays or wrong types for objectives/threats
-            const rawObjectives = Array.isArray(result.objectives) ? result.objectives : [];
-            const rawThreats = Array.isArray(result.threats) ? result.threats : [];
+            // Force convert to array if it's a single string or undefined
+            const rawObjectives = Array.isArray(result.objectives) 
+                ? result.objectives 
+                : (typeof result.objectives === 'string' ? [result.objectives] : []);
+                
+            const rawThreats = Array.isArray(result.threats) 
+                ? result.threats 
+                : (typeof result.threats === 'string' ? [result.threats] : []);
 
             // Convert plain strings to Objective objects safely
-            const formattedObjectives = rawObjectives.map((txt: any) => ({
-                id: Date.now().toString() + Math.random(),
-                text: typeof txt === 'string' ? txt : 'Цель',
-                completed: false
-            }));
+            const formattedObjectives = rawObjectives.map((txt: any) => {
+                let textContent = 'Цель';
+                if (typeof txt === 'string') textContent = txt;
+                else if (typeof txt === 'object' && txt !== null) {
+                    // Handle case where AI returns object { text: "..." } or similar
+                    textContent = txt.text || txt.description || txt.objective || JSON.stringify(txt);
+                }
+                return {
+                    id: Date.now().toString() + Math.random(),
+                    text: String(textContent),
+                    completed: false
+                };
+            });
 
             const newQuest: FullQuest = {
                 id: Date.now().toString(),
-                title: result.title || 'AI Квест',
+                title: String(result.title || 'AI Квест'),
                 status: 'active',
-                giver: result.giver || 'Неизвестно',
-                summary: result.summary || '',
-                description: result.description || '',
+                giver: String(result.giver || 'Неизвестно'),
+                summary: String(result.summary || ''),
+                description: String(result.description || ''),
                 objectives: formattedObjectives,
-                threats: rawThreats.map((t: any) => typeof t === 'string' ? t : 'Враг'),
-                reward: result.reward || ''
+                threats: rawThreats.map((t: any) => String(t)), // Force string conversion
+                reward: String(result.reward || '')
             };
 
             setQuests([newQuest, ...quests]);
