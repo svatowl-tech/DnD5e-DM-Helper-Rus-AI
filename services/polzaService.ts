@@ -1,6 +1,6 @@
 
 
-import { CampaignSettings, FullQuest, CampaignNpc, TravelResult, BestiaryEntry } from "../types";
+import { CampaignSettings, FullQuest, CampaignNpc, TravelResult, BestiaryEntry, QuestObjective } from "../types";
 import { ECHOES_CAMPAIGN_PROMPT } from "../data/prompts/echoesPrompts";
 
 // Available models per user request
@@ -894,15 +894,68 @@ export const parseQuestFromText = async (rawText: string): Promise<any> => {
 
 export const enhanceQuest = async (quest: FullQuest): Promise<FullQuest> => {
     const context = getCampaignContext();
-    const systemPrompt = `Ты опытный ДМ. Улучши квест, добавь деталей, твистов и угроз. ${context}
-    Верни обновленный JSON той же структуры.`;
+    const systemPrompt = `Ты опытный ДМ. Твоя задача - переписать и улучшить описание квеста, сделав его богатым, литературным и интересным.
+    
+    ${context}
+
+    Входные данные: JSON текущего квеста.
+    
+    Требования к ответу:
+    1. Верни ТОЛЬКО валидный JSON объект.
+    2. Структура JSON должна соответствовать:
+    {
+        "title": "Новое Название",
+        "giver": "Кто дает квест (NPC)",
+        "summary": "Краткая суть (1-2 предложения)",
+        "description": "Полное художественное описание с деталями, атмосферой и твистом (можно HTML теги <p>, <b>, <i>)",
+        "objectives": ["Цель 1", "Цель 2"],
+        "threats": ["Монстр 1", "Монстр 2"],
+        "reward": "Описание награды"
+    }
+    3. Objectives должны быть массивом строк.
+    4. Threats должны быть массивом строк.
+    
+    Не добавляй никакого текста до или после JSON.`;
 
     return withRetry(async () => {
         const text = await makeRequest([
             { role: "system", content: systemPrompt },
             { role: "user", content: JSON.stringify(quest) }
         ], true);
+        
         const enhanced = JSON.parse(cleanText(text));
-        return { ...quest, ...enhanced }; // Merge to keep IDs
+        
+        // Post-processing to ensure type safety
+        
+        // Handle Objectives: Convert strings to QuestObjective objects
+        let newObjectives: QuestObjective[] = [];
+        if (enhanced.objectives && Array.isArray(enhanced.objectives)) {
+             newObjectives = enhanced.objectives.map((obj: any) => {
+                const txt = typeof obj === 'string' ? obj : (obj.text || JSON.stringify(obj));
+                return {
+                    id: Date.now().toString() + Math.random(), // Generate new IDs for new objectives
+                    text: String(txt),
+                    completed: false
+                };
+            });
+        } else {
+            // If AI didn't return objectives, keep old ones but they might not match new description
+             newObjectives = quest.objectives || [];
+        }
+
+        // Handle Threats
+        let newThreats: string[] = [];
+        if (enhanced.threats && Array.isArray(enhanced.threats)) {
+            newThreats = enhanced.threats.map((t: any) => String(t));
+        } else {
+            newThreats = quest.threats || [];
+        }
+
+        return { 
+            ...quest, 
+            ...enhanced, 
+            objectives: newObjectives,
+            threats: newThreats
+        }; 
     });
 };
