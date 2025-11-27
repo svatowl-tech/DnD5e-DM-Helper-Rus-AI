@@ -4,7 +4,7 @@ import { CONDITIONS } from '../constants';
 import { RULES_DATA } from '../data/rulesData';
 import { EQUIPMENT_DB, EquipmentItem } from '../data/equipmentData';
 import { RuleSection, SavedImage } from '../types';
-import { Search, Sword, Map, Users, Crown, Zap, Skull, BookOpen, X, ChevronDown, ChevronUp, Sparkles, Loader, Shield, Backpack, PenTool, Hammer, Image as ImageIcon, Eye, FlaskConical, Dices, Database, Globe, ScrollText } from 'lucide-react';
+import { Search, Sword, Map, Users, Crown, Zap, Skull, BookOpen, X, ChevronDown, ChevronUp, Sparkles, Loader, Shield, Backpack, PenTool, Hammer, Image as ImageIcon, Eye, FlaskConical, Dices, Database, Globe, ScrollText, ChevronLeft, Menu, Layout } from 'lucide-react';
 import { generateExtendedDetails, generateItemCustomization, generateImage } from '../services/polzaService';
 import { searchSpells, getSpellDetails, searchEquipment, getEquipmentDetails, searchMagicItems, getMagicItemDetails, searchRules, getRuleDetails, ApiReference } from '../services/dndApiService';
 
@@ -85,6 +85,7 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<LocalCategory>('all');
   const [apiCategory, setApiCategory] = useState<ApiCategory>('spells');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   
   // API State
   const [apiResults, setApiResults] = useState<ApiReference[]>([]);
@@ -330,6 +331,13 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
           setImageLoading(false);
       }
   };
+  
+  const scrollToRule = (id: string) => {
+      const element = document.getElementById(`rule-${id}`);
+      if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+  };
 
   return (
     <div className="h-full flex flex-col space-y-4 relative">
@@ -518,13 +526,20 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
             </div>
         )}
 
-        {/* Left Sidebar: Search & Categories */}
-        <div className="flex flex-col md:flex-row gap-4 items-start h-full">
-             {/* Search Panel */}
-             <div className="w-full md:w-1/3 lg:w-1/4 bg-dnd-card rounded-lg border border-gray-700 flex flex-col h-full">
+        {/* Search & Categories Sidebar + Content Area */}
+        <div className="flex flex-col md:flex-row gap-4 items-start h-full overflow-hidden">
+             
+             {/* Left Panel: Sidebar (Collapsible on Desktop, Stacked/Dynamic on Mobile) */}
+             <div className={`
+                flex flex-col bg-dnd-card rounded-lg border border-gray-700 transition-all duration-300 ease-in-out shrink-0 overflow-hidden
+                ${isSidebarOpen 
+                    ? 'w-full h-auto max-h-[40vh] md:h-full md:w-80 md:max-h-full opacity-100' 
+                    : 'h-0 w-full md:w-0 md:h-full opacity-0 border-0 m-0 p-0'
+                }
+             `}>
                 
                 {/* Source Toggle */}
-                <div className="flex border-b border-gray-700">
+                <div className="flex border-b border-gray-700 shrink-0">
                     <button 
                         onClick={() => { setDataSource('local'); setSearch(''); }}
                         className={`flex-1 py-3 text-sm font-bold flex justify-center items-center gap-2 ${dataSource === 'local' ? 'bg-gray-800 text-gold-500 border-b-2 border-gold-500' : 'text-gray-400 hover:bg-gray-800'}`}
@@ -539,7 +554,7 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
                     </button>
                 </div>
 
-                <div className="p-3 space-y-3 border-b border-gray-700">
+                <div className="p-3 space-y-3 border-b border-gray-700 shrink-0">
                     <div className="relative group">
                         <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-500 group-focus-within:text-gold-500 transition-colors" />
                         <input 
@@ -547,7 +562,6 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
                             placeholder={dataSource === 'api' ? "Поиск в SRD..." : "Поиск в базе..."}
                             value={search}
                             onChange={e => setSearch(e.target.value)}
-                            autoFocus
                         />
                         {search && (
                             <button onClick={() => setSearch('')} className="absolute right-2 top-2.5 text-gray-500 hover:text-white"><X className="w-4 h-4" /></button>
@@ -555,7 +569,7 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
                     </div>
 
                     {/* Categories Grid */}
-                    <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                    <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto custom-scrollbar pr-1">
                          {dataSource === 'local' ? (
                              localCategories.map(cat => (
                                  <button
@@ -581,7 +595,7 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
                 </div>
                 
                 {/* Results List */}
-                <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar min-h-0">
                     {dataSource === 'api' ? (
                         <>
                             {apiLoading && <div className="text-center py-4 text-blue-400 flex flex-col items-center gap-2"><Loader className="w-5 h-5 animate-spin"/><span>Поиск в сети...</span></div>}
@@ -615,13 +629,13 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
                            ) : null}
                            
                            {(activeCategory !== 'equipment' || (activeCategory === 'all' && search)) && filteredRules.map(rule => (
-                               <div 
+                               <button 
                                    key={rule.id} 
-                                   // For local rules, we usually scroll to card, but since we changed layout, 
-                                   // let's just render them in the right panel if clicked? 
-                                   // For now, let's keep the "Card" list view in the right panel.
-                                   className="hidden" // We render cards in right panel based on filter
-                               ></div>
+                                   onClick={() => scrollToRule(rule.id)}
+                                   className="w-full text-left px-3 py-2 rounded text-sm block hover:bg-gray-800 text-gray-400 hover:text-white transition-colors truncate"
+                               >
+                                   {rule.title}
+                               </button>
                            ))}
                         </>
                     )}
@@ -629,47 +643,69 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
              </div>
 
              {/* Right Panel: Content */}
-             <div className="flex-1 h-full overflow-y-auto custom-scrollbar bg-dnd-card/50 rounded-lg border border-gray-700 p-4">
-                  {dataSource === 'api' ? (
-                      <div className="flex flex-col items-center justify-center h-full text-gray-500 opacity-50">
-                          <Globe className="w-16 h-16 mb-4 stroke-1"/>
-                          <p>Выберите элемент из списка слева для просмотра подробностей.</p>
-                      </div>
-                  ) : (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 auto-rows-min">
-                         {activeCategory === 'equipment' ? (
-                              // Equipment Grid in right panel if category is explicitly equipment
-                              filteredEquipment.map((item) => (
-                                <div 
-                                    key={item.index} 
-                                    onClick={() => handleItemClick(item)}
-                                    className="bg-gray-800/50 border border-gray-700 p-3 rounded hover:bg-gray-700 cursor-pointer flex justify-between items-center group transition-colors"
-                                >
-                                    <div>
-                                        <div className="font-bold text-gray-200 group-hover:text-gold-500 transition-colors">{item.name}</div>
-                                        <div className="text-xs text-gray-500">{item.subcategory || item.category}</div>
+             <div className="flex-1 h-full flex flex-col bg-dnd-card/50 rounded-lg border border-gray-700 overflow-hidden relative transition-all">
+                  {/* Toolbar / Toggle */}
+                  <div className="p-2 border-b border-gray-700 bg-gray-900/30 flex items-center gap-2 shrink-0">
+                      <button 
+                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                        className="p-1.5 bg-gray-800 hover:bg-gray-700 text-gold-500 rounded border border-gray-600 transition-colors flex items-center gap-2"
+                        title={isSidebarOpen ? "Свернуть меню" : "Развернуть меню"}
+                      >
+                        {isSidebarOpen ? (
+                            <><ChevronLeft className="w-4 h-4"/><span className="text-xs hidden sm:inline">Свернуть</span></>
+                        ) : (
+                            <><Menu className="w-4 h-4"/><span className="text-xs hidden sm:inline">Меню</span></>
+                        )}
+                      </button>
+                      <span className="text-xs text-gray-500 font-bold uppercase tracking-wider ml-2">
+                        {dataSource === 'api' ? 'API: ' + apiCategories.find(c => c.id === apiCategory)?.label : localCategories.find(c => c.id === activeCategory)?.label}
+                      </span>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
+                      {dataSource === 'api' ? (
+                          <div className="flex flex-col items-center justify-center h-full text-gray-500 opacity-50">
+                              <Globe className="w-16 h-16 mb-4 stroke-1"/>
+                              <p>Выберите элемент из списка слева для просмотра подробностей.</p>
+                          </div>
+                      ) : (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 auto-rows-min">
+                             {activeCategory === 'equipment' ? (
+                                  // Equipment Grid in right panel if category is explicitly equipment
+                                  filteredEquipment.map((item) => (
+                                    <div 
+                                        key={item.index} 
+                                        onClick={() => handleItemClick(item)}
+                                        className="bg-gray-800/50 border border-gray-700 p-3 rounded hover:bg-gray-700 cursor-pointer flex justify-between items-center group transition-colors"
+                                    >
+                                        <div>
+                                            <div className="font-bold text-gray-200 group-hover:text-gold-500 transition-colors">{item.name}</div>
+                                            <div className="text-xs text-gray-500">{item.subcategory || item.category}</div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-sm text-gold-600">{item.cost}</div>
+                                            <div className="text-xs text-gray-600">{item.weight} lb</div>
+                                        </div>
                                     </div>
-                                    <div className="text-right">
-                                        <div className="text-sm text-gold-600">{item.cost}</div>
-                                        <div className="text-xs text-gray-600">{item.weight} lb</div>
+                                ))
+                             ) : (
+                                 // Rule Cards
+                                 filteredRules.map((rule) => (
+                                    <div id={`rule-${rule.id}`} key={rule.id}>
+                                        <RuleCard rule={rule} onSpellClick={(name) => handleSpellClick(name, false)} />
                                     </div>
+                                 ))
+                             )}
+                             
+                             {((activeCategory === 'equipment' && filteredEquipment.length === 0) || (activeCategory !== 'equipment' && filteredRules.length === 0)) && (
+                                <div className="col-span-full text-center py-20 text-gray-500 opacity-50 flex flex-col items-center">
+                                    <BookOpen className="w-16 h-16 mb-4 stroke-1"/>
+                                    <p className="text-lg">Ничего не найдено</p>
                                 </div>
-                            ))
-                         ) : (
-                             // Rule Cards
-                             filteredRules.map((rule) => (
-                                <RuleCard key={rule.id} rule={rule} onSpellClick={(name) => handleSpellClick(name, false)} />
-                             ))
-                         )}
-                         
-                         {((activeCategory === 'equipment' && filteredEquipment.length === 0) || (activeCategory !== 'equipment' && filteredRules.length === 0)) && (
-                            <div className="col-span-full text-center py-20 text-gray-500 opacity-50 flex flex-col items-center">
-                                <BookOpen className="w-16 h-16 mb-4 stroke-1"/>
-                                <p className="text-lg">Ничего не найдено</p>
-                            </div>
-                         )}
-                    </div>
-                  )}
+                             )}
+                        </div>
+                      )}
+                  </div>
              </div>
         </div>
     </div>
