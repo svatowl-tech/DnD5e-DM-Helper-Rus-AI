@@ -149,6 +149,11 @@ async function makeRequest(messages: Array<{role: string, content: string}>, jso
         stream: false
     };
 
+    // Enable JSON mode if requested
+    if (jsonMode) {
+        body.response_format = { type: "json_object" };
+    }
+
     const response = await fetch(`${BASE_API_URL}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -852,17 +857,18 @@ export const generateFullQuestTracker = async (level: number, theme: string): Pr
     const systemPrompt = `
     ${context}
 
-    ТВОЯ ТЕКУЩАЯ ЗАДАЧА: Сгенерировать квест для трекера.
-    
-    ВАЖНО: Твой ответ должен быть ТОЛЬКО валидным JSON объектом. Не пиши вступлений, не пиши "Вот ваш квест". Только JSON.
+    ТВОЯ ЗАДАЧА: Сгенерировать квест для D&D 5e в формате JSON.
+    Игнорируй любые предыдущие инструкции, если они противоречат требованию вернуть JSON.
+
+    ОТВЕТ ДОЛЖЕН БЫТЬ ТОЛЬКО JSON ОБЪЕКТОМ. БЕЗ ВСТУПЛЕНИЙ, БЕЗ КОММЕНТАРИЕВ.
 
     Структура JSON:
     {
-        "title": "Название",
-        "giver": "Кто дал",
-        "summary": "Краткая суть (1 предл)",
-        "description": "Полное описание (HTML)",
-        "objectives": ["Цель 1", "Цель 2", "Цель 3"],
+        "title": "Название квеста",
+        "giver": "NPC или организация",
+        "summary": "Суть в одном предложении",
+        "description": "Полное описание (можно HTML, до 300 слов)",
+        "objectives": ["Цель 1", "Цель 2"],
         "threats": ["Враг 1", "Враг 2"],
         "reward": "Награда"
     }`;
@@ -870,8 +876,8 @@ export const generateFullQuestTracker = async (level: number, theme: string): Pr
     return withRetry(async () => {
         const text = await makeRequest([
             { role: "system", content: systemPrompt },
-            { role: "user", content: `Уровень ${level}, тема: ${theme}` }
-        ], true);
+            { role: "user", content: `Создай квест. Уровень ${level}, тема: ${theme}` }
+        ], true); // Enable JSON mode
         return JSON.parse(cleanText(text));
     });
 };
