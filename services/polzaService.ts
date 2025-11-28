@@ -1,5 +1,4 @@
 
-
 import { CampaignSettings, FullQuest, CampaignNpc, TravelResult, BestiaryEntry, QuestObjective } from "../types";
 import { ECHOES_CAMPAIGN_PROMPT } from "../data/prompts/echoesPrompts";
 
@@ -196,35 +195,20 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 2, delay = 1000): Pr
 
 // --- IMAGE GENERATION ---
 
-async function initiateImageGeneration(prompt: string, requestedRatio: string = "1:1"): Promise<string> {
+async function initiateImageGeneration(prompt: string, aspectRatio: string = "1:1"): Promise<string> {
     const apiKey = getCustomApiKey() || process.env.API_KEY || '';
     if (!apiKey) throw new Error("API Key не найден.");
 
     const model = getActiveImageModel();
     
     // Truncate prompt to avoid 400 Error (Prompt too long)
-    // Most models have a limit (e.g. 1000 chars), we limit to 950 to be safe.
     const safePrompt = prompt.substring(0, 950);
 
     const body: any = {
         model: model,
-        prompt: safePrompt 
+        prompt: safePrompt,
+        size: aspectRatio // API now expects aspect ratio string e.g. "1:1", "16:9"
     };
-
-    // Resolution Mapping
-    let size = "1024x1024"; 
-    
-    if (model === 'seedream-v4' || model === 'gpt4o-image') {
-        if (requestedRatio === "16:9") size = "1792x1024"; 
-        else if (requestedRatio === "9:16") size = "1024x1792";
-        else size = "1024x1024";
-    } else {
-        // For other models (like nano-banana), stick to 1024x1024 to ensure compatibility 
-        // and avoid 400s on unsupported dimensions like 1792x1024.
-        size = "1024x1024";
-    }
-
-    body.size = size;
 
     const response = await fetch(`${BASE_API_URL}/images/generations`, {
         method: 'POST',
@@ -241,7 +225,10 @@ async function initiateImageGeneration(prompt: string, requestedRatio: string = 
     }
 
     const data = await response.json();
-    return data.requestId || data.id; 
+    if (!data.requestId) {
+         throw new Error("API не вернул requestId для отслеживания статуса.");
+    }
+    return data.requestId; 
 }
 
 async function checkImageStatus(requestId: string): Promise<any> {
@@ -272,9 +259,11 @@ export const generateImage = async (prompt: string, aspectRatio: string = "1:1")
         
         try {
             const result = await checkImageStatus(requestId);
+            // Handle various status fields depending on API evolution
             const status = (result.status || result.state || '').toLowerCase();
 
-            if (status === 'completed' || status === 'succeeded' || status === 'success' || status === 'done' || status === 'finished' || status === 'ready' || status === 'generated') {
+            if (['completed', 'succeeded', 'success', 'done', 'finished', 'ready', 'generated'].includes(status)) {
+                // Try multiple result formats
                 if (Array.isArray(result.output) && result.output.length > 0) return result.output[0];
                 if (result.url) return result.url;
                 if (result.image) return result.image;
@@ -282,17 +271,19 @@ export const generateImage = async (prompt: string, aspectRatio: string = "1:1")
                 if (result.output && typeof result.output.url === 'string') return result.output.url;
 
                 throw new Error("API вернуло успех, но ссылка на изображение не найдена.");
-            } else if (status === 'failed' || status === 'error') {
+            } else if (['failed', 'error'].includes(status)) {
                 throw new Error(`Генерация не удалась: ${result.error || 'Неизвестная ошибка'}`);
             }
         } catch (e: any) {
-            if (e.message.includes('Генерация не удалась') || e.message.includes('ссылка на изображение не найдена')) {
+            // Only throw immediate errors if they are clearly terminal or auth related
+            if (e.message.includes('401') || e.message.includes('не удалась')) {
                 throw e;
             }
+            // Otherwise assume network hiccup and retry polling
         }
         attempts++;
     }
-    throw new Error("Тайм-аут: Изображение генерируется слишком долго (5+ мин).");
+    throw new Error("Тайм-аут: Изображение генерируется слишком долго.");
 };
 
 
@@ -303,7 +294,8 @@ export const generateTravelScenario = async (
     to: string,
     regionContext: string,
     method: string,
-    pace: string
+    pace: string,
+    duration: number
 ): Promise<TravelResult> => {
     const context = getCampaignContext();
     const systemPrompt = `Ты — Мастер Подземелий (DM), ведущий игру D&D 5e. ${context}
@@ -315,11 +307,17 @@ export const generateTravelScenario = async (
     - Регион/Контекст: ${regionContext}
     - Способ: ${method}
     - Темп: ${pace}
+    - Длительность: ${duration} дней
+
+    Инструкция:
+    1. Сгенерируй случайное количество событий от 1 до 5 (но не больше чем количество дней). 
+    2. Распредели эти события по дням пути.
+    3. События должны быть разнообразными (бой, общение, находка, погода, тишина).
 
     Верни JSON со следующей структурой:
     {
-      "summary": "Краткое описание всего маршрута и атмосферы (1-2 предложения).",
-      "duration": Число дней пути (int),
+      "summary": "Краткое описание маршрута и атмосферы (1-2 предложения).",
+      "duration": ${duration},
       "events": [
         {
           "day": Номер дня (int),
@@ -332,7 +330,7 @@ export const generateTravelScenario = async (
         }
       ]
     }
-    Сгенерируй от 2 до 5 событий. 
+    
     Используй русский язык. Отвечай ТОЛЬКО валидным JSON.`;
 
     return withRetry(async () => {
@@ -352,7 +350,7 @@ export const generateTravelScenario = async (
         
         return {
             summary: parsed.summary || "Описание отсутствует.",
-            duration: typeof parsed.duration === 'number' ? parsed.duration : 1,
+            duration: typeof parsed.duration === 'number' ? parsed.duration : duration,
             events: Array.isArray(parsed.events) ? parsed.events : []
         };
     });

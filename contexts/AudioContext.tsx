@@ -347,9 +347,6 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             try {
                 const parsed = JSON.parse(saved);
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                    // Merge saved playlists with initial if needed, or just use saved.
-                    // For this update, we prefer the new INITIAL_PRESETS structure if old one is small.
-                    // Simple check: if saved has fewer playlists than new initial, use initial.
                     if (parsed.length < INITIAL_PRESETS.length) return INITIAL_PRESETS;
                     return parsed;
                 }
@@ -365,14 +362,21 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [volume, setVolume] = useState(0.5);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    
+    // Mobile Unlock State
+    const [isAudioUnlocked, setIsAudioUnlocked] = useState(false);
 
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const activeSfxRef = useRef<Set<HTMLAudioElement>>(new Set());
 
-    // Initialize Audio Object for Music
+    // Initialize Audio Object and Unlock Logic
     useEffect(() => {
         if (!audioRef.current) {
             audioRef.current = new Audio();
+            audioRef.current.preload = 'auto';
+            // Important for iOS/Mobile: tells OS we want to play inline without full screen
+            audioRef.current.setAttribute('playsinline', 'true'); 
+            
             audioRef.current.addEventListener('ended', handleTrackEnd);
             audioRef.current.addEventListener('error', (e: Event) => {
                 const target = e.target as HTMLAudioElement;
@@ -385,15 +389,54 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     else if (err.code === 4) errMsg = "Файл не найден.";
                     console.warn(`Audio Error (${err.code}): ${err.message}`);
                 }
-                // Only set error if we are actively trying to play
                 if (isPlaying) {
-                    setError(errMsg);
-                    setIsLoading(false);
-                    setIsPlaying(false);
+                     // Try to recover on network error (common on mobile)
+                     if (err && err.code === 2) {
+                         setTimeout(() => {
+                             if (audioRef.current && currentTrack) {
+                                 audioRef.current.load();
+                                 audioRef.current.play().catch(console.warn);
+                             }
+                         }, 1000);
+                     } else {
+                         setError(errMsg);
+                         setIsLoading(false);
+                         setIsPlaying(false);
+                     }
                 }
             });
             audioRef.current.addEventListener('waiting', () => setIsLoading(true));
             audioRef.current.addEventListener('canplay', () => setIsLoading(false));
+        }
+
+        // Mobile Unlock Strategy: Unlock audio context on first interaction
+        const unlockAudio = () => {
+            if (audioRef.current && !isAudioUnlocked) {
+                // Attempt to play a tiny bit to "bless" the element for future programmatic use
+                const playPromise = audioRef.current.play();
+                if (playPromise !== undefined) {
+                    playPromise.then(() => {
+                        // Immediately pause if we aren't supposed to be playing yet
+                        if (!isPlaying) audioRef.current?.pause();
+                        setIsAudioUnlocked(true);
+                        
+                        // Remove listeners once unlocked
+                        ['click', 'touchstart', 'keydown'].forEach(evt => 
+                            document.removeEventListener(evt, unlockAudio)
+                        );
+                    }).catch((err) => {
+                        // Interaction might not be "trusted" enough yet, keep listening
+                        console.debug("Audio unlock deferred:", err);
+                    });
+                }
+            }
+        };
+
+        // Add listeners for any interaction
+        if (!isAudioUnlocked) {
+            ['click', 'touchstart', 'keydown'].forEach(evt => 
+                document.addEventListener(evt, unlockAudio)
+            );
         }
         
         return () => {
@@ -401,15 +444,17 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 audioRef.current.pause();
                 audioRef.current.removeAttribute('src');
             }
+            ['click', 'touchstart', 'keydown'].forEach(evt => 
+                document.removeEventListener(evt, unlockAudio)
+            );
         };
-    }, []);
+    }, [isAudioUnlocked]); // Re-run only if lock state changes (to clean up)
 
-    // Volume Sync for Music AND SFX
+    // Volume Sync
     useEffect(() => {
         if (audioRef.current) {
             audioRef.current.volume = volume;
         }
-        // Also update all active SFX instantly
         activeSfxRef.current.forEach(sfx => {
             sfx.volume = volume;
         });
@@ -422,7 +467,6 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             
             if (currentTrack && currentTrack.url) {
                 const currentSrc = audioRef.current.getAttribute('src');
-                // Only reload source if it changed
                 if (currentSrc !== currentTrack.url) {
                     audioRef.current.src = currentTrack.url;
                     audioRef.current.load();
@@ -433,8 +477,11 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                         await audioRef.current.play();
                         setError(null);
                     } catch (e: any) {
-                        console.warn("Play attempt failed:", e);
-                        if (e.name !== 'AbortError') {
+                        console.warn("Play attempt failed (likely autoplay block):", e);
+                        if (e.name === 'NotAllowedError') {
+                            setError("Нажмите любую кнопку, чтобы разрешить звук.");
+                            setIsPlaying(false);
+                        } else if (e.name !== 'AbortError') {
                             setIsPlaying(false);
                         }
                     }
@@ -469,7 +516,6 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const playPlaylist = (playlistId: string, shuffle: boolean = false) => {
         const playlist = playlists.find(p => p.id === playlistId);
-        // FIX: Added check for tracks array existence
         if (!playlist || !playlist.tracks || !playlist.tracks.length) return;
 
         setIsShuffle(shuffle);
@@ -571,22 +617,19 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setVolume(Math.max(0, Math.min(1, vol)));
     }
 
-    // Improved SFX Player
     const playSfx = (url: string) => {
         try {
             if (!url) return;
             const audio = new Audio(url);
-            audio.volume = volume; // Use current master volume immediately
+            audio.volume = volume;
+            audio.preload = 'auto'; // Important for mobile SFX
             
-            // Track this SFX instance
             activeSfxRef.current.add(audio);
             
-            // Cleanup when done
             audio.addEventListener('ended', () => {
                 activeSfxRef.current.delete(audio);
             });
             
-            // Cleanup on error
             audio.addEventListener('error', (e) => {
                 console.warn(`SFX Error for ${url}:`, e);
                 activeSfxRef.current.delete(audio);
@@ -595,6 +638,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             const playPromise = audio.play();
             if (playPromise !== undefined) {
                 playPromise.catch(error => {
+                    // Common mobile error if not unlocked
                     console.warn("SFX Play failed:", error);
                     activeSfxRef.current.delete(audio);
                 });
@@ -604,7 +648,6 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     };
 
-    // Stop all active sound effects immediately
     const stopAllSfx = () => {
         activeSfxRef.current.forEach(audio => {
             audio.pause();
@@ -613,10 +656,9 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         activeSfxRef.current.clear();
     };
 
-    // --- AUTO-DJ LOGIC ---
     const autoPlayMusic = (type: 'combat' | 'location' | 'travel' | 'victory', contextText: string = '') => {
         const text = contextText.toLowerCase();
-        let targetId = 'atmosphere'; // Default fallback
+        let targetId = 'atmosphere'; 
 
         if (type === 'victory') targetId = 'special_victory';
         else if (type === 'travel') targetId = 'atmo_travel';
@@ -637,7 +679,6 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
              else if (text.includes('sad') || text.includes('sorrow') || text.includes('loss') || text.includes('grave') || text.includes('drama')) targetId = 'drama_sad';
         }
 
-        // Only switch if it's a different playlist to avoid restarting the song
         if (currentPlaylistId !== targetId) {
             playPlaylist(targetId, true);
         }

@@ -1,11 +1,10 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { Combatant, EntityType, LogEntry, PartyMember, Condition, BestiaryEntry } from '../types';
 import { CONDITIONS, SAMPLE_COMBATANTS } from '../constants';
-import { Shield, Heart, Sword, Skull, Play, RefreshCw, Plus, X, Trash2, Users, BookOpen, Coins, Loader, Flag, Zap, Activity, HelpCircle, Trophy, Star, Dices, Compass, ArrowLeft, Check } from 'lucide-react';
+import { Shield, Heart, Sword, Skull, Play, RefreshCw, Plus, X, Trash2, Users, BookOpen, Coins, Loader, Flag, Zap, Activity, HelpCircle, Trophy, Star, Dices, Compass, ArrowLeft, Check, Book, Sparkles, Save, UserPlus } from 'lucide-react';
 import BestiaryBrowser from './BestiaryBrowser';
-import { generateCombatLoot } from '../services/polzaService';
+import { generateCombatLoot, generateMonster } from '../services/polzaService';
 import { calculateEncounterDifficulty, EncounterResult } from '../services/encounterService';
 import { useAudio } from '../contexts/AudioContext';
 import SmartText from './SmartText';
@@ -45,6 +44,10 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
   const [victoryLoot, setVictoryLoot] = useState<string>('');
   const [showInitModal, setShowInitModal] = useState(false);
   const [initRolls, setInitRolls] = useState<Record<string, number>>({});
+  
+  // Stat Block Modal State
+  const [viewingStatBlock, setViewingStatBlock] = useState<BestiaryEntry | null>(null);
+  const [generatingStats, setGeneratingStats] = useState(false);
   
   // Custom Confirmation State (replaces window.confirm)
   const [confirmAction, setConfirmAction] = useState<{ message: string, onConfirm: () => void } | null>(null);
@@ -382,6 +385,139 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
       });
   };
 
+  const openStatBlock = (combatant: Combatant) => {
+      if (combatant.type !== EntityType.MONSTER) return;
+
+      // Try to find in local bestiary first
+      const localBestiary = JSON.parse(localStorage.getItem('dmc_local_bestiary') || '[]');
+      // Match by name (ignoring numbers if multiple added like "Goblin 2")
+      const baseName = combatant.name.replace(/\s\d+$/, '');
+      const foundEntry = localBestiary.find((b: BestiaryEntry) => b.name.toLowerCase() === baseName.toLowerCase() || b.name === combatant.name);
+
+      if (foundEntry) {
+          // Pass the combatant ID so we know who we are viewing (important for conversion)
+          setViewingStatBlock({ ...foundEntry, id: combatant.id });
+      } else {
+          // Fallback: Construct a partial entry from combatant data
+          // Attempt to parse actions from strings if available
+          const parsedActions = combatant.actions?.map(a => {
+              // Simple parser for bolded names in actions
+               const match = a.match(/<b>(.*?):<\/b>(.*)/);
+               if (match) return { name: match[1], desc: match[2] };
+               return { name: 'Action', desc: a };
+          }) || [];
+
+          setViewingStatBlock({
+              id: combatant.id,
+              name: combatant.name,
+              type: 'Неизвестно',
+              hp: combatant.maxHp,
+              ac: combatant.ac,
+              cr: '?',
+              xp: combatant.xp || 0,
+              stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+              actions: parsedActions,
+              description: combatant.notes || '',
+              source: 'local'
+          });
+      }
+  };
+
+  const saveStatBlockToBestiary = () => {
+    if (!viewingStatBlock) return;
+
+    const localBestiary = JSON.parse(localStorage.getItem('dmc_local_bestiary') || '[]');
+    // Filter out existing entry with same name to overwrite/update
+    const filtered = localBestiary.filter((b: BestiaryEntry) => b.name !== viewingStatBlock.name);
+    
+    const entryToSave = { ...viewingStatBlock, source: 'local' as const };
+    // Remove the temp ID from combatant before saving to bestiary logic if needed, 
+    // though bestiary usually ignores IDs or regenerates them.
+    
+    const updatedBestiary = [entryToSave, ...filtered];
+    localStorage.setItem('dmc_local_bestiary', JSON.stringify(updatedBestiary));
+    
+    addLog({ 
+        id: Date.now().toString(), 
+        timestamp: Date.now(), 
+        text: `[Бестиарий] Сохранен статблок: ${viewingStatBlock.name}`, 
+        type: 'system' 
+    });
+    alert("Сохранено в Бестиарий!");
+  };
+
+  const convertToNpc = () => {
+        if (!viewingStatBlock) return;
+
+        // 1. Add to NPC Tracker
+        const npcData = {
+            name: viewingStatBlock.name,
+            race: viewingStatBlock.type || 'Монстр',
+            description: viewingStatBlock.description || "Бывший враг, спасенный в бою.",
+            location: "С группой",
+            status: 'alive',
+            attitude: 'neutral', // Default to neutral/friendly
+            notes: `CR ${viewingStatBlock.cr}. HP: ${viewingStatBlock.hp}. AC: ${viewingStatBlock.ac}.`
+        };
+
+        window.dispatchEvent(new CustomEvent('dmc-add-npc', { detail: npcData }));
+
+        // 2. Update Combatant Type in Tracker to NPC (Friendly)
+        setCombatants(prev => prev.map(c => {
+            if (c.id === viewingStatBlock.id) {
+                return { ...c, type: EntityType.NPC };
+            }
+            return c;
+        }));
+
+        // 3. Log and Notify
+        addLog({
+            id: Date.now().toString(),
+            timestamp: Date.now(),
+            text: `${viewingStatBlock.name} стал NPC и теперь нейтрален.`,
+            type: 'story'
+        });
+        
+        setViewingStatBlock(null); // Close modal
+  };
+
+  const handleGenerateStats = async () => {
+    if (!viewingStatBlock) return;
+    setGeneratingStats(true);
+    try {
+        const prompt = viewingStatBlock.name + (viewingStatBlock.description ? `. ${viewingStatBlock.description}` : "");
+        const crHint = typeof viewingStatBlock.cr === 'string' && viewingStatBlock.cr !== '?' ? viewingStatBlock.cr : undefined;
+        
+        const newStats = await generateMonster(prompt, crHint);
+        
+        // Save to local bestiary
+        const savedBestiary = JSON.parse(localStorage.getItem('dmc_local_bestiary') || '[]');
+        const filtered = savedBestiary.filter((b: BestiaryEntry) => b.name !== newStats.name);
+        const updatedBestiary = [newStats, ...filtered];
+        localStorage.setItem('dmc_local_bestiary', JSON.stringify(updatedBestiary));
+
+        // Update view - preserve the combatant ID!
+        setViewingStatBlock({ ...newStats, id: viewingStatBlock.id });
+
+        // Update combatants in tracker to include these new actions
+        setCombatants(prev => prev.map(c => {
+            // Match ID if possible, else fallback to name
+            if (c.id === viewingStatBlock.id) {
+                return {
+                    ...c,
+                    actions: newStats.actions?.map(a => `<b>${a.name}:</b> ${a.desc}`) || []
+                };
+            }
+            return c;
+        }));
+
+    } catch (e: any) {
+        alert("Ошибка генерации: " + e.message);
+    } finally {
+        setGeneratingStats(false);
+    }
+  };
+
   const activeCombatant = combatants.find(c => c.id === activeId);
   const getDifficultyColor = (diff?: string) => {
       switch(diff) {
@@ -424,6 +560,114 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
             onClose={() => setShowBestiary(false)} 
             onAddMonster={addMonsterToTracker} 
         />
+      )}
+
+      {/* Stat Block Modal */}
+      {viewingStatBlock && (
+          <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={() => setViewingStatBlock(null)}>
+              <div className="bg-dnd-card border-2 border-gold-600 w-full max-w-lg rounded-lg shadow-2xl flex flex-col max-h-[85vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+                  <div className="p-4 bg-gray-900 border-b border-gold-600/50 flex justify-between items-start shrink-0">
+                      <div>
+                          <h3 className="text-2xl font-serif font-bold text-white leading-tight">{viewingStatBlock.name}</h3>
+                          <p className="text-gold-500 italic text-sm capitalize mt-1">{viewingStatBlock.type} • CR {viewingStatBlock.cr} ({viewingStatBlock.xp} XP)</p>
+                      </div>
+                      <div className="flex gap-2">
+                          <button onClick={convertToNpc} className="text-gray-400 hover:text-green-500" title="Перевести в NPC (Союзник)">
+                              <UserPlus className="w-6 h-6"/>
+                          </button>
+                          <button onClick={saveStatBlockToBestiary} className="text-gray-400 hover:text-blue-500" title="Сохранить в Бестиарий">
+                              <Save className="w-6 h-6"/>
+                          </button>
+                          <button onClick={() => setViewingStatBlock(null)} className="text-gray-400 hover:text-white">
+                              <X className="w-6 h-6"/>
+                          </button>
+                      </div>
+                  </div>
+                  
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-gray-900/95">
+                      {/* Vitals */}
+                      <div className="grid grid-cols-3 gap-2 bg-gray-800 p-3 rounded border border-gray-700 text-center">
+                          <div>
+                              <div className="text-xs text-gray-500 uppercase font-bold">AC</div>
+                              <div className="text-xl font-bold text-white">{viewingStatBlock.ac}</div>
+                          </div>
+                          <div className="border-l border-gray-700">
+                              <div className="text-xs text-gray-500 uppercase font-bold">HP</div>
+                              <div className="text-xl font-bold text-green-400">{viewingStatBlock.hp}</div>
+                          </div>
+                          <div className="border-l border-gray-700">
+                              <div className="text-xs text-gray-500 uppercase font-bold">SPD</div>
+                              <div className="text-xl font-bold text-blue-400">30 ft</div>
+                          </div>
+                      </div>
+
+                      {/* Attributes */}
+                      <div className="grid grid-cols-6 gap-1 text-center text-xs">
+                          <div className="bg-gray-800 p-1 rounded border border-gray-700">
+                              <div className="font-bold text-gray-500">STR</div>
+                              <div>{viewingStatBlock.stats.str} <span className="text-gray-400">({Math.floor((viewingStatBlock.stats.str - 10) / 2)})</span></div>
+                          </div>
+                          <div className="bg-gray-800 p-1 rounded border border-gray-700">
+                              <div className="font-bold text-gray-500">DEX</div>
+                              <div>{viewingStatBlock.stats.dex} <span className="text-gray-400">({Math.floor((viewingStatBlock.stats.dex - 10) / 2)})</span></div>
+                          </div>
+                          <div className="bg-gray-800 p-1 rounded border border-gray-700">
+                              <div className="font-bold text-gray-500">CON</div>
+                              <div>{viewingStatBlock.stats.con} <span className="text-gray-400">({Math.floor((viewingStatBlock.stats.con - 10) / 2)})</span></div>
+                          </div>
+                          <div className="bg-gray-800 p-1 rounded border border-gray-700">
+                              <div className="font-bold text-gray-500">INT</div>
+                              <div>{viewingStatBlock.stats.int} <span className="text-gray-400">({Math.floor((viewingStatBlock.stats.int - 10) / 2)})</span></div>
+                          </div>
+                          <div className="bg-gray-800 p-1 rounded border border-gray-700">
+                              <div className="font-bold text-gray-500">WIS</div>
+                              <div>{viewingStatBlock.stats.wis} <span className="text-gray-400">({Math.floor((viewingStatBlock.stats.wis - 10) / 2)})</span></div>
+                          </div>
+                          <div className="bg-gray-800 p-1 rounded border border-gray-700">
+                              <div className="font-bold text-gray-500">CHA</div>
+                              <div>{viewingStatBlock.stats.cha} <span className="text-gray-400">({Math.floor((viewingStatBlock.stats.cha - 10) / 2)})</span></div>
+                          </div>
+                      </div>
+
+                      {/* Description */}
+                      {viewingStatBlock.description && (
+                          <div className="text-sm text-gray-300 italic border-l-2 border-gold-500 pl-3 py-1">
+                              <SmartText content={viewingStatBlock.description} />
+                          </div>
+                      )}
+
+                      {/* Actions */}
+                      {viewingStatBlock.actions && viewingStatBlock.actions.length > 0 ? (
+                          <div>
+                              <h4 className="text-gold-500 font-bold uppercase text-xs border-b border-gray-700 pb-1 mb-2">Actions</h4>
+                              <ul className="space-y-3">
+                                  {viewingStatBlock.actions.map((action, i) => (
+                                      <li key={i} className="text-sm">
+                                          <span className="font-bold text-white">{action.name}.</span> <span className="text-gray-300">{action.desc}</span>
+                                      </li>
+                                  ))}
+                              </ul>
+                          </div>
+                      ) : (
+                          <div className="text-center py-2">
+                             <p className="text-xs text-gray-500 italic mb-2">Статблок неполный (только базовые данные).</p>
+                             <button 
+                                onClick={handleGenerateStats}
+                                disabled={generatingStats}
+                                className="w-full bg-indigo-900/50 hover:bg-indigo-800 text-indigo-200 border border-indigo-700 rounded py-2 text-sm font-bold flex items-center justify-center gap-2 transition-colors"
+                             >
+                                {generatingStats ? <Loader className="w-4 h-4 animate-spin"/> : <Sparkles className="w-4 h-4"/>}
+                                Сгенерировать статблок
+                             </button>
+                          </div>
+                      )}
+                  </div>
+                  
+                  <div className="p-3 bg-gray-900 border-t border-gray-700 text-right shrink-0">
+                      <button onClick={() => setViewingStatBlock(null)} className="bg-gold-600 hover:bg-gold-500 text-black px-4 py-1 rounded font-bold text-sm">Закрыть</button>
+                  </div>
+              </div>
+          </div>
       )}
 
       {/* Init Modal */}
@@ -652,6 +896,11 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
                                     {c.name}
                                     {isDead && <Skull className="w-4 h-4 text-red-500" />}
                                     </h4>
+                                    {c.type === EntityType.MONSTER && (
+                                        <button onClick={() => openStatBlock(c)} className="text-gray-500 hover:text-gold-500 p-0.5 rounded" title="Статблок">
+                                            <Book className="w-4 h-4"/>
+                                        </button>
+                                    )}
                                     {/* Condition Badges */}
                                     <div className="flex flex-wrap gap-1">
                                         {currentConditions.map(cond => (
@@ -662,8 +911,12 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
                                     </div>
                                 </div>
                                 <div className="text-xs text-gray-400 flex gap-2 items-center mt-0.5">
-                                   <span className={`px-1 rounded ${c.type === EntityType.PLAYER ? 'bg-blue-900/50 text-blue-200' : 'bg-red-900/50 text-red-200'}`}>
-                                     {c.type === EntityType.PLAYER ? 'ИГРОК' : 'МОНСТР'}
+                                   <span className={`px-1 rounded ${
+                                       c.type === EntityType.PLAYER ? 'bg-blue-900/50 text-blue-200' : 
+                                       c.type === EntityType.NPC ? 'bg-green-900/50 text-green-200' : 
+                                       'bg-red-900/50 text-red-200'
+                                   }`}>
+                                     {c.type === EntityType.PLAYER ? 'ИГРОК' : c.type === EntityType.NPC ? 'СОЮЗНИК' : 'МОНСТР'}
                                    </span>
                                    <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> КД {c.ac}</span>
                                    {c.notes && <span className="text-gray-500 truncate max-w-[100px]">{c.notes}</span>}

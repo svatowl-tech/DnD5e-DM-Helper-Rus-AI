@@ -262,7 +262,7 @@ const BestiaryBrowser: React.FC<BestiaryBrowserProps> = ({ onClose, onAddMonster
   const filteredLocal = localMonsters.filter(m => m.name.toLowerCase().includes(query.toLowerCase()));
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-2 sm:p-4 animate-in fade-in duration-200">
       
       {/* Add Modal */}
       {showAddModal && (

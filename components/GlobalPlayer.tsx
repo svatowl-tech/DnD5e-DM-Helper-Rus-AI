@@ -31,8 +31,9 @@ const GlobalPlayer: React.FC = () => {
             {/* Player Strip 
                 Mobile: Bottom 57px (above nav)
                 Desktop (XL): Bottom 20 (5rem/80px) - sits exactly above the h-20 Log panel
+                Z-Index: 40 (Below Modals which start at 50/60)
             */}
-            <div className="fixed bottom-[57px] xl:bottom-20 left-0 xl:left-64 right-0 h-9 bg-gray-900/95 border-t border-gold-600/30 z-50 backdrop-blur-md shadow-[0_-2px_10px_rgba(0,0,0,0.3)] flex items-center px-3 justify-between select-none transition-all duration-300">
+            <div className="fixed bottom-[57px] xl:bottom-20 left-0 xl:left-64 right-0 h-9 bg-gray-900/95 border-t border-gold-600/30 z-40 backdrop-blur-md shadow-[0_-2px_10px_rgba(0,0,0,0.3)] flex items-center px-3 justify-between select-none transition-all duration-300">
                 
                 {/* Left: Info & State */}
                 <div className="flex items-center gap-3 flex-1 overflow-hidden min-w-0">

@@ -1,8 +1,7 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { LocationData, PartyMember, Combatant, EntityType, LoreEntry, LocationTrackerProps, Note, SavedImage, TravelResult, CampaignNpc, FullQuest, TravelState, BestiaryEntry } from '../types';
-import { parseLoreFromText, generateEncounterIntro, generateScenarioDescription, generateFullLocation, generateLocationContent, generateExtendedDetails, generateMultiverseBreach, generateRealityGlitch, generateImage, generateNpc, generateQuest } from '../services/polzaService';
+import { parseLoreFromText, generateEncounterIntro, generateScenarioDescription, generateFullLocation, generateLocationContent, generateExtendedDetails, generateMultiverseBreach, generateRealityGlitch, generateImage, generateNpc, generateQuest, generateMonster } from '../services/polzaService';
 import { getMonstersByCr } from '../services/dndApiService';
 import { MapPin, Users, Skull, Sparkles, BookOpen, Loader, Search, Eye, ChevronRight, ArrowRight, Menu, Map, Copy, Plus, Home, Trees, Tent, Castle, ArrowLeft, LandPlot, Landmark, Beer, Footprints, ShieldAlert, Ghost, Info, X, Save, FileText, RefreshCcw, ChevronDown, ChevronUp, Zap, Anchor, Globe, Hexagon, Activity, Radio, Flame, Image as ImageIcon, ZoomIn, Church, Building, Mountain, ScrollText, Swords, UserPlus, Pickaxe, Wheat, Ship, ShoppingBag, Gavel, Gem, Compass, UserSquare2, PenTool, Wand2 } from 'lucide-react';
 import { FAERUN_LORE } from '../data/faerunLore';
@@ -67,7 +66,10 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     const [handbookSearch, setHandbookSearch] = useState('');
     const [expandedRegion, setExpandedRegion] = useState<string | null>(null);
     const [descriptionExpanded, setDescriptionExpanded] = useState(false);
-    const [showTravel, setShowTravel] = useState(false);
+    
+    // View Mode: 'details' or 'travel'
+    const [activeView, setActiveView] = useState<'details' | 'travel'>('details');
+
     const [showBestiary, setShowBestiary] = useState(false);
     
     // Travel State Persistence
@@ -91,6 +93,9 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     const [addEntityDesc, setAddEntityDesc] = useState('');
     const [useAiGeneration, setUseAiGeneration] = useState(false);
     const [addLoading, setAddLoading] = useState(false);
+
+    // Monster Generation State
+    const [generatingMonster, setGeneratingMonster] = useState<string | null>(null);
 
     // --- INITIALIZATION & LISTENERS ---
 
@@ -119,7 +124,14 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         }
         
         const savedTravel = localStorage.getItem('dmc_active_travel');
-        if (savedTravel) setActiveTravelPlan(JSON.parse(savedTravel));
+        if (savedTravel) {
+            const state = JSON.parse(savedTravel);
+            setActiveTravelPlan(state);
+            // If there is an active journey, default to travel view if location is generic/empty,
+            // but if user is just loading app, maybe stay on details? 
+            // Let's switch to travel if there's an active plan to remind them.
+            if (state.result) setActiveView('travel');
+        }
 
         loadTrackerData();
 
@@ -168,11 +180,11 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         }
     }, [activeTravelPlan]);
 
-    // NEW: Listen for request to open travel manager (from combat return)
+    // Listen for request to open travel manager (from combat return)
     useEffect(() => {
         const handleOpenTravel = () => {
-            // Slight delay to allow tab switch render
-            setTimeout(() => setShowTravel(true), 100);
+            // Switch view to travel
+            setActiveView('travel');
         };
         window.addEventListener('dmc-open-travel', handleOpenTravel);
         return () => window.removeEventListener('dmc-open-travel', handleOpenTravel);
@@ -223,6 +235,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         setLocation(loc);
         setShowHandbook(false);
         setEncounterIntro('');
+        setActiveView('details'); // Switch back to details on new location set
         
         addLog({
             id: Date.now().toString(),
@@ -383,6 +396,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         setExpandedRegion(region.id);
         setLocation(null); 
         setShowHandbook(false); 
+        setActiveView('details');
     };
 
     const handleGenerateLocation = async (type: string) => {
@@ -488,6 +502,50 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             alert(`Ошибка генерации описания: ${e.message}`);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Smart Monster Addition
+    const handleAddMonsterSmart = async (monsterName: string) => {
+        if (generatingMonster) return; // Prevent multiple clicks
+        setGeneratingMonster(monsterName);
+        try {
+            // 1. Generate Stats via AI
+            const stats = await generateMonster(monsterName);
+            
+            // 2. Save to Local Bestiary
+            const savedBestiary = JSON.parse(localStorage.getItem('dmc_local_bestiary') || '[]');
+            // Check if already exists to avoid dups (by name)
+            if (!savedBestiary.some((m: BestiaryEntry) => m.name === stats.name)) {
+                localStorage.setItem('dmc_local_bestiary', JSON.stringify([stats, ...savedBestiary]));
+            }
+
+            // 3. Add to Combat
+            const event = new CustomEvent('dmc-add-combatant', {
+                detail: { 
+                    name: stats.name, 
+                    type: 'MONSTER', 
+                    hp: stats.hp, 
+                    ac: stats.ac, 
+                    initiative: 10 + Math.floor(Math.random() * 5), 
+                    xp: stats.xp,
+                    notes: `CR ${stats.cr} (AI Gen). ${location?.name || ''}`,
+                    actions: stats.actions?.map((a: any) => `<b>${a.name}:</b> ${a.desc}`) || []
+                }
+            });
+            window.dispatchEvent(event);
+            
+            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Бестиарий] Сгенерирован и добавлен: ${stats.name}`, type: 'system' });
+
+        } catch (e: any) {
+            alert(`Ошибка генерации монстра: ${e.message}`);
+            // Fallback: Add generic
+            const event = new CustomEvent('dmc-add-combatant', {
+                detail: { name: monsterName, type: 'MONSTER', hp: 20, initiative: 10, notes: `Ошибка AI` }
+            });
+            window.dispatchEvent(event);
+        } finally {
+            setGeneratingMonster(null);
         }
     };
 
@@ -641,20 +699,6 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     return (
         <div className="h-full flex gap-4 relative">
             
-            <TravelManager 
-                isOpen={showTravel}
-                onClose={() => setShowTravel(false)}
-                currentLocation={location}
-                currentRegion={selectedRegion}
-                allLore={lore}
-                onTravelComplete={handleTravelComplete}
-                addLog={addLog}
-                travelState={activeTravelPlan}
-                onUpdateTravelState={handleTravelUpdate}
-                onGenerateLocation={handleSetGeneratedLocation}
-                onCancelTravel={() => setActiveTravelPlan(null)}
-            />
-
             {showBestiary && (
                 <BestiaryBrowser 
                     onClose={() => setShowBestiary(false)} 
@@ -864,7 +908,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                             </div>
                          </div>
                      </div>
-                ) : !location ? (
+                ) : !location && activeView !== 'travel' ? (
                     // Region Dashboard or Empty State
                     selectedRegion ? (
                         <div className="flex-1 overflow-y-auto p-6 animate-in fade-in relative custom-scrollbar">
@@ -885,7 +929,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                             {selectedRegion.capital && <span className="text-gray-400 text-sm pb-2">Столица: {selectedRegion.capital}</span>}
                                         </div>
                                         <button 
-                                            onClick={() => setShowTravel(true)}
+                                            onClick={() => setActiveView('travel')}
                                             className={`bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded font-bold flex items-center gap-2 border border-gray-600 ${activeTravelPlan ? 'animate-pulse border-gold-500 text-gold-500' : ''}`}
                                         >
                                             <Compass className="w-5 h-5"/> {activeTravelPlan ? 'Продолжить путь' : 'Путешествие'}
@@ -970,9 +1014,41 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                             <p className="text-sm mt-2">Вы сможете выбрать известные локации или сгенерировать новые.</p>
                         </div>
                     )
+                ) : activeView === 'travel' ? (
+                    // Travel Manager Embedded
+                     <TravelManager 
+                        isOpen={true}
+                        onClose={() => setActiveView('details')}
+                        currentLocation={location}
+                        currentRegion={selectedRegion}
+                        allLore={lore}
+                        onTravelComplete={handleTravelComplete}
+                        addLog={addLog}
+                        travelState={activeTravelPlan}
+                        onUpdateTravelState={handleTravelUpdate}
+                        onGenerateLocation={handleSetGeneratedLocation}
+                        onCancelTravel={() => setActiveTravelPlan(null)}
+                    />
                 ) : (
                     // Location Details View
-                    <div className="flex-1 overflow-y-auto h-full animate-in fade-in custom-scrollbar p-4 space-y-4 pb-20">
+                    <div className="flex-1 flex flex-col h-full">
+                        {/* Tabs */}
+                        <div className="flex border-b border-gray-700 bg-dnd-card shrink-0">
+                             <button 
+                                onClick={() => setActiveView('details')}
+                                className={`flex-1 py-3 text-sm font-bold flex justify-center items-center gap-2 transition-colors border-b-2 ${activeView === 'details' ? 'text-gold-500 border-gold-500 bg-gray-900' : 'text-gray-400 border-transparent hover:bg-gray-800'}`}
+                             >
+                                 <MapPin className="w-4 h-4"/> Локация
+                             </button>
+                             <button 
+                                onClick={() => setActiveView('travel')}
+                                className={`flex-1 py-3 text-sm font-bold flex justify-center items-center gap-2 transition-colors border-b-2 ${activeView === 'travel' ? 'text-gold-500 border-gold-500 bg-gray-900' : 'text-gray-400 border-transparent hover:bg-gray-800'} ${activeTravelPlan && activeView !== 'travel' ? 'animate-pulse text-green-400' : ''}`}
+                             >
+                                 <Compass className="w-4 h-4"/> Путешествие {activeTravelPlan && <span className="w-2 h-2 bg-green-500 rounded-full ml-1"></span>}
+                             </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto h-full animate-in fade-in custom-scrollbar p-4 space-y-4 pb-20">
                         {/* ... location header ... */}
                         <div className={`px-4 py-3 rounded-lg border shrink-0 shadow-md ${location.originWorld ? 'bg-indigo-950/30 border-indigo-500' : 'bg-dnd-card border-gray-700'}`}>
                             <div className="flex items-center justify-between mb-2">
@@ -988,13 +1064,6 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
                                     <button 
-                                        onClick={() => setShowTravel(true)}
-                                        className={`text-gold-500 hover:text-white p-2 bg-gray-800 rounded-full ${activeTravelPlan ? 'animate-pulse border border-gold-500' : ''}`}
-                                        title={activeTravelPlan ? "Продолжить путешествие" : "Отправиться в путь"}
-                                    >
-                                        <Compass className="w-4 h-4" />
-                                    </button>
-                                    <button 
                                         onClick={handleGenerateLocationImage}
                                         disabled={imageLoading}
                                         className="text-gold-500 hover:text-white p-2 bg-gray-800 rounded-full"
@@ -1007,6 +1076,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                             setLocation(null);
                                         }}
                                         className="text-gray-400 hover:text-white p-2 bg-gray-800 rounded-full"
+                                        title="Закрыть"
                                     >
                                         <Map className="w-4 h-4" />
                                     </button>
@@ -1283,17 +1353,12 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                             <div key={i} className="bg-red-900/20 border border-red-900/50 rounded px-2 py-1 text-xs text-red-200 flex items-center gap-2">
                                                 <span>{m}</span>
                                                 <button 
-                                                    onClick={() => {
-                                                        const event = new CustomEvent('dmc-add-combatant', {
-                                                            detail: { name: m, type: 'MONSTER', hp: 20, initiative: 10, notes: `из локации ${location.name}` }
-                                                        });
-                                                        window.dispatchEvent(event);
-                                                        addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `${m} добавлен в бой.`, type: 'combat' });
-                                                    }}
+                                                    onClick={() => handleAddMonsterSmart(m)}
                                                     className="text-red-400 hover:text-white"
-                                                    title="В бой"
+                                                    title="В бой (с генерацией статов)"
+                                                    disabled={generatingMonster === m}
                                                 >
-                                                    <Swords className="w-3 h-3"/>
+                                                    {generatingMonster === m ? <Loader className="w-3 h-3 animate-spin"/> : <Swords className="w-3 h-3"/>}
                                                 </button>
                                             </div>
                                         ))}
@@ -1376,6 +1441,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                     </div>
                                 </div>
                             </div>
+                        </div>
                         </div>
                     </div>
                 )}
