@@ -289,6 +289,28 @@ export const generateImage = async (prompt: string, aspectRatio: string = "1:1")
 
 // --- Generators ---
 
+export const generateStoryFromLog = async (rawText: string): Promise<string> => {
+    const context = getCampaignContext();
+    const systemPrompt = `Ты — летописец и автор фэнтези романов в стиле D&D. Твоя задача — превратить сухой игровой лог (или черновик заметок) в захватывающее художественное повествование (главу книги).
+    
+    ${context}
+    
+    Инструкции:
+    1. Пиши на русском языке.
+    2. Используй литературный стиль, описывай атмосферу, запахи, звуки и эмоции героев.
+    3. Убери системные сообщения (броски кубов, получение урона, "убил 3 гоблинов"), заменив их на описание действий ("Арагорн ловким выпадом пронзил гоблина").
+    4. Структурируй текст абзацами. Можно использовать HTML теги <p>, <b>, <i> для форматирования.
+    5. Повествование должно быть последовательным и логичным.`;
+
+    return withRetry(async () => {
+        const text = await makeRequest([
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Преврати этот лог в историю:\n\n${rawText.substring(0, 8000)}` }
+        ]);
+        return cleanText(text);
+    });
+};
+
 export const generateTravelScenario = async (
     from: string,
     to: string,

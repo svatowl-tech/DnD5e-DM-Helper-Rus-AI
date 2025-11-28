@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Note } from '../types';
-import { FileText, Plus, Trash2, Check, Clock, Eye, Edit, ArrowLeft } from 'lucide-react';
+import { FileText, Plus, Trash2, Check, Clock, Eye, Edit, ArrowLeft, Sparkles, Loader } from 'lucide-react';
+import { generateStoryFromLog } from '../services/polzaService';
 import SmartText from './SmartText';
 
 const CampaignNotes: React.FC = () => {
@@ -13,6 +14,7 @@ const CampaignNotes: React.FC = () => {
     const [savedIndicator, setSavedIndicator] = useState(false);
     const [isViewMode, setIsViewMode] = useState(true);
     const [showListMobile, setShowListMobile] = useState(true);
+    const [rewriting, setRewriting] = useState(false);
     
     useEffect(() => {
         localStorage.setItem('dmc_notes', JSON.stringify(notes));
@@ -70,6 +72,21 @@ const CampaignNotes: React.FC = () => {
                 setActiveNoteId(null);
                 setShowListMobile(true);
             }
+        }
+    };
+
+    const handleRewriteStory = async () => {
+        if (!activeNote || !activeNote.content) return;
+        if (!window.confirm("Это перепишет содержимое заметки с помощью AI. Продолжить?")) return;
+        
+        setRewriting(true);
+        try {
+            const newContent = await generateStoryFromLog(activeNote.content);
+            updateActiveNote({ content: newContent });
+        } catch (e: any) {
+            alert("Ошибка: " + e.message);
+        } finally {
+            setRewriting(false);
         }
     };
 
@@ -134,6 +151,14 @@ const CampaignNotes: React.FC = () => {
                                 </div>
                             </div>
                             <div className="flex gap-2 shrink-0">
+                                <button 
+                                    onClick={handleRewriteStory}
+                                    disabled={rewriting || !activeNote.content}
+                                    className="p-2 rounded border border-indigo-800 bg-indigo-900/30 text-indigo-200 hover:bg-indigo-800 transition-colors disabled:opacity-50"
+                                    title="AI: Превратить в художественный текст"
+                                >
+                                    {rewriting ? <Loader className="w-5 h-5 animate-spin"/> : <Sparkles className="w-5 h-5"/>}
+                                </button>
                                 <button
                                     onClick={() => setIsViewMode(!isViewMode)}
                                     className={`p-2 rounded transition-colors border ${isViewMode ? 'bg-gold-600 text-black border-gold-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'}`}

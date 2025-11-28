@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { LogEntry, Note, PartyMember, FullQuest } from '../types';
-import { Check, Save, X, Play, Users, ScrollText, Shield, Skull, Music, Heart, MapPin, Globe, Sparkles } from 'lucide-react';
+import { Check, Save, X, Play, Users, ScrollText, Shield, Skull, Music, Heart, MapPin, Globe, Sparkles, Loader, PenTool } from 'lucide-react';
 import { useAudio } from '../contexts/AudioContext';
+import { generateStoryFromLog } from '../services/polzaService';
 
 interface SessionWizardProps {
     isOpen: boolean;
@@ -32,6 +33,7 @@ const SessionWizard: React.FC<SessionWizardProps> = ({
     const [xpEarned, setXpEarned] = useState(0);
     const [summary, setSummary] = useState('');
     const [worldChanges, setWorldChanges] = useState('');
+    const [storyLoading, setStoryLoading] = useState(false);
 
     // Auto-generate summary when opening "End Session"
     useEffect(() => {
@@ -82,6 +84,20 @@ const SessionWizard: React.FC<SessionWizardProps> = ({
         }
 
         setWorldChanges(autoText);
+    };
+
+    const handleGenerateStory = async () => {
+        if (logs.length === 0) return;
+        setStoryLoading(true);
+        try {
+            const rawLogText = logs.map(l => `[${l.type.toUpperCase()}] ${l.text}`).join('\n');
+            const story = await generateStoryFromLog(rawLogText);
+            setSummary(story);
+        } catch (e: any) {
+            alert("Ошибка генерации истории: " + e.message);
+        } finally {
+            setStoryLoading(false);
+        }
     };
 
     const handleLongRest = () => {
@@ -243,7 +259,10 @@ const SessionWizard: React.FC<SessionWizardProps> = ({
     <h2>🏁 Итоги сессии</h2>
     <div class="stats">
         <p><strong>🏆 Опыт:</strong> ${xpEarned} XP (каждому)</p>
-        <p><strong>📝 Кратко:</strong> ${summary || 'Без описания'}</p>
+        <div class="summary-box">
+            <strong>📝 Летопись:</strong><br/>
+            ${summary ? `<div style="font-style: italic; color: #d4af37;">${summary.replace(/\n/g, '<br/>')}</div>` : 'Без описания'}
+        </div>
     </div>
     <hr/>
     <h3>🌍 Состояние Мира:</h3>
@@ -308,10 +327,20 @@ const SessionWizard: React.FC<SessionWizardProps> = ({
                     </div>
 
                     <div>
-                        <label className="text-xs text-gray-500 uppercase font-bold">Краткие итоги (Что понравилось?)</label>
+                        <div className="flex justify-between items-center mb-1">
+                            <label className="text-xs text-gray-500 uppercase font-bold">Краткие итоги / Летопись</label>
+                            <button 
+                                onClick={handleGenerateStory} 
+                                disabled={storyLoading || logs.length === 0}
+                                className="text-[10px] bg-indigo-900/50 hover:bg-indigo-800 text-indigo-200 border border-indigo-700 px-2 py-1 rounded flex items-center gap-1 disabled:opacity-50"
+                            >
+                                {storyLoading ? <Loader className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>}
+                                ✨ Художественный пересказ
+                            </button>
+                        </div>
                         <textarea 
-                            className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white h-20 resize-none"
-                            placeholder="События, впечатления..."
+                            className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white h-32 resize-none"
+                            placeholder="Напишите вручную или нажмите кнопку, чтобы создать историю из логов..."
                             value={summary}
                             onChange={e => setSummary(e.target.value)}
                         />
