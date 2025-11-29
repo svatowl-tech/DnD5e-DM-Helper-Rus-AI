@@ -1,13 +1,14 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
-import { CampaignNpc, NpcTrackerProps, SavedImage } from '../types';
+import { CampaignNpc, NpcTrackerProps, SavedImage, ChatMessage } from '../types';
 import { 
     Users, UserPlus, Search, MapPin, Skull, Heart, 
     Swords, MessageSquare, Edit2, Trash2, Save, X, 
     Smile, Frown, Meh, Filter, Image as ImageIcon, Loader,
-    ScrollText, Sparkles, Wand2, Upload, Download
+    ScrollText, Sparkles, Wand2, Upload, Download, Send
 } from 'lucide-react';
-import { generateImage, generateNpc, parseNpcFromText, enhanceNpc } from '../services/polzaService';
+import { generateImage, generateNpc, parseNpcFromText, enhanceNpc, chatWithNpc } from '../services/polzaService';
 import SmartText from './SmartText';
 
 const NpcTracker: React.FC<NpcTrackerProps> = ({ addLog, onImageGenerated }) => {
@@ -33,9 +34,23 @@ const NpcTracker: React.FC<NpcTrackerProps> = ({ addLog, onImageGenerated }) => 
     const [loading, setLoading] = useState(false);
     const [enhancing, setEnhancing] = useState(false);
 
+    // Chat State
+    const [chatOpen, setChatOpen] = useState(false);
+    const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+    const [userMessage, setUserMessage] = useState('');
+    const [chatLoading, setChatLoading] = useState(false);
+    const [chatNpc, setChatNpc] = useState<CampaignNpc | null>(null);
+    const chatEndRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
         localStorage.setItem('dmc_npcs', JSON.stringify(npcs));
     }, [npcs]);
+
+    useEffect(() => {
+        if (chatOpen && chatEndRef.current) {
+            chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [chatMessages, chatOpen]);
 
     // Listen for external adds (from Generators/Location)
     useEffect(() => {
@@ -127,6 +142,50 @@ const NpcTracker: React.FC<NpcTrackerProps> = ({ addLog, onImageGenerated }) => 
         });
         window.dispatchEvent(event);
         addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `${npc.name} добавлен в бой.`, type: 'combat' });
+    };
+
+    // --- CHAT HANDLERS ---
+    
+    const openChat = (npc: CampaignNpc) => {
+        setChatNpc(npc);
+        setChatMessages([{
+            id: 'init',
+            role: 'assistant',
+            content: `*Смотрит на вас.* Что вам нужно?`,
+            timestamp: Date.now()
+        }]);
+        setChatOpen(true);
+    };
+
+    const handleSendMessage = async () => {
+        if (!userMessage.trim() || !chatNpc) return;
+
+        const newMessage: ChatMessage = {
+            id: Date.now().toString(),
+            role: 'user',
+            content: userMessage,
+            timestamp: Date.now()
+        };
+
+        const updatedMessages = [...chatMessages, newMessage];
+        setChatMessages(updatedMessages);
+        setUserMessage('');
+        setChatLoading(true);
+
+        try {
+            const responseText = await chatWithNpc(chatNpc, updatedMessages);
+            const responseMessage: ChatMessage = {
+                id: Date.now().toString() + 'r',
+                role: 'assistant',
+                content: responseText,
+                timestamp: Date.now()
+            };
+            setChatMessages(prev => [...prev, responseMessage]);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setChatLoading(false);
+        }
     };
 
     // --- IMAGE HANDLERS ---
@@ -335,6 +394,66 @@ const NpcTracker: React.FC<NpcTrackerProps> = ({ addLog, onImageGenerated }) => 
     return (
         <div className="h-full flex gap-4 relative">
             
+            {/* --- Chat Modal --- */}
+            {chatOpen && chatNpc && (
+                <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-dnd-card border-2 border-indigo-600 w-full max-w-md rounded-lg shadow-2xl flex flex-col h-[80vh] overflow-hidden">
+                        <div className="p-4 bg-gray-900 border-b border-indigo-500/50 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                {chatNpc.imageUrl ? (
+                                    <img src={chatNpc.imageUrl} className="w-10 h-10 rounded-full object-cover border border-indigo-400" />
+                                ) : (
+                                    <div className="w-10 h-10 rounded-full bg-indigo-900 flex items-center justify-center text-indigo-200 font-bold">{chatNpc.name[0]}</div>
+                                )}
+                                <div>
+                                    <h3 className="font-bold text-white leading-none">{chatNpc.name}</h3>
+                                    <p className="text-xs text-indigo-300">{chatNpc.race} {chatNpc.class}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setChatOpen(false)}><X className="w-6 h-6 text-gray-400 hover:text-white"/></button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-gray-900/50">
+                            {chatMessages.map((msg) => (
+                                <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                    <div className={`max-w-[80%] p-3 rounded-lg text-sm ${msg.role === 'user' ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-gray-800 text-gray-200 border border-gray-700 rounded-bl-none'}`}>
+                                        {msg.content}
+                                    </div>
+                                </div>
+                            ))}
+                            {chatLoading && (
+                                <div className="flex justify-start">
+                                    <div className="bg-gray-800 p-3 rounded-lg border border-gray-700 rounded-bl-none flex gap-1">
+                                        <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></span>
+                                        <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></span>
+                                        <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></span>
+                                    </div>
+                                </div>
+                            )}
+                            <div ref={chatEndRef} />
+                        </div>
+
+                        <div className="p-3 bg-gray-900 border-t border-gray-700 flex gap-2">
+                            <input 
+                                className="flex-1 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white outline-none focus:border-indigo-500"
+                                placeholder="Спросить что-то..."
+                                value={userMessage}
+                                onChange={e => setUserMessage(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
+                                autoFocus
+                            />
+                            <button 
+                                onClick={handleSendMessage}
+                                disabled={chatLoading || !userMessage.trim()}
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white p-2 rounded disabled:opacity-50"
+                            >
+                                <Send className="w-5 h-5"/>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* --- AI Modal --- */}
             {showAiModal && (
                 <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
@@ -468,6 +587,14 @@ const NpcTracker: React.FC<NpcTrackerProps> = ({ addLog, onImageGenerated }) => 
                                     <span className="truncate">{npc.race} {npc.class}</span>
                                     <span className="flex items-center gap-0.5 text-gray-600"><MapPin className="w-3 h-3"/> {npc.location}</span>
                                 </div>
+                                <div className="flex justify-end mt-2">
+                                     <button 
+                                        onClick={(e) => { e.stopPropagation(); openChat(npc); }}
+                                        className="text-xs bg-indigo-900/50 text-indigo-200 hover:bg-indigo-800 px-2 py-1 rounded flex items-center gap-1 border border-indigo-800"
+                                     >
+                                         <MessageSquare className="w-3 h-3"/> Чат
+                                     </button>
+                                </div>
                             </div>
                         </div>
                     ))}
@@ -481,6 +608,14 @@ const NpcTracker: React.FC<NpcTrackerProps> = ({ addLog, onImageGenerated }) => 
                     <div className="p-4 border-b border-gray-700 bg-dnd-card flex justify-between items-center shrink-0">
                         <h3 className="font-serif font-bold text-xl text-white">{formData.id ? 'Редактирование NPC' : 'Новый NPC'}</h3>
                         <div className="flex gap-2">
+                            {formData.name && (
+                                <button 
+                                    onClick={() => openChat(formData as CampaignNpc)}
+                                    className="p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded shadow-lg transition-colors flex items-center gap-2 text-sm font-bold"
+                                >
+                                    <MessageSquare className="w-4 h-4"/> Чат
+                                </button>
+                            )}
                             <button 
                                 onClick={handleEnhanceNpc}
                                 disabled={enhancing || !formData.name}

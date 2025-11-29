@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { 
     generateNpc, 
@@ -16,6 +17,7 @@ import {
     setActiveModel,
 } from '../services/polzaService';
 import { NpcData, SavedImage, GeneratorsProps } from '../types';
+import { useToast } from '../contexts/ToastContext';
 import { 
     Sparkles, 
     Loader, 
@@ -38,6 +40,7 @@ import {
     UserPlus
 } from 'lucide-react';
 import SmartText from './SmartText';
+import LootInteraction from './LootInteraction';
 
 type ToolType = 'npc' | 'loot' | 'trinket' | 'desc' | 'shop' | 'quest' | 'location' | 'board' | 'puzzle';
 
@@ -54,6 +57,7 @@ const TOOLS = [
 ];
 
 const Generators: React.FC<GeneratorsProps> = ({ onImageGenerated, onShowImage, addLog }) => {
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
   const [activeTool, setActiveTool] = useState<ToolType>('npc');
@@ -100,9 +104,11 @@ const Generators: React.FC<GeneratorsProps> = ({ onImageGenerated, onShowImage, 
           } else {
               setGeneratedText(result);
           }
+          showToast("Сгенерировано успешно", 'success');
       } catch (e: any) {
           console.error(e);
           setErrorText(e.message || "Ошибка генерации. Проверьте настройки API.");
+          showToast("Ошибка генерации", 'error');
       } finally {
           setLoading(false);
       }
@@ -125,9 +131,11 @@ const Generators: React.FC<GeneratorsProps> = ({ onImageGenerated, onShowImage, 
           
           setGeneratedImage(newImage);
           if (onImageGenerated) onImageGenerated(newImage);
+          showToast("Портрет создан", 'success');
 
       } catch (e: any) {
           setErrorText("Ошибка генерации изображения: " + e.message);
+          showToast("Ошибка создания изображения", 'error');
       } finally {
           setImageLoading(false);
       }
@@ -136,6 +144,7 @@ const Generators: React.FC<GeneratorsProps> = ({ onImageGenerated, onShowImage, 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
+    showToast("Скопировано", 'info');
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -147,7 +156,7 @@ const Generators: React.FC<GeneratorsProps> = ({ onImageGenerated, onShowImage, 
               text: `[NPC] Создан: ${generatedNpc.name} (${generatedNpc.race} ${generatedNpc.class})`,
               type: 'story'
           });
-          alert("NPC сохранен в лог сессии.");
+          showToast("NPC сохранен в лог", 'success');
       } else if (generatedText) {
           let prefix = "[Инфо]";
           if (activeTool === 'loot') prefix = "[Лут]";
@@ -163,7 +172,7 @@ const Generators: React.FC<GeneratorsProps> = ({ onImageGenerated, onShowImage, 
               text: `${prefix} Сгенерировано: ${cleanText}`,
               type: 'story'
           });
-          alert("Информация сохранена в лог сессии.");
+          showToast("Текст сохранен в лог", 'success');
       }
   };
 
@@ -179,7 +188,7 @@ const Generators: React.FC<GeneratorsProps> = ({ onImageGenerated, onShowImage, 
           }
       });
       window.dispatchEvent(event);
-      alert(`${generatedNpc.name} сохранен в Трекере NPC.`);
+      // Toast is handled in App.tsx via listener
   };
 
   const saveToNotes = () => {
@@ -213,6 +222,7 @@ const Generators: React.FC<GeneratorsProps> = ({ onImageGenerated, onShowImage, 
           } 
       });
       window.dispatchEvent(event);
+      // Toast handled in App.tsx
       addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Заметка "${title}" сохранена.`, type: 'system' });
   };
 
@@ -229,6 +239,7 @@ const Generators: React.FC<GeneratorsProps> = ({ onImageGenerated, onShowImage, 
           }
       });
       window.dispatchEvent(event);
+      // Toast handled in App.tsx
       addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `${generatedNpc.name} добавлен в бой.`, type: 'combat' });
   };
 
@@ -486,7 +497,13 @@ const Generators: React.FC<GeneratorsProps> = ({ onImageGenerated, onShowImage, 
                         {copied ? <Check className="w-3 h-3"/> : <Copy className="w-3 h-3"/>} Копировать
                     </button>
                  </div>
-                 <SmartText content={generatedText} />
+                 
+                 {/* Use LootInteraction for specific categories to enable drag/drop style interactions */}
+                 {(activeTool === 'loot' || activeTool === 'trinket' || activeTool === 'shop') ? (
+                     <LootInteraction htmlContent={generatedText} />
+                 ) : (
+                     <SmartText content={generatedText} />
+                 )}
              </div>
          )}
 

@@ -1,5 +1,4 @@
-
-import { CampaignSettings, FullQuest, CampaignNpc, TravelResult, BestiaryEntry, QuestObjective } from "../types";
+import { CampaignSettings, FullQuest, CampaignNpc, TravelResult, BestiaryEntry, QuestObjective, ChatMessage } from "../types";
 import { ECHOES_CAMPAIGN_PROMPT } from "../data/prompts/echoesPrompts";
 
 // Available models per user request
@@ -73,6 +72,14 @@ export const setCampaignMode = (mode: CampaignMode) => {
     localStorage.setItem(STORAGE_KEY_MODE, mode);
 };
 
+// Helper to read recent events from localStorage (populated by App.tsx)
+const getRecentEvents = (): string => {
+    try {
+        const events = localStorage.getItem('dmc_recent_events');
+        return events ? `\nПОСЛЕДНИЕ СОБЫТИЯ В ИГРЕ (Контекст):\n${events}\n` : "";
+    } catch (e) { return ""; }
+};
+
 // Helper to get global campaign settings context
 const getCampaignContext = (): string => {
     const mode = getCampaignMode();
@@ -84,13 +91,16 @@ const getCampaignContext = (): string => {
             const s: CampaignSettings = JSON.parse(saved);
             baseSettings = `НАСТРОЙКИ ИГРЫ: Мир: "${s.worldName}". Тон: "${s.tone}". Уровень группы: ${s.partyLevel}.`;
         }
+        
+        // Inject recent events dynamically
+        const eventsContext = getRecentEvents();
 
         if (mode === 'echoes') {
-            // Inject the massive prompt + local settings
-            return `${ECHOES_CAMPAIGN_PROMPT}\n\n${baseSettings}`;
+            // Inject the massive prompt + local settings + events
+            return `${ECHOES_CAMPAIGN_PROMPT}\n\n${baseSettings}\n${eventsContext}`;
         } else {
             // Standard mode
-            return `КОНТЕКСТ КАМПАНИИ: ${baseSettings} Учитывай это при генерации.`;
+            return `КОНТЕКСТ КАМПАНИИ: ${baseSettings}\n${eventsContext} Учитывай эти недавние события при генерации.`;
         }
     } catch (e) {
         return "";
@@ -193,21 +203,57 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 2, delay = 1000): Pr
     }
 }
 
+// --- CHAT GENERATION ---
+
+export const chatWithNpc = async (npc: CampaignNpc, messages: ChatMessage[]): Promise<string> => {
+    const context = getCampaignContext();
+    const systemPrompt = `Ты отыгрываешь роль NPC в настольной ролевой игре D&D.
+    
+    ПЕРСОНАЖ:
+    Имя: ${npc.name}
+    Раса/Класс: ${npc.race} ${npc.class || 'Неизвестно'}
+    Локация: ${npc.location}
+    Характер: ${npc.personality}
+    Секрет: ${npc.secret || 'Нет'}
+    Отношение: ${npc.attitude}
+
+    ${context}
+    
+    ИНСТРУКЦИИ:
+    1. Отвечай СТРОГО от первого лица, в образе этого персонажа.
+    2. Используй особенности речи, указанные в описании.
+    3. Будь краток и диалогичен (не пиши длинные монологи, если не спросят).
+    4. Описывай действия в звездочках *вздыхает*, *протирает стакан*.
+    5. Учитывай недавние события игры (из контекста), если они касаются тебя или твоей локации.
+    6. Не выходи из роли.`;
+    
+    // Convert chat messages to API format
+    const apiMessages = [
+        { role: "system", content: systemPrompt },
+        ...messages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content }))
+    ];
+
+    return withRetry(async () => {
+        const text = await makeRequest(apiMessages);
+        return cleanText(text); 
+    });
+};
+
 // --- IMAGE GENERATION ---
 
-async function initiateImageGeneration(prompt: string, aspectRatio: string = "1:1"): Promise<string> {
+const initiateImageGeneration = async (imagePrompt: string, ratio: string = "1:1"): Promise<string> => {
     const apiKey = getCustomApiKey() || process.env.API_KEY || '';
     if (!apiKey) throw new Error("API Key не найден.");
 
     const model = getActiveImageModel();
     
     // Truncate prompt to avoid 400 Error (Prompt too long)
-    const safePrompt = prompt.substring(0, 950);
+    const safePrompt = imagePrompt.substring(0, 950);
 
     const body: any = {
         model: model,
         prompt: safePrompt,
-        size: aspectRatio // API now expects aspect ratio string e.g. "1:1", "16:9"
+        size: ratio // API now expects aspect ratio string e.g. "1:1", "16:9"
     };
 
     const response = await fetch(`${BASE_API_URL}/images/generations`, {
@@ -229,7 +275,7 @@ async function initiateImageGeneration(prompt: string, aspectRatio: string = "1:
          throw new Error("API не вернул requestId для отслеживания статуса.");
     }
     return data.requestId; 
-}
+};
 
 async function checkImageStatus(requestId: string): Promise<any> {
     const apiKey = getCustomApiKey() || process.env.API_KEY || '';
@@ -246,8 +292,8 @@ async function checkImageStatus(requestId: string): Promise<any> {
     return await response.json();
 }
 
-export const generateImage = async (prompt: string, aspectRatio: string = "1:1"): Promise<string> => {
-    const requestId = await initiateImageGeneration(prompt, aspectRatio);
+export const generateImage = async (imagePrompt: string, ratio: string = "1:1"): Promise<string> => {
+    const requestId = await initiateImageGeneration(imagePrompt, ratio);
     console.log(`Image generation started. ID: ${requestId}`);
     
     const maxAttempts = 150; 

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { Combatant, EntityType, LogEntry, PartyMember, Condition, BestiaryEntry } from '../types';
 import { CONDITIONS, SAMPLE_COMBATANTS } from '../constants';
@@ -7,14 +8,71 @@ import BestiaryBrowser from './BestiaryBrowser';
 import { generateCombatLoot, generateMonster } from '../services/polzaService';
 import { calculateEncounterDifficulty, EncounterResult } from '../services/encounterService';
 import { useAudio } from '../contexts/AudioContext';
+import { useToast } from '../contexts/ToastContext';
 import SmartText from './SmartText';
+import LootInteraction from './LootInteraction';
 
 interface CombatTrackerProps {
   addLog: (entry: LogEntry) => void;
 }
 
+// Helper to parse text and make dice clickable
+const ActionRenderer: React.FC<{ text: string, sourceName: string, onRoll: (expr: string, result: number, total: number) => void }> = ({ text, sourceName, onRoll }) => {
+    // Regex for dice notation: e.g., 1d8, 2d6 + 3, 1d4+1, 10d10
+    const diceRegex = /(\d+d\d+(?:\s*[+\-]\s*\d+)?)/g;
+    
+    const parts = text.split(diceRegex);
+    
+    const rollDice = (expression: string) => {
+        try {
+            const cleanExpr = expression.replace(/\s/g, '');
+            const [dicePart, modPart] = cleanExpr.split(/[+\-]/);
+            const [count, sides] = dicePart.split('d').map(Number);
+            const modifier = modPart ? Number(modPart) : 0;
+            const isNegative = cleanExpr.includes('-');
+            
+            let total = 0;
+            const rolls = [];
+            
+            for (let i = 0; i < count; i++) {
+                const val = Math.floor(Math.random() * sides) + 1;
+                rolls.push(val);
+                total += val;
+            }
+            
+            const finalTotal = isNegative ? total - modifier : total + modifier;
+            
+            onRoll(expression, finalTotal, finalTotal);
+        } catch (e) {
+            console.error("Dice parse error", e);
+        }
+    };
+
+    return (
+        <span>
+            {parts.map((part, i) => {
+                if (part.match(diceRegex)) {
+                    return (
+                        <button 
+                            key={i}
+                            onClick={(e) => { e.stopPropagation(); rollDice(part); }}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-1 bg-indigo-900/50 hover:bg-indigo-600 border border-indigo-500/50 rounded text-indigo-200 hover:text-white font-mono text-xs cursor-pointer transition-colors"
+                            title="Нажмите, чтобы бросить"
+                        >
+                            <Dices className="w-3 h-3"/> {part}
+                        </button>
+                    );
+                }
+                // Render HTML if present in the text parts (e.g. <b> tags from source)
+                return <span key={i} dangerouslySetInnerHTML={{__html: part}} />;
+            })}
+        </span>
+    );
+};
+
 const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
   const { playPlaylist, autoPlayMusic } = useAudio();
+  const { showToast } = useToast();
 
   const [combatants, setCombatants] = useState<Combatant[]>(() => {
       const saved = localStorage.getItem('dmc_combatants');
@@ -119,7 +177,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
         setActiveId(sorted[0].id);
         setTurnIndex(0);
     }
-    addLog({ id: Date.now().toString(), timestamp: Date.now(), text: "Инициатива отсортирована.", type: 'system' });
+    showToast("Инициатива отсортирована", "info");
   };
 
   const applyInitiativeRolls = () => {
@@ -141,6 +199,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
           }
       });
       setInitRolls(newRolls);
+      showToast("Инициатива монстров брошена", "success");
   };
 
   const nextTurn = () => {
@@ -212,6 +271,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
         return updated;
     });
     setNewCombatant({ name: '', initiative: 10, hp: 10, maxHp: 10, ac: 10, type: EntityType.MONSTER });
+    showToast(`${combatant.name} добавлен`, 'success');
   };
 
   const removeCombatant = (id: string) => {
@@ -258,7 +318,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
           detail: { amount: victoryXp, reason: 'за победу в бою' } 
       });
       window.dispatchEvent(event);
-      alert(`Начислено ${victoryXp} XP каждому герою.`);
+      // Toast handled in App.tsx listener
   };
 
   const generateVictoryLoot = async () => {
@@ -281,7 +341,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
   const generateLootForEncounter = async () => {
       const monsters = combatants.filter(c => c.type === EntityType.MONSTER);
       if (monsters.length === 0) {
-          alert("Нет монстров для сбора добычи.");
+          showToast("Нет монстров для лута", "warning");
           return;
       }
       setLootLoading(true);
@@ -293,9 +353,9 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
           
           const result = await generateCombatLoot(namesToUse, avgLevel);
           addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[ДОБЫЧА]: ${result.replace(/<[^>]*>?/gm, ' ')}`, type: 'story' });
-          alert("Добыча сгенерирована и добавлена в лог сессии.");
+          showToast("Добыча сгенерирована", "success");
       } catch (e: any) {
-          alert(`Ошибка генерации лута: ${e.message}`);
+          showToast(`Ошибка: ${e.message}`, "error");
       } finally {
           setLootLoading(false);
       }
@@ -303,10 +363,10 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
 
   const loadParty = () => {
     const savedParty = localStorage.getItem('dmc_party');
-    if (!savedParty) { alert("В менеджере персонажей нет данных."); return; }
+    if (!savedParty) { showToast("Нет данных о группе", "warning"); return; }
     const partyMembers: PartyMember[] = JSON.parse(savedParty);
     const activeMembers = partyMembers.filter(p => p.active);
-    if (activeMembers.length === 0) { alert("Нет активных персонажей."); return; }
+    if (activeMembers.length === 0) { showToast("Нет активных героев", "warning"); return; }
 
     const existingIds = new Set(combatants.map(c => c.id));
     const newCombatants: Combatant[] = activeMembers
@@ -328,8 +388,9 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
     if (newCombatants.length > 0) {
         setCombatants(prev => [...prev, ...newCombatants]);
         addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Добавлено ${newCombatants.length} героев в бой.`, type: 'system' });
+        showToast(`Добавлено ${newCombatants.length} героев`, "success");
     } else {
-        alert("Все активные герои уже в бою.");
+        showToast("Все герои уже в бою", "info");
     }
   };
 
@@ -340,6 +401,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
         const dexMod = Math.floor((monster.stats.dex - 10) / 2);
         const initRoll = Math.floor(Math.random() * 20) + 1 + dexMod;
         const name = count > 1 ? `${monster.name} ${i}` : monster.name;
+        // Format actions for display
         const actions = monster.actions?.map(a => `<b>${a.name}:</b> ${a.desc}`) || [];
 
         newMonsters.push({
@@ -366,6 +428,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
         return [...prev, ...newMonsters];
     });
     addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Добавлено ${count} x ${monster.name}.`, type: 'system' });
+    showToast(`${count} x ${monster.name} добавлены`, "success");
   };
 
   const returnToTravel = () => {
@@ -443,7 +506,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
         text: `[Бестиарий] Сохранен статблок: ${viewingStatBlock.name}`, 
         type: 'system' 
     });
-    alert("Сохранено в Бестиарий!");
+    showToast("Сохранено в Бестиарий!", "success");
   };
 
   const convertToNpc = () => {
@@ -477,6 +540,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
             text: `${viewingStatBlock.name} стал NPC и теперь нейтрален.`,
             type: 'story'
         });
+        showToast(`${viewingStatBlock.name} теперь NPC`, 'success');
         
         setViewingStatBlock(null); // Close modal
   };
@@ -512,10 +576,21 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
         }));
 
     } catch (e: any) {
-        alert("Ошибка генерации: " + e.message);
+        showToast(`Ошибка: ${e.message}`, "error");
     } finally {
         setGeneratingStats(false);
     }
+  };
+
+  const handleActionRoll = (expr: string, result: number, total: number) => {
+      const name = activeCombatant ? activeCombatant.name : 'Монстр';
+      addLog({
+          id: Date.now().toString(),
+          timestamp: Date.now(),
+          text: `⚔️ ${name} использует действие: [${expr}] = ${total}`,
+          type: 'roll'
+      });
+      showToast(`${name}: ${total} (${expr})`, 'info');
   };
 
   const activeCombatant = combatants.find(c => c.id === activeId);
@@ -643,7 +718,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
                               <ul className="space-y-3">
                                   {viewingStatBlock.actions.map((action, i) => (
                                       <li key={i} className="text-sm">
-                                          <span className="font-bold text-white">{action.name}.</span> <span className="text-gray-300">{action.desc}</span>
+                                          <span className="font-bold text-white">{action.name}.</span> <ActionRenderer text={action.desc} sourceName={viewingStatBlock.name} onRoll={handleActionRoll} />
                                       </li>
                                   ))}
                               </ul>
@@ -757,7 +832,8 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
                           </div>
                           <div className="bg-gray-900 p-3 rounded border border-gray-700 min-h-[100px] text-sm text-gray-300">
                               {victoryLoot ? (
-                                  <div dangerouslySetInnerHTML={{ __html: victoryLoot }} />
+                                  // USE LOOT INTERACTION HERE
+                                  <LootInteraction htmlContent={victoryLoot} />
                               ) : (
                                   <p className="text-gray-600 italic text-center mt-4">Трофеи еще не собраны...</p>
                               )}
@@ -823,8 +899,8 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
 
         {/* Active Combatant Bar */}
         {activeCombatant && (
-            <div className="text-xs text-gray-400 font-sans bg-gray-900/30 p-2 rounded border border-gray-800 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                <div className="flex items-center justify-between w-full sm:w-auto">
+            <div className="text-xs text-gray-400 font-sans bg-gray-900/30 p-2 rounded border border-gray-800 flex flex-col gap-2">
+                <div className="flex items-center justify-between w-full">
                     <span>Ход: <span className="text-white font-bold text-sm">{activeCombatant.name}</span></span>
                     <div className="flex gap-2 items-center sm:hidden">
                         {(activeCombatant.conditions || []).map(c => (
@@ -836,10 +912,12 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
                 </div>
                 
                 {activeCombatant.actions && activeCombatant.actions.length > 0 && (
-                    <div className="flex-1 border-t sm:border-t-0 sm:border-l border-gray-700 pt-2 sm:pt-0 sm:pl-2 text-gray-300 overflow-x-auto">
-                        <div className="flex gap-2">
+                    <div className="flex-1 border-t border-gray-700 pt-2 mt-1 text-gray-300">
+                         <div className="flex flex-wrap gap-2">
                             {activeCombatant.actions.map((act, idx) => (
-                                <span key={idx} className="bg-black/40 px-2 py-0.5 rounded border border-gray-700 whitespace-nowrap" dangerouslySetInnerHTML={{__html: act}} />
+                                <div key={idx} className="bg-black/40 px-2 py-1.5 rounded border border-gray-700 text-xs w-full sm:w-auto">
+                                    <ActionRenderer text={act} sourceName={activeCombatant.name} onRoll={handleActionRoll} />
+                                </div>
                             ))}
                         </div>
                     </div>
@@ -934,13 +1012,10 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
                          </div>
                     </div>
                     
-                    {c.type === EntityType.MONSTER && isActive && c.actions && c.actions.length > 0 && (
-                        <div className="mt-2 text-xs text-gray-300 bg-black/20 p-2 rounded border border-gray-800">
-                            <ul className="space-y-1 list-disc list-inside">
-                                {c.actions.map((action, i) => (
-                                    <li key={i} dangerouslySetInnerHTML={{__html: action}} />
-                                ))}
-                            </ul>
+                    {/* Simplified Action View for List Items (Non-Active) */}
+                    {c.type === EntityType.MONSTER && !isActive && c.actions && c.actions.length > 0 && (
+                        <div className="mt-1 text-[10px] text-gray-500 truncate max-w-xs hidden sm:block">
+                             {c.actions.map(a => a.replace(/<[^>]*>?/gm, '')).join(', ')}
                         </div>
                     )}
                 </div>

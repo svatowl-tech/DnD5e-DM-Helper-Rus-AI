@@ -108,6 +108,13 @@ export interface CampaignNpc extends NpcData {
     imageUrl?: string;
 }
 
+export interface ChatMessage {
+    id: string;
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    timestamp: number;
+}
+
 // Legacy simple quest data for locations
 export interface QuestData {
     title: string;
@@ -280,6 +287,21 @@ export interface AudioContextType {
     playSfx: (url: string) => void;
     stopAllSfx: () => void;
     autoPlayMusic: (type: 'combat' | 'location' | 'travel' | 'victory', contextText?: string) => void;
+}
+
+// Toast Types
+export type ToastType = 'success' | 'error' | 'info' | 'warning';
+
+export interface ToastMessage {
+  id: string;
+  message: string;
+  type: ToastType;
+}
+
+export interface ToastContextType {
+  toasts: ToastMessage[];
+  showToast: (message: string, type?: ToastType) => void;
+  removeToast: (id: string) => void;
 }
 
 export enum Tab {

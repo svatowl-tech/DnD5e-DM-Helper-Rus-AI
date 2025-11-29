@@ -31,7 +31,7 @@ const Gallery: React.FC<GalleryProps> = ({ images, onShow, onDelete }) => {
                     <h2 className="text-2xl font-serif font-bold text-gold-500 flex items-center gap-2">
                         <ImageIcon className="w-6 h-6"/> Галерея Артов
                     </h2>
-                    <p className="text-sm text-gray-400">Сгенерированные изображения сохраняются здесь.</p>
+                    <p className="text-sm text-gray-400">Сгенерированные изображения хранятся в локальной базе данных (IndexedDB).</p>
                 </div>
                 
                 <div className="flex bg-gray-800 rounded-lg p-1">
