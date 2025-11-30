@@ -1,8 +1,10 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { Combatant, EntityType, PartyMember, CampaignSettings, FullQuest, LogEntry, Note } from '../types';
 import { Sword, BrainCircuit, Users, Settings, Play, StopCircle, AlertTriangle, Eye, Target, Zap, MapPin, ScrollText, Key, Image as ImageIcon, Download, Upload, Database, FileJson } from 'lucide-react';
 import SessionWizard from './SessionWizard';
 import { getCampaignMode } from '../services/polzaService';
+import { getAllImagesFromDB, saveImageToDB } from '../services/db';
 
 interface DashboardProps {
     onChangeTab: (tab: any) => void;
@@ -29,7 +31,10 @@ const STORAGE_KEYS = [
     'dmc_campaign_mode',
     'dmc_active_travel',
     'dmc_combat_round',
-    'dmc_combat_turn'
+    'dmc_combat_turn',
+    'dmc_combat_active_id',
+    'dmc_lore',
+    'dmc_recent_events'
 ];
 
 const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
@@ -55,6 +60,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
     
     // Import ref
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isExporting, setIsExporting] = useState(false);
     
     const currentMode = getCampaignMode();
 
@@ -153,33 +159,51 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
 
     // --- IMPORT / EXPORT LOGIC ---
 
-    const handleExport = () => {
-        const exportData: Record<string, any> = {
-            meta: {
-                version: 1,
-                timestamp: new Date().toISOString(),
-                app: "DM Codex"
-            },
-            data: {}
-        };
+    const handleExport = async () => {
+        setIsExporting(true);
+        try {
+            const exportData: Record<string, any> = {
+                meta: {
+                    version: 2,
+                    timestamp: new Date().toISOString(),
+                    app: "DM Codex"
+                },
+                data: {},
+                images: []
+            };
 
-        STORAGE_KEYS.forEach(key => {
-            const value = localStorage.getItem(key);
-            if (value !== null) {
-                exportData.data[key] = value;
+            // 1. Export LocalStorage Data
+            STORAGE_KEYS.forEach(key => {
+                const value = localStorage.getItem(key);
+                if (value !== null) {
+                    exportData.data[key] = value;
+                }
+            });
+
+            // 2. Export IndexedDB Images
+            try {
+                const images = await getAllImagesFromDB();
+                exportData.images = images;
+            } catch (e) {
+                console.error("Failed to export images from DB", e);
+                // Continue without images rather than failing completely
             }
-        });
 
-        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        const dateStr = new Date().toISOString().split('T')[0];
-        link.download = `dm-codex-backup-${dateStr}.json`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            const dateStr = new Date().toISOString().split('T')[0];
+            link.download = `dm-codex-backup-${dateStr}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch (e: any) {
+            alert("Ошибка при экспорте: " + e.message);
+        } finally {
+            setIsExporting(false);
+        }
     };
 
     const handleImportClick = () => {
@@ -193,7 +217,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = (event) => {
+        reader.onload = async (event) => {
             try {
                 const content = event.target?.result as string;
                 const parsed = JSON.parse(content);
@@ -202,15 +226,27 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
                     throw new Error("Неверный формат файла");
                 }
 
-                if (window.confirm(`Найден бэкап от ${new Date(parsed.meta?.timestamp).toLocaleString()}. \n\nВНИМАНИЕ: Текущие данные будут заменены! Продолжить?`)) {
+                if (window.confirm(`Найден бэкап от ${new Date(parsed.meta?.timestamp).toLocaleString()}. \nВ файле также ${parsed.images?.length || 0} изображений.\n\nВНИМАНИЕ: Текущие данные будут полностью заменены! Продолжить?`)) {
                     
-                    // Restore Keys
+                    // 1. Restore LocalStorage
                     Object.keys(parsed.data).forEach(key => {
                         // Only restore known keys to prevent pollution
                         if (STORAGE_KEYS.includes(key)) {
                             localStorage.setItem(key, parsed.data[key]);
                         }
                     });
+
+                    // 2. Restore IndexedDB Images
+                    if (parsed.images && Array.isArray(parsed.images)) {
+                        try {
+                            for (const img of parsed.images) {
+                                await saveImageToDB(img);
+                            }
+                        } catch (dbError) {
+                            console.error("Error restoring images", dbError);
+                            alert("Данные восстановлены, но произошла ошибка при импорте изображений.");
+                        }
+                    }
 
                     alert("Данные успешно импортированы. Приложение будет перезагружено.");
                     window.location.reload();
@@ -420,15 +456,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
                 <div className="bg-gray-900/80 p-3 rounded-lg flex flex-col sm:flex-row justify-between items-center gap-3 border border-gray-800">
                     <div className="text-xs text-gray-400 flex items-center gap-2">
                         <Database className="w-4 h-4 text-gray-500"/>
-                        <span>Управление данными</span>
-                        <span className="text-[10px] bg-gray-800 px-2 py-0.5 rounded border border-gray-700">Все данные хранятся в браузере</span>
+                        <span>Управление данными (Full Backup)</span>
+                        <span className="text-[10px] bg-gray-800 px-2 py-0.5 rounded border border-gray-700">Включает картинки и лор</span>
                     </div>
                     <div className="flex gap-2 w-full sm:w-auto">
                         <button 
                             onClick={handleExport}
-                            className="flex-1 sm:flex-none bg-blue-900/30 hover:bg-blue-800 text-blue-200 px-4 py-2 rounded text-xs font-bold flex items-center justify-center gap-2 border border-blue-800 transition-colors"
+                            disabled={isExporting}
+                            className="flex-1 sm:flex-none bg-blue-900/30 hover:bg-blue-800 text-blue-200 px-4 py-2 rounded text-xs font-bold flex items-center justify-center gap-2 border border-blue-800 transition-colors disabled:opacity-50"
                         >
-                            <Download className="w-4 h-4"/> Экспорт (Backup)
+                            <Download className="w-4 h-4"/> {isExporting ? 'Экспорт...' : 'Экспорт (Backup)'}
                         </button>
                         <button 
                             onClick={handleImportClick}

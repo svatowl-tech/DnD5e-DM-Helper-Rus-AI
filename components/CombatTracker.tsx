@@ -1,9 +1,8 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { Combatant, EntityType, LogEntry, PartyMember, Condition, BestiaryEntry } from '../types';
 import { CONDITIONS, SAMPLE_COMBATANTS } from '../constants';
-import { Shield, Heart, Sword, Skull, Play, RefreshCw, Plus, X, Trash2, Users, BookOpen, Coins, Loader, Flag, Zap, Activity, HelpCircle, Trophy, Star, Dices, Compass, ArrowLeft, Check, Book, Sparkles, Save, UserPlus } from 'lucide-react';
+import { Shield, Heart, Sword, Skull, Play, RefreshCw, Plus, X, Trash2, Users, BookOpen, Coins, Loader, Flag, Zap, Activity, HelpCircle, Trophy, Star, Dices, Compass, ArrowLeft, Check, Book, Sparkles, Save, UserPlus, Feather } from 'lucide-react';
 import BestiaryBrowser from './BestiaryBrowser';
 import { generateCombatLoot, generateMonster } from '../services/polzaService';
 import { calculateEncounterDifficulty, EncounterResult } from '../services/encounterService';
@@ -167,7 +166,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
       // Check names for intelligent switching
       const monsterNames = combatants.filter(c => c.type === EntityType.MONSTER).map(c => c.name + " " + c.notes).join(' ');
       autoPlayMusic('combat', monsterNames);
-      addLog({ id: Date.now().toString(), timestamp: Date.now(), text: "Включена боевая музыка.", type: 'system' });
   };
 
   const sortCombatants = () => {
@@ -188,7 +186,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
       setShowInitModal(false);
       setTurnIndex(0);
       if (combatants.length > 0) setActiveId(combatants[0].id); 
-      addLog({ id: Date.now().toString(), timestamp: Date.now(), text: "Новая инициатива применена.", type: 'roll' });
+      showToast("Инициатива обновлена", "success");
   };
 
   const rollForMonsters = () => {
@@ -208,7 +206,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
     if (nextIndex >= combatants.length) {
       nextIndex = 0;
       setRound(r => r + 1);
-      addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Раунд ${round + 1} начался.`, type: 'combat' });
     }
     setTurnIndex(nextIndex);
     setActiveId(combatants[nextIndex].id);
@@ -219,7 +216,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
       if (c.id === id) {
         const newHp = Math.max(0, c.hp + delta);
         if (newHp === 0 && c.hp > 0) {
-             addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `${c.name} теряет сознание!`, type: 'combat' });
+             showToast(`${c.name} теряет сознание!`, 'warning');
         }
         return { ...c, hp: newHp };
       }
@@ -310,7 +307,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
       setTurnIndex(0);
       setActiveId(null);
       setShowVictoryModal(false);
-      addLog({ id: Date.now().toString(), timestamp: Date.now(), text: "Боевая сцена завершена.", type: 'system' });
+      showToast("Сцена завершена", 'info');
   };
 
   const distributeXp = () => {
@@ -330,7 +327,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
           const avgLevel = players.length > 0 ? 3 : 1; 
           const result = await generateCombatLoot(names, avgLevel);
           setVictoryLoot(result);
-          addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[ДОБЫЧА]: ${result.replace(/<[^>]*>?/gm, ' ')}`, type: 'story' });
+          // Removed auto-log. User can manually add if needed.
       } catch (e: any) {
           setVictoryLoot(`<span class='text-red-400'>Ошибка: ${e.message}</span>`);
       } finally {
@@ -352,13 +349,24 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
           const namesToUse = names.length > 0 ? names : ["Неизвестный враг"];
           
           const result = await generateCombatLoot(namesToUse, avgLevel);
-          addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[ДОБЫЧА]: ${result.replace(/<[^>]*>?/gm, ' ')}`, type: 'story' });
+          // For manual generation during combat, we open the Victory modal to show loot
+          setVictoryLoot(result);
+          setShowVictoryModal(true);
+          setVictoryXp(0); // Don't show XP part if just checking loot, or user ignores it
+          
           showToast("Добыча сгенерирована", "success");
       } catch (e: any) {
           showToast(`Ошибка: ${e.message}`, "error");
       } finally {
           setLootLoading(false);
       }
+  };
+
+  const saveLootToLog = () => {
+        if (!victoryLoot) return;
+        const cleanText = victoryLoot.replace(/<[^>]*>?/gm, ' ');
+        addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[ДОБЫЧА]: ${cleanText}`, type: 'story' });
+        showToast("Добыча записана в летопись", "success");
   };
 
   const loadParty = () => {
@@ -387,7 +395,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
     
     if (newCombatants.length > 0) {
         setCombatants(prev => [...prev, ...newCombatants]);
-        addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Добавлено ${newCombatants.length} героев в бой.`, type: 'system' });
         showToast(`Добавлено ${newCombatants.length} героев`, "success");
     } else {
         showToast("Все герои уже в бою", "info");
@@ -427,7 +434,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
         }
         return [...prev, ...newMonsters];
     });
-    addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Добавлено ${count} x ${monster.name}.`, type: 'system' });
     showToast(`${count} x ${monster.name} добавлены`, "success");
   };
 
@@ -500,12 +506,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
     const updatedBestiary = [entryToSave, ...filtered];
     localStorage.setItem('dmc_local_bestiary', JSON.stringify(updatedBestiary));
     
-    addLog({ 
-        id: Date.now().toString(), 
-        timestamp: Date.now(), 
-        text: `[Бестиарий] Сохранен статблок: ${viewingStatBlock.name}`, 
-        type: 'system' 
-    });
     showToast("Сохранено в Бестиарий!", "success");
   };
 
@@ -534,12 +534,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
         }));
 
         // 3. Log and Notify
-        addLog({
-            id: Date.now().toString(),
-            timestamp: Date.now(),
-            text: `${viewingStatBlock.name} стал NPC и теперь нейтрален.`,
-            type: 'story'
-        });
         showToast(`${viewingStatBlock.name} теперь NPC`, 'success');
         
         setViewingStatBlock(null); // Close modal
@@ -584,13 +578,20 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
 
   const handleActionRoll = (expr: string, result: number, total: number) => {
       const name = activeCombatant ? activeCombatant.name : 'Монстр';
+      // Dice rolls are not auto-logged to the main chronicle to reduce noise
+      // They are shown in toast and the DiceRoller component history (if integrated)
+      showToast(`${name}: ${total} (${expr})`, 'info');
+  };
+
+  const logCombatStart = () => {
+      const enemies = combatants.filter(c => c.type === EntityType.MONSTER).map(c => c.name).join(', ');
       addLog({
           id: Date.now().toString(),
           timestamp: Date.now(),
-          text: `⚔️ ${name} использует действие: [${expr}] = ${total}`,
-          type: 'roll'
+          text: `[Бой] Начало сражения. Противники: ${enemies || 'Неизвестно'}`,
+          type: 'combat'
       });
-      showToast(`${name}: ${total} (${expr})`, 'info');
+      showToast("Начало боя записано", 'success');
   };
 
   const activeCombatant = combatants.find(c => c.id === activeId);
@@ -811,24 +812,37 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
                               <Star className="w-6 h-6 fill-current"/> {victoryXp} XP
                           </div>
                           <p className="text-xs text-gray-500">каждому герою</p>
-                          <button 
-                            onClick={distributeXp}
-                            className="mt-2 text-sm bg-blue-600 hover:bg-blue-500 text-white px-4 py-1 rounded font-bold"
-                          >
-                              Начислить Опыт
-                          </button>
+                          {victoryXp > 0 && (
+                              <button 
+                                onClick={distributeXp}
+                                className="mt-2 text-sm bg-blue-600 hover:bg-blue-500 text-white px-4 py-1 rounded font-bold"
+                              >
+                                  Начислить Опыт
+                              </button>
+                          )}
                       </div>
 
                       <div className="border-t border-gray-700 pt-4">
                           <div className="flex justify-between items-center mb-2">
                               <h3 className="font-bold text-white flex items-center gap-2"><Coins className="w-5 h-5 text-yellow-500"/> Добыча</h3>
-                              <button 
-                                onClick={generateVictoryLoot}
-                                disabled={lootLoading}
-                                className="text-xs bg-gray-800 hover:bg-gray-700 text-gold-500 px-3 py-1 rounded flex items-center gap-1 disabled:opacity-50"
-                              >
-                                  {lootLoading ? <Loader className="w-3 h-3 animate-spin"/> : <RefreshCw className="w-3 h-3"/>} Генерировать
-                              </button>
+                              <div className="flex gap-2">
+                                  {victoryLoot && (
+                                      <button 
+                                        onClick={saveLootToLog}
+                                        className="text-xs bg-gray-800 hover:bg-gray-700 text-green-400 px-3 py-1 rounded flex items-center gap-1 border border-green-900"
+                                        title="Записать в летопись"
+                                      >
+                                          <Feather className="w-3 h-3"/> В летопись
+                                      </button>
+                                  )}
+                                  <button 
+                                    onClick={generateVictoryLoot}
+                                    disabled={lootLoading}
+                                    className="text-xs bg-gray-800 hover:bg-gray-700 text-gold-500 px-3 py-1 rounded flex items-center gap-1 disabled:opacity-50"
+                                  >
+                                      {lootLoading ? <Loader className="w-3 h-3 animate-spin"/> : <RefreshCw className="w-3 h-3"/>} Генерировать
+                                  </button>
+                              </div>
                           </div>
                           <div className="bg-gray-900 p-3 rounded border border-gray-700 min-h-[100px] text-sm text-gray-300">
                               {victoryLoot ? (
@@ -876,6 +890,9 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
             </div>
 
             <div className="flex gap-2">
+                <button onClick={logCombatStart} className="text-gray-400 hover:text-white p-2 hover:bg-gray-800 rounded" title="Записать начало боя">
+                    <Feather className="w-4 h-4"/>
+                </button>
                 {hasActiveTravel && (
                     <button 
                         onClick={returnToTravel}

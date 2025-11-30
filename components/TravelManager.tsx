@@ -1,15 +1,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { TravelResult, TravelEvent, LoreEntry, LocationData, TravelState, EntityType, BestiaryEntry } from '../types';
-import { generateTravelScenario, generateFullLocation, generateMonster } from '../services/polzaService';
+import { generateTravelScenario, generateFullLocation, generateMonster, generateMultiverseBreach } from '../services/polzaService';
 import { 
     Map, Footprints, Ship, Zap, 
     Cloud, Sword, Search, MessageSquare, Skull, 
     CheckCircle, X, Loader, ArrowRight, Compass,
     Target, Coins, Tent, RotateCcw, Sparkles,
-    Settings, ArrowLeft, Clock, Calendar
+    Settings, ArrowLeft, Clock, Calendar, Feather,
+    Hexagon, TreePine, Castle, Landmark
 } from 'lucide-react';
 import { useAudio } from '../contexts/AudioContext';
+import { useToast } from '../contexts/ToastContext';
 
 interface TravelManagerProps {
     isOpen: boolean; // Kept for API consistency, but represents "Is Active Tab" now
@@ -39,6 +41,14 @@ const METHOD_OPTIONS = [
     { id: 'ship', label: 'Корабль', icon: <Ship className="w-4 h-4"/> },
 ];
 
+const GENERIC_TYPES = [
+    "Руины", "Башня Мага", "Пещера", "Лес", "Деревня", 
+    "Лагерь", "Храм", "Подземелье", "Кладбище", "Порт", 
+    "Мост", "Оазис", "Крепость", "Шахта", "Ферма", 
+    "Корабль", "Рынок", "Тюрьма", "Портал", "Усадьба", 
+    "Сокровищница", "Библиотека", "Арена", "Таверна"
+];
+
 const TravelManager: React.FC<TravelManagerProps> = ({ 
     isOpen, 
     onClose, 
@@ -53,16 +63,22 @@ const TravelManager: React.FC<TravelManagerProps> = ({
     onCancelTravel 
 }) => {
     const { autoPlayMusic } = useAudio();
+    const { showToast } = useToast();
+    
     // View Modes: 'plan' (setup), 'loading' (AI working), 'journey' (active trip), 'error' (API failure)
     const [viewMode, setViewMode] = useState<'plan' | 'loading' | 'journey' | 'error'>('plan');
+    const [loadingText, setLoadingText] = useState('Прокладываем маршрут...');
     const [errorMessage, setErrorMessage] = useState('');
     const [isAuthError, setIsAuthError] = useState(false);
 
     // Planning Form State
-    const [travelScope, setTravelScope] = useState<'local' | 'global'>('local');
+    const [destMode, setDestMode] = useState<'lore' | 'generic' | 'breach' | 'custom'>('lore');
+    
     const [targetRegionId, setTargetRegionId] = useState<string>('');
     const [targetLocationName, setTargetLocationName] = useState<string>('');
     const [customTarget, setCustomTarget] = useState('');
+    const [genericType, setGenericType] = useState(GENERIC_TYPES[0]);
+    
     const [selectedMethod, setSelectedMethod] = useState('foot');
     const [selectedPace, setSelectedPace] = useState('normal');
     const [duration, setDuration] = useState(3);
@@ -93,30 +109,47 @@ const TravelManager: React.FC<TravelManagerProps> = ({
 
     // Helper: Get list of locations based on scope
     const getAvailableLocations = () => {
-        if (travelScope === 'local') {
-            return currentRegion?.locations || [];
-        } else if (targetRegionId) {
+        if (targetRegionId) {
             const region = allLore.find(r => r.id === targetRegionId);
             return region?.locations || [];
         }
-        return [];
+        // Fallback to current region if no target selected yet (though logic usually enforces selection)
+        return currentRegion?.locations || [];
     };
 
     // Action: Generate the Travel Scenario
     const handleGenerateScenario = async () => {
         const origin = currentLocation?.name || 'Неизвестная местность';
-        const destination = customTarget || targetLocationName || 'Неизвестная цель';
         
-        let context = currentRegion ? `Регион: ${currentRegion.name}. ${currentRegion.description.substring(0, 100)}...` : 'Фэнтези мир.';
+        // Determine Destination String based on mode
+        let destination = 'Неизвестная цель';
+        let contextAddon = '';
+
+        if (destMode === 'lore') {
+            destination = targetLocationName || 'Место в регионе';
+        } else if (destMode === 'generic') {
+            destination = `${genericType} (Неисследованная)`;
+            contextAddon = `Цель — найти локацию типа "${genericType}".`;
+        } else if (destMode === 'breach') {
+            destination = 'Разлом Мультивселенной';
+            contextAddon = `Цель — аномалия, разлом в реальности. Путь искажен магией и странностями.`;
+        } else if (destMode === 'custom') {
+            destination = customTarget;
+        }
         
-        // Add context about target region if global travel
-        if (travelScope === 'global' && targetRegionId) {
+        let context = currentRegion ? `Регион: ${currentRegion.name}. ${currentRegion.description.substring(0, 150)}...` : 'Фэнтези мир.';
+        
+        // Add context about target region if explicitly changed
+        if (targetRegionId && targetRegionId !== currentRegion?.id) {
             const targetRegion = allLore.find(r => r.id === targetRegionId);
             if (targetRegion) {
                 context += ` Путешествие в регион: ${targetRegion.name}.`;
             }
         }
+        
+        context += " " + contextAddon;
 
+        setLoadingText('Прокладываем маршрут...');
         setViewMode('loading');
         setErrorMessage('');
         setIsAuthError(false);
@@ -139,14 +172,12 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                 completed: [],
                 destination: {
                     name: destination,
-                    regionId: travelScope === 'global' ? targetRegionId : currentRegion?.id
+                    regionId: targetRegionId || currentRegion?.id
                 }
             };
 
             onUpdateTravelState(newState);
             setViewMode('journey');
-            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Путешествие] Группа отправляется в "${destination}" (${duration} дн).`, type: 'story' });
-            
             // Start Travel Music
             autoPlayMusic('travel');
 
@@ -162,6 +193,16 @@ const TravelManager: React.FC<TravelManagerProps> = ({
             
             setViewMode('error');
         }
+    };
+
+    const logEvent = (event: TravelEvent) => {
+        addLog({ 
+            id: Date.now().toString(), 
+            timestamp: Date.now(), 
+            text: `[Путешествие] День ${event.day}: ${event.title}. ${event.description}`, 
+            type: 'story' 
+        });
+        showToast("Событие записано в летопись", 'success');
     };
 
     // Action: Handle specific event interactions
@@ -188,9 +229,6 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                 const savedBestiary = JSON.parse(localStorage.getItem('dmc_local_bestiary') || '[]');
                 
                 for (const name of threats) {
-                    // Check if already exists? (Optional, but let's regenerate to get variety or fresh stats)
-                    // Or prefer using existing if name matches exactly to save tokens.
-                    // For this implementation, we'll generate to ensure high quality "stat block logic" as requested.
                     try {
                         const stats = await generateMonster(name);
                         generatedStats.push(stats);
@@ -225,8 +263,6 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                     // Stagger slightly
                     setTimeout(() => window.dispatchEvent(combatEvent), index * 50);
                 });
-
-                addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Путь] Бой: ${threats.join(', ')}`, type: 'combat' });
                 
                 // Switch tab
                 window.dispatchEvent(new CustomEvent('dmc-switch-tab', { detail: 'combat' }));
@@ -244,7 +280,7 @@ const TravelManager: React.FC<TravelManagerProps> = ({
         } 
         else if (action === 'loot') {
             const loot = event.loot?.join(', ') || 'Ничего';
-            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Путь] Найдено: ${loot}`, type: 'story' });
+            showToast(`Найдено: ${loot}`, 'success');
             markCompleted();
         }
         else if (action === 'explore') {
@@ -259,8 +295,6 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                 
                 onGenerateLocation(newLoc);
                 markCompleted();
-                
-                addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Путь] Исследована локация: ${newLoc.name}`, type: 'system' });
                 
                 // Auto-switch music to location based
                 autoPlayMusic('location', newLoc.name + " " + newLoc.type + " " + newLoc.atmosphere);
@@ -283,31 +317,61 @@ const TravelManager: React.FC<TravelManagerProps> = ({
     };
 
     // Action: Complete Journey
-    const handleFinishJourney = () => {
+    const handleFinishJourney = async () => {
         if (!travelState) return;
         
         const destName = travelState.destination?.name || "Цель";
         const destRegionId = travelState.destination?.regionId;
+        let finalLocation: LocationData | null = null;
 
-        // Create a basic location entry for the destination if it's new
-        // Or finding existing if it matches
-        let finalLocation: LocationData = {
-            id: Date.now().toString(),
-            name: destName,
-            type: 'Локация',
-            description: 'Вы прибыли к месту назначения после долгого пути.',
-            atmosphere: 'Дорожная пыль, новые горизонты.'
-        };
-
-        // Try to find existing data
+        // 1. Try to find existing location in lore
         if (destRegionId) {
             const region = allLore.find(r => r.id === destRegionId);
             const existing = region?.locations.find(l => l.name === destName);
             if (existing) finalLocation = existing;
         }
 
-        addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Путешествие] Прибытие в "${destName}".`, type: 'system' });
-        
+        // 2. If location doesn't exist (Generated/Custom/Breach), GENERATE IT NOW
+        if (!finalLocation) {
+            setLoadingText('Генерируем и сохраняем локацию назначения...');
+            setViewMode('loading');
+            
+            try {
+                const regionName = destRegionId ? allLore.find(r => r.id === destRegionId)?.name : "Неизвестные земли";
+                
+                if (destName.includes('Разлом') || destMode === 'breach') {
+                    finalLocation = await generateMultiverseBreach();
+                    finalLocation.name = destName; // Keep the name if user set custom
+                } else {
+                    // Determine type for generation
+                    let genType = 'Локация';
+                    
+                    // If it was a generic selection, use that type
+                    if (destMode === 'generic') {
+                        // If we can assume the generic type from the flow, use it. 
+                        // Since we don't store the *exact* generic type in travelState.destination, 
+                        // we might need to infer or rely on the destination name format if it wasn't customized.
+                        // Simple heuristic: if destName is in GENERIC_TYPES or similar
+                        genType = destName.split(' ')[0]; 
+                    } else if (destMode === 'custom') {
+                        genType = 'Интересное место';
+                    }
+                    
+                    finalLocation = await generateFullLocation(regionName || "Дикие Земли", destName);
+                }
+
+                // Ensure essential fields
+                finalLocation.id = Date.now().toString();
+                // Override description start to link with journey
+                finalLocation.description = `Вы прибыли сюда после долгого путешествия. ${finalLocation.description}`;
+
+            } catch (e: any) {
+                setErrorMessage("Не удалось сгенерировать финальную локацию: " + e.message);
+                setViewMode('error');
+                return;
+            }
+        }
+
         onTravelComplete(finalLocation, destRegionId);
         
         // Auto switch music to location
@@ -336,10 +400,9 @@ const TravelManager: React.FC<TravelManagerProps> = ({
         }
     };
 
-    // Removed fixed overlay classes, now it's a layout component
     return (
         <div className="flex flex-col h-full w-full bg-dnd-darker animate-in fade-in duration-200">
-            {/* Header - now integrated into the section */}
+            {/* Header */}
             <div className="p-4 bg-gray-900/50 border-b border-gray-700 flex justify-between items-center shrink-0">
                 <h3 className="text-xl font-serif font-bold text-gold-500 flex items-center gap-2">
                     <Map className="w-6 h-6" /> 
@@ -347,7 +410,6 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                      viewMode === 'loading' ? 'Генерация...' : 
                      viewMode === 'error' ? 'Ошибка' : 'В Пути'}
                 </h3>
-                {/* Close button is now a Back button concept */}
                 <button 
                     onClick={onClose} 
                     className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors px-3 py-1 rounded hover:bg-gray-800"
@@ -393,119 +455,151 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                             Выберите, куда отправится группа. AI сгенерирует события, случайные встречи и описания дороги.
                         </p>
 
-                        {/* Scope Toggle */}
-                        <div className="flex bg-gray-800 rounded p-1">
+                        {/* Destination Mode Tabs */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-1 bg-gray-900 rounded-lg">
                             <button 
-                                onClick={() => setTravelScope('local')}
-                                className={`flex-1 py-2 text-sm font-bold rounded transition-colors ${travelScope === 'local' ? 'bg-gray-700 text-gold-500' : 'text-gray-400 hover:text-white'}`}
+                                onClick={() => setDestMode('lore')} 
+                                className={`py-2 px-2 rounded text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${destMode === 'lore' ? 'bg-gold-600 text-black shadow-lg' : 'text-gray-400 hover:text-white'}`}
                             >
-                                Внутри региона
+                                <Landmark className="w-4 h-4"/> Известное
                             </button>
                             <button 
-                                onClick={() => setTravelScope('global')}
-                                className={`flex-1 py-2 text-sm font-bold rounded transition-colors ${travelScope === 'global' ? 'bg-gray-700 text-gold-500' : 'text-gray-400 hover:text-white'}`}
+                                onClick={() => setDestMode('generic')} 
+                                className={`py-2 px-2 rounded text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${destMode === 'generic' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
                             >
-                                Между регионами
+                                <TreePine className="w-4 h-4"/> Случайное
+                            </button>
+                            <button 
+                                onClick={() => setDestMode('breach')} 
+                                className={`py-2 px-2 rounded text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${destMode === 'breach' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                            >
+                                <Hexagon className="w-4 h-4"/> Разлом
+                            </button>
+                            <button 
+                                onClick={() => setDestMode('custom')} 
+                                className={`py-2 px-2 rounded text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${destMode === 'custom' ? 'bg-gray-700 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                            >
+                                <Target className="w-4 h-4"/> Своё
                             </button>
                         </div>
 
-                        {/* Destination Selection */}
-                        <div className="bg-gray-900/50 p-4 rounded border border-gray-700 space-y-4">
-                            <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                                <Target className="w-4 h-4 text-gold-500"/> Пункт назначения
-                            </h4>
+                        {/* Destination Selection Content */}
+                        <div className="bg-gray-900/50 p-4 rounded-lg border border-gray-700 space-y-4 min-h-[150px] flex flex-col justify-center">
+                            
+                            {destMode === 'lore' && (
+                                <>
+                                    <div>
+                                        <label className="text-xs text-gray-500 block mb-1 uppercase font-bold">Регион (Справочник)</label>
+                                        <select 
+                                            className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white outline-none focus:border-gold-500"
+                                            value={targetRegionId}
+                                            onChange={(e) => { setTargetRegionId(e.target.value); setTargetLocationName(''); }}
+                                        >
+                                            <option value="">Выберите регион...</option>
+                                            {allLore.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-gray-500 block mb-1 uppercase font-bold">Локация</label>
+                                        <select 
+                                            className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white outline-none focus:border-gold-500 disabled:opacity-50"
+                                            value={targetLocationName}
+                                            onChange={(e) => setTargetLocationName(e.target.value)}
+                                            disabled={!targetRegionId}
+                                        >
+                                            <option value="">Выберите место...</option>
+                                            {getAvailableLocations().map((loc, idx) => (
+                                                <option key={idx} value={loc.name}>{loc.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </>
+                            )}
 
-                            {travelScope === 'global' && (
+                            {destMode === 'generic' && (
                                 <div>
-                                    <label className="text-xs text-gray-500 block mb-1">Регион</label>
+                                    <label className="text-xs text-gray-500 block mb-1 uppercase font-bold">Тип локации (AI)</label>
                                     <select 
-                                        className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white outline-none focus:border-gold-500"
-                                        value={targetRegionId}
-                                        onChange={(e) => { setTargetRegionId(e.target.value); setTargetLocationName(''); }}
+                                        className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white outline-none focus:border-indigo-500"
+                                        value={genericType}
+                                        onChange={(e) => setGenericType(e.target.value)}
                                     >
-                                        <option value="">Выберите регион...</option>
-                                        {allLore.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                        {GENERIC_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                                     </select>
+                                    <p className="text-xs text-gray-500 mt-2">
+                                        AI сгенерирует уникальное место выбранного типа по прибытии.
+                                    </p>
                                 </div>
                             )}
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-xs text-gray-500 block mb-1">Известное место</label>
-                                    <select 
-                                        className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white outline-none focus:border-gold-500"
-                                        value={targetLocationName}
-                                        onChange={(e) => { setTargetLocationName(e.target.value); setCustomTarget(''); }}
-                                        disabled={travelScope === 'global' && !targetRegionId}
-                                    >
-                                        <option value="">Выберите...</option>
-                                        {getAvailableLocations().map((loc, idx) => (
-                                            <option key={idx} value={loc.name}>{loc.name}</option>
-                                        ))}
-                                    </select>
+                            {destMode === 'breach' && (
+                                <div className="text-center py-2">
+                                    <Hexagon className="w-12 h-12 text-purple-500 mx-auto mb-2 animate-pulse"/>
+                                    <h4 className="text-lg font-bold text-purple-300">Разлом Мультивселенной</h4>
+                                    <p className="text-sm text-gray-400 mt-2">
+                                        Путешествие к аномалии, где грани миров истончены. <br/>
+                                        Ожидайте странные события и искажения реальности.
+                                    </p>
                                 </div>
+                            )}
+
+                            {destMode === 'custom' && (
                                 <div>
-                                    <label className="text-xs text-gray-500 block mb-1">Или особое место</label>
+                                    <label className="text-xs text-gray-500 block mb-1 uppercase font-bold">Название места</label>
                                     <input 
                                         className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white outline-none focus:border-gold-500 placeholder-gray-600"
                                         placeholder="Напр. Таинственная башня"
                                         value={customTarget}
-                                        onChange={(e) => { setCustomTarget(e.target.value); setTargetLocationName(''); }}
+                                        onChange={(e) => setCustomTarget(e.target.value)}
                                     />
                                 </div>
-                            </div>
+                            )}
                         </div>
 
-                        {/* Duration (NEW) */}
-                        <div className="bg-gray-900/50 p-4 rounded border border-gray-700">
-                            <div className="flex justify-between items-center mb-2">
-                                <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                                    <Calendar className="w-4 h-4 text-gold-500"/> Длительность (Дни)
-                                </h4>
-                                <span className="text-xs text-gray-500">Влияет на кол-во событий</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button onClick={() => setDuration(Math.max(1, duration - 1))} className="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white font-bold">-</button>
-                                <input 
-                                    type="number"
-                                    min="1"
-                                    max="100"
-                                    className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-center text-white font-bold outline-none"
-                                    value={duration}
-                                    onChange={(e) => setDuration(Math.max(1, parseInt(e.target.value) || 1))}
-                                />
-                                <button onClick={() => setDuration(duration + 1)} className="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white font-bold">+</button>
-                            </div>
-                        </div>
-
-                        {/* Method & Pace */}
+                        {/* Settings Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-xs text-gray-500 font-bold uppercase">Способ передвижения</label>
-                                <div className="space-y-1">
-                                    {METHOD_OPTIONS.map(opt => (
-                                        <button
-                                            key={opt.id}
-                                            onClick={() => setSelectedMethod(opt.id)}
-                                            className={`w-full flex items-center gap-3 px-3 py-2 rounded border text-sm text-left transition-all ${selectedMethod === opt.id ? 'bg-gold-600/20 border-gold-500 text-gold-500' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}
-                                        >
-                                            {opt.icon} {opt.label}
-                                        </button>
-                                    ))}
+                            <div className="bg-gray-900/50 p-4 rounded border border-gray-700">
+                                <div className="flex justify-between items-center mb-2">
+                                    <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                        <Calendar className="w-4 h-4 text-gold-500"/> Длительность (Дни)
+                                    </h4>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => setDuration(Math.max(1, duration - 1))} className="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white font-bold">-</button>
+                                    <input 
+                                        type="number"
+                                        min="1"
+                                        max="100"
+                                        className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-center text-white font-bold outline-none"
+                                        value={duration}
+                                        onChange={(e) => setDuration(Math.max(1, parseInt(e.target.value) || 1))}
+                                    />
+                                    <button onClick={() => setDuration(duration + 1)} className="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white font-bold">+</button>
                                 </div>
                             </div>
+
                             <div className="space-y-2">
-                                <label className="text-xs text-gray-500 font-bold uppercase">Темп</label>
-                                <div className="space-y-1">
-                                    {PACE_OPTIONS.map(opt => (
-                                        <button
-                                            key={opt.id}
-                                            onClick={() => setSelectedPace(opt.id)}
-                                            className={`w-full flex items-center gap-3 px-3 py-2 rounded border text-sm text-left transition-all ${selectedPace === opt.id ? 'bg-gold-600/20 border-gold-500 text-gold-500' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="text-[10px] text-gray-500 font-bold uppercase block mb-1">Способ</label>
+                                        <select 
+                                            className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-sm text-white outline-none"
+                                            value={selectedMethod}
+                                            onChange={(e) => setSelectedMethod(e.target.value)}
                                         >
-                                            {opt.icon} {opt.label}
-                                        </button>
-                                    ))}
+                                            {METHOD_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-gray-500 font-bold uppercase block mb-1">Темп</label>
+                                        <select 
+                                            className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-sm text-white outline-none"
+                                            value={selectedPace}
+                                            onChange={(e) => setSelectedPace(e.target.value)}
+                                        >
+                                            {PACE_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -517,7 +611,7 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                     <div className="h-full flex flex-col items-center justify-center gap-4 text-gold-500">
                         <Loader className="w-16 h-16 animate-spin" />
                         <div className="text-center">
-                            <h4 className="text-xl font-serif font-bold mb-1">Прокладываем маршрут...</h4>
+                            <h4 className="text-xl font-serif font-bold mb-1">{loadingText}</h4>
                             <p className="text-sm text-gray-400">Мастер оценивает опасности и расстояния.</p>
                         </div>
                     </div>
@@ -563,9 +657,14 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                                                     {getIconForEventType(event.type)}
                                                     <span className="font-bold text-gray-200">{event.title}</span>
                                                 </div>
-                                                <span className="text-[10px] uppercase tracking-wider font-bold text-gray-500 bg-black/30 px-2 py-0.5 rounded">
-                                                    {event.type}
-                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={() => logEvent(event)} className="text-gray-400 hover:text-white p-1" title="Записать в летопись">
+                                                        <Feather className="w-4 h-4"/>
+                                                    </button>
+                                                    <span className="text-[10px] uppercase tracking-wider font-bold text-gray-500 bg-black/30 px-2 py-0.5 rounded">
+                                                        {event.type}
+                                                    </span>
+                                                </div>
                                             </div>
 
                                             <p className="text-sm text-gray-300 mb-3">{event.description}</p>
@@ -633,7 +732,7 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                     <>
                         <button 
                             onClick={handleGenerateScenario}
-                            disabled={!targetLocationName && !customTarget}
+                            disabled={(destMode === 'lore' && !targetLocationName) || (destMode === 'custom' && !customTarget)}
                             className="bg-gold-600 hover:bg-gold-500 text-black px-6 py-2 rounded font-bold text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <Map className="w-4 h-4"/> Проложить путь

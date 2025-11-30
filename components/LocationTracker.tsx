@@ -3,12 +3,13 @@ import React, { useState, useEffect } from 'react';
 import { LocationData, PartyMember, Combatant, EntityType, LoreEntry, LocationTrackerProps, Note, SavedImage, TravelResult, CampaignNpc, FullQuest, TravelState, BestiaryEntry } from '../types';
 import { parseLoreFromText, generateEncounterIntro, generateScenarioDescription, generateFullLocation, generateLocationContent, generateExtendedDetails, generateMultiverseBreach, generateRealityGlitch, generateImage, generateNpc, generateQuest, generateMonster } from '../services/polzaService';
 import { getMonstersByCr } from '../services/dndApiService';
-import { MapPin, Users, Skull, Sparkles, BookOpen, Loader, Search, Eye, ChevronRight, ArrowRight, Menu, Map, Copy, Plus, Home, Trees, Tent, Castle, ArrowLeft, LandPlot, Landmark, Beer, Footprints, ShieldAlert, Ghost, Info, X, Save, FileText, RefreshCcw, ChevronDown, ChevronUp, Zap, Anchor, Globe, Hexagon, Activity, Radio, Flame, Image as ImageIcon, ZoomIn, Church, Building, Mountain, ScrollText, Swords, UserPlus, Pickaxe, Wheat, Ship, ShoppingBag, Gavel, Gem, Compass, UserSquare2, PenTool, Wand2, Route, Signpost, DoorOpen } from 'lucide-react';
+import { MapPin, Users, Skull, Sparkles, BookOpen, Loader, Search, Eye, ChevronRight, ArrowRight, Menu, Map, Copy, Plus, Home, Trees, Tent, Castle, ArrowLeft, LandPlot, Landmark, Beer, Footprints, ShieldAlert, Ghost, Info, X, Save, FileText, RefreshCcw, ChevronDown, ChevronUp, Zap, Anchor, Globe, Hexagon, Activity, Radio, Flame, Image as ImageIcon, ZoomIn, Church, Building, Mountain, ScrollText, Swords, UserPlus, Pickaxe, Wheat, Ship, ShoppingBag, Gavel, Gem, Compass, UserSquare2, PenTool, Wand2, Route, Signpost, DoorOpen, Feather } from 'lucide-react';
 import { FAERUN_LORE } from '../data/faerunLore';
 import { useAudio } from '../contexts/AudioContext';
 import SmartText from './SmartText';
 import TravelManager from './TravelManager';
 import BestiaryBrowser from './BestiaryBrowser';
+import { useToast } from '../contexts/ToastContext';
 
 // Extended location types for the generator grid
 const GENERIC_LOCATIONS = [
@@ -45,6 +46,7 @@ const GENERIC_LOCATIONS = [
 const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, onImageGenerated, onShowImage }) => {
     // Audio Context for automation
     const { autoPlayMusic } = useAudio();
+    const { showToast } = useToast();
 
     const [lore, setLore] = useState<LoreEntry[]>(() => {
         const savedLore = localStorage.getItem('dmc_lore');
@@ -234,21 +236,25 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
 
     // --- ACTION HANDLERS ---
 
-    const setLocationAndLog = (loc: LocationData) => {
+    const updateLocation = (loc: LocationData) => {
         setLocation(loc);
         setShowHandbook(false);
         setEncounterIntro('');
-        setActiveView('details'); // Switch back to details on new location set
+        setActiveView('details');
         
+        // Auto-DJ trigger
+        autoPlayMusic('location', `${loc.type} ${loc.name} ${loc.atmosphere} ${loc.description}`);
+    };
+
+    const logLocationArrival = () => {
+        if (!location) return;
         addLog({
             id: Date.now().toString(),
             timestamp: Date.now(),
-            text: `[Локация] ${loc.name}`, 
+            text: `[Локация] Группа прибыла в: ${location.name}. ${location.type}.`, 
             type: 'story'
         });
-
-        // Auto-DJ trigger
-        autoPlayMusic('location', `${loc.type} ${loc.name} ${loc.atmosphere} ${loc.description}`);
+        showToast("Локация записана в летопись", 'success');
     };
 
     const handleTravelUpdate = (state: TravelState) => {
@@ -256,12 +262,32 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     };
 
     const handleTravelComplete = (newLocation: LocationData, newRegionId?: string) => {
+        // 1. Set Active Region
         if (newRegionId) {
             const newRegion = lore.find(r => r.id === newRegionId);
             if (newRegion) setSelectedRegion(newRegion);
+            
+            // 2. SAVE LOGIC: If this is a new location (not in lore), add it.
+            if (newRegion) {
+                setLore(prevLore => {
+                    return prevLore.map(region => {
+                        if (region.id === newRegion.id) {
+                            // Check if exists to avoid dupes
+                            const exists = region.locations.some(l => l.id === newLocation.id || l.name === newLocation.name);
+                            if (!exists) {
+                                return { ...region, locations: [newLocation, ...region.locations] };
+                            }
+                        }
+                        return region;
+                    });
+                });
+            }
         }
-        setLocationAndLog(newLocation);
+        
+        // 3. Set Active Location
+        updateLocation(newLocation);
         setActiveTravelPlan(null);
+        showToast(`Прибытие в ${newLocation.name}. Локация сохранена.`, 'success');
     };
 
     const handleOpenItem = (item: any) => {
@@ -342,7 +368,8 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             }
         });
         window.dispatchEvent(event);
-        addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `${npc.name} атакует! (Добавлен в бой)`, type: 'combat' });
+        // Removed auto log of NPC fighting, only toast
+        showToast(`${npc.name} добавлен в бой`, 'warning');
     };
 
     const handleSaveNpcToTracker = (npc: any) => {
@@ -358,7 +385,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             }
         });
         window.dispatchEvent(event);
-        addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `${npc.name} добавлен в NPC Трекер.`, type: 'system' });
+        showToast(`${npc.name} добавлен в NPC Трекер`, 'success');
     };
 
     const handleTrackQuest = (quest: any) => {
@@ -371,7 +398,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             } 
         });
         window.dispatchEvent(event);
-        addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Квест "${quest.title}" добавлен в Трекер.`, type: 'system' });
+        showToast(`Квест "${quest.title}" отслеживается`, 'success');
     };
 
     // ... Existing Handlers ...
@@ -380,7 +407,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         setLoading(true);
         try {
             const data = await parseLoreFromText(loreInput);
-            setLocationAndLog(data);
+            updateLocation(data);
             setShowLoreInput(false);
             setLoreInput('');
         } catch (e: any) {
@@ -391,7 +418,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     };
 
     const loadFromHandbook = (loc: LocationData) => {
-        setLocationAndLog(loc);
+        updateLocation(loc);
     };
 
     const selectRegion = (region: LoreEntry) => {
@@ -408,7 +435,17 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         try {
             const newLocation = await generateFullLocation(selectedRegion.name, type);
             newLocation.id = Date.now().toString();
-            setLocationAndLog(newLocation);
+            // Save to handbook immediately
+            setLore(prevLore => {
+                return prevLore.map(region => {
+                    if (region.id === selectedRegion.id) {
+                         return { ...region, locations: [newLocation, ...region.locations] };
+                    }
+                    return region;
+                });
+            });
+            updateLocation(newLocation);
+            showToast("Локация создана и сохранена", "success");
         } catch (e: any) {
             console.error(e);
             alert(`Не удалось сгенерировать локацию: ${e.message}`);
@@ -423,8 +460,8 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             const breach = await generateMultiverseBreach();
             breach.id = Date.now().toString();
             await new Promise(r => setTimeout(r, 1500));
-            setLocationAndLog(breach);
-            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[КОВЧЕГ] ⚠️ ВНИМАНИЕ! Обнаружен разлом: ${breach.name}. Источник: ${breach.originWorld}.`, type: 'combat' });
+            updateLocation(breach);
+            // Optionally show a big alert, but manual log is preferred
         } catch (e: any) {
             alert(`Ошибка генерации разлома: ${e.message}. Попробуйте еще раз.`);
         } finally {
@@ -441,7 +478,6 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             setModalContent(`<p class="text-lg text-purple-300 font-bold border-l-4 border-purple-500 pl-4 py-2 bg-purple-900/20">${glitch.effect}</p>`);
             setModalCategory('glitch');
             setModalOpen(true);
-            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[АНОМАЛИЯ] ${glitch.name}: ${glitch.effect}`, type: 'combat' });
         } catch (e: any) {
             alert(`Ошибка: ${e.message}`);
         } finally {
@@ -459,10 +495,8 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                     const locationToSave = { ...location, id: location.id || Date.now().toString() };
                     if (existingIndex >= 0) {
                         updatedLocations[existingIndex] = locationToSave;
-                        addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Локация "${location.name}" обновлена в справочнике.`, type: 'system' });
                     } else {
                         updatedLocations.push(locationToSave);
-                        addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Локация "${location.name}" добавлена в справочник.`, type: 'system' });
                     }
                     return { ...region, locations: updatedLocations };
                 }
@@ -470,6 +504,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             });
         });
         if (!location.id) { setLocation(prev => prev ? ({...prev, id: Date.now().toString()}) : null); }
+        showToast(`Локация "${location.name}" сохранена в справочник`, 'success');
     };
 
     const handleGenerateContent = async (category: 'npc' | 'secret' | 'loot' | 'quest') => {
@@ -538,7 +573,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             });
             window.dispatchEvent(event);
             
-            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Бестиарий] Сгенерирован и добавлен: ${stats.name}`, type: 'system' });
+            showToast(`${stats.name} добавлен в бой`, 'success');
 
         } catch (e: any) {
             alert(`Ошибка генерации монстра: ${e.message}`);
@@ -585,6 +620,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
 
     const handleCopyToLog = (category: string, text: string) => {
         addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[${category}] ${text}`, type: 'story' });
+        showToast("Добавлено в летопись", 'success');
     };
 
     const handleSaveModalToJournal = () => {
@@ -621,7 +657,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             }
         });
         window.dispatchEvent(event);
-        addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `NPC ${modalTitle} сохранен в трекер.`, type: 'system' });
+        showToast(`NPC ${modalTitle} сохранен`, 'success');
         setModalOpen(false);
     };
 
@@ -669,14 +705,14 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             const url = await generateImage(prompt, "1:1");
             const newImage: SavedImage = { id: Date.now().toString(), url: url, title: name, type: 'npc', timestamp: Date.now() };
             if (onImageGenerated) onImageGenerated(newImage);
-            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Портрет ${name} добавлен в галерею.`, type: 'system' });
+            showToast(`Портрет ${name} создан`, 'success');
         } catch(e: any) {
             alert("Ошибка: " + e.message);
         }
     };
 
     const handleSetGeneratedLocation = (newLocation: LocationData) => {
-        setLocationAndLog(newLocation);
+        updateLocation(newLocation);
     };
 
     // Handle adding monster from Bestiary
@@ -689,7 +725,8 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             // Update location state
             setLocation(prev => prev ? ({ ...prev, monsters: updatedMonsters }) : null);
             
-            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `[Локация] Добавлено ${count} x ${monster.name} (из Бестиария)`, type: 'system' });
+            // Manual log removed, use toast
+            showToast(`Добавлено ${count} x ${monster.name} в локацию`, 'success');
             setShowBestiary(false);
         }
     };
@@ -847,7 +884,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                     <div className="text-sm text-gray-200 [&_h1]:text-gold-500 [&_h1]:text-2xl [&_h1]:font-serif [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-gold-500 [&_h2]:text-xl [&_h2]:font-serif [&_h2]:font-bold [&_h2]:mb-3 [&_h2]:mt-5 [&_h3]:text-gold-500 [&_h3]:font-serif [&_h3]:text-lg [&_h3]:font-bold [&_h3]:mb-2 [&_h3]:mt-4 [&_h3:first-child]:mt-0 [&_h4]:text-gold-400 [&_h4]:font-bold [&_h4]:mb-2 [&_strong]:text-white [&_strong]:font-bold [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mb-1 [&_p]:mb-3" dangerouslySetInnerHTML={{__html: modalContent}} />
                                 )}
                             </div>
-                            <div className="p-3 bg-gray-900 border-t border-gray-700 flex justify-between shrink-0">
+                            <div className="p-3 bg-gray-900 border-t border-gray-700 flex justify-between shrink-0 flex-wrap gap-2">
                                 {modalCategory && !modalLoading && !modalContent.includes('Ошибка') && (
                                      <button 
                                         onClick={() => openDetailModal(modalCategory, modalTitle)}
@@ -857,6 +894,14 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                     </button>
                                 )}
                                 <div className="flex gap-2 ml-auto">
+                                    <button 
+                                        onClick={() => handleCopyToLog(modalCategory, `${modalTitle}: ${modalContent.replace(/<[^>]*>?/gm, ' ').substring(0, 100)}...`)}
+                                        disabled={modalLoading}
+                                        className="bg-blue-900 hover:bg-blue-800 text-blue-200 px-4 py-2 rounded text-sm font-bold flex items-center gap-2 border border-blue-800"
+                                    >
+                                        <Feather className="w-4 h-4" /> В Летопись
+                                    </button>
+
                                     {modalCategory === 'npc' && (
                                         <button 
                                             onClick={handleSaveModalToTracker}
@@ -873,10 +918,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                         <FileText className="w-4 h-4" /> Сохранить в Журнал
                                     </button>
                                     <button 
-                                        onClick={() => {
-                                            addLog({ id: Date.now().toString(), timestamp: Date.now(), text: `Мастер изучает детали: ${modalTitle}`, type: 'system' });
-                                            setModalOpen(false);
-                                        }}
+                                        onClick={() => setModalOpen(false)}
                                         className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm font-bold"
                                     >
                                         Закрыть
@@ -1064,6 +1106,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                     ) : (
                                         <span className="bg-gray-800 text-gray-400 text-xs px-2 py-0.5 rounded border border-gray-700 hidden sm:inline-block shrink-0">{location.type || 'Локация'}</span>
                                     )}
+                                    <button onClick={logLocationArrival} className="text-gray-500 hover:text-green-400" title="Записать в летопись"><Feather className="w-4 h-4"/></button>
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
                                     <button 
@@ -1169,11 +1212,18 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                         </div>
 
                         {encounterIntro && (
-                            <div className="bg-red-950/40 border-l-4 border-red-600 p-4 rounded-r-lg animate-in fade-in slide-in-from-top-2 shrink-0 max-h-40 overflow-y-auto">
+                            <div className="bg-red-950/40 border-l-4 border-red-600 p-4 rounded-r-lg animate-in fade-in slide-in-from-top-2 shrink-0 max-h-40 overflow-y-auto relative group">
                                 <h4 className="text-red-400 text-xs uppercase tracking-widest mb-1 font-bold flex items-center gap-2">
                                     <Sparkles className="w-3 h-3"/> Нарратор
                                 </h4>
                                 <p className="text-gray-200 font-serif leading-relaxed text-sm">{encounterIntro}</p>
+                                <button 
+                                    onClick={() => handleCopyToLog('Бой', encounterIntro)} 
+                                    className="absolute top-2 right-2 text-gray-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                    title="В летопись"
+                                >
+                                    <Feather className="w-4 h-4"/>
+                                </button>
                             </div>
                         )}
 
@@ -1265,9 +1315,9 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                                 <button 
                                                     onClick={() => handleCopyToLog('NPC', `${npc.name} (${npc.race}): ${npc.description}`)}
                                                     className="p-1.5 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 hover:text-white"
-                                                    title="Копировать в лог"
+                                                    title="В летопись"
                                                 >
-                                                    <Copy className="w-3 h-3" />
+                                                    <Feather className="w-3 h-3" />
                                                 </button>
                                             </div>
                                         </div>
@@ -1323,10 +1373,10 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                                         )}
                                                         <button 
                                                             onClick={() => handleCopyToLog('Квест', `${q.title}: ${item.description}`)}
-                                                            className="p-1.5 bg-indigo-900 text-indigo-200 rounded hover:bg-indigo-800"
-                                                            title="Копировать в лог"
+                                                            className="p-1.5 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 hover:text-white"
+                                                            title="В летопись"
                                                         >
-                                                            <Copy className="w-3 h-3" />
+                                                            <Feather className="w-3 h-3" />
                                                         </button>
                                                     </div>
                                                 </li>
@@ -1397,9 +1447,9 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                                     <button 
                                                         onClick={() => handleCopyToLog('Тайна', s)}
                                                         className="p-1 text-gray-500 hover:text-white"
-                                                        title="Копировать в лог"
+                                                        title="В летопись"
                                                     >
-                                                        <Copy className="w-3 h-3" />
+                                                        <Feather className="w-3 h-3" />
                                                     </button>
                                                 </div>
                                             </li>
@@ -1434,9 +1484,9 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                                 <button 
                                                     onClick={() => handleCopyToLog('Лут', l)}
                                                     className="absolute -top-2 -right-2 bg-gray-700 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-gray-600"
-                                                    title="Копировать"
+                                                    title="В летопись"
                                                 >
-                                                    <Copy className="w-2 h-2" />
+                                                    <Feather className="w-2 h-2" />
                                                 </button>
                                             </div>
                                         ))}
