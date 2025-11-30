@@ -94,6 +94,7 @@ const SoundBoard: React.FC = () => {
       }
   };
 
+  // Native download helper
   const saveBlob = (blob: Blob, filename: string) => {
       const blobUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -105,14 +106,20 @@ const SoundBoard: React.FC = () => {
       URL.revokeObjectURL(blobUrl);
   };
 
-  const downloadTrack = async (url: string, title: string) => {
-      try {
-          const response = await fetch(url);
-          const blob = await response.blob();
-          saveBlob(blob, `${title}.mp3`);
-      } catch (e) {
-          // Fallback for CORS
-          window.open(url, '_blank');
+  const downloadTrack = async (track: Track) => {
+      if (track.isLocal) {
+          try {
+              const response = await fetch(track.url);
+              const blob = await response.blob();
+              saveBlob(blob, `${track.title}.mp3`);
+          } catch (e) {
+              console.error("Local download failed", e);
+              showToast("Ошибка при скачивании локального файла", "error");
+          }
+      } else {
+          // For external tracks, we cannot use fetch due to CORS.
+          // Open in new tab to let browser handle it.
+          window.open(track.url, '_blank');
       }
   };
 
@@ -137,17 +144,20 @@ const SoundBoard: React.FC = () => {
                   trackCount++;
                   const safeTitle = track.title.replace(/[\\/:*?"<>|]/g, "_");
                   
-                  try {
-                      // Attempt to fetch the audio file
-                      // Note: This relies on the server allowing CORS. 
-                      // Local blobs (created via Import) will work fine.
-                      const response = await fetch(track.url);
-                      if (!response.ok) throw new Error('Network error');
-                      const blob = await response.blob();
-                      folder.file(`${safeTitle}.mp3`, blob);
-                  } catch (e) {
-                      // If fetch fails (likely CORS on external link), save a text file with the URL
-                      folder.file(`${safeTitle}_link.txt`, `Track: ${track.title}\nURL: ${track.url}\n\n(Audio could not be downloaded directly due to browser security restrictions on external links.)`);
+                  if (track.isLocal) {
+                      try {
+                          // Local blobs can be fetched
+                          const response = await fetch(track.url);
+                          if (!response.ok) throw new Error('Network error');
+                          const blob = await response.blob();
+                          folder.file(`${safeTitle}.mp3`, blob);
+                      } catch (e) {
+                          folder.file(`${safeTitle}_error.txt`, `Failed to read local file: ${track.title}`);
+                      }
+                  } else {
+                      // External links usually block CORS, so we cannot blob them directly in JS.
+                      // Save a text file with the link instead so the user doesn't lose the reference.
+                      folder.file(`${safeTitle}_link.txt`, `Track: ${track.title}\nURL: ${track.url}\n\n(This file is hosted externally and cannot be included in the archive due to browser security restrictions on cross-origin requests.)`);
                   }
               }
           }
@@ -208,7 +218,7 @@ const SoundBoard: React.FC = () => {
                 onClick={handleDownloadAll}
                 disabled={isZipLoading}
                 className="bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 px-4 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50 whitespace-nowrap"
-                title="Скачать все треки архивом"
+                title="Скачать все треки архивом (Локальные файлы)"
             >
                 {isZipLoading ? <div className="animate-spin w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full"></div> : <Archive className="w-4 h-4"/>}
                 <span className="text-xs font-bold hidden sm:inline">Скачать всё</span>
@@ -346,11 +356,13 @@ const SoundBoard: React.FC = () => {
                                             </div>
                                         </button>
                                         <div className="flex gap-1">
-                                            {!track.isLocal && (
-                                                <button onClick={() => downloadTrack(track.url, track.title)} className="p-2 text-gray-600 hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity" title="Скачать">
-                                                    <Download className="w-4 h-4"/>
-                                                </button>
-                                            )}
+                                            <button 
+                                                onClick={() => downloadTrack(track)} 
+                                                className="p-2 text-gray-600 hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity" 
+                                                title={track.isLocal ? "Скачать (Локальный)" : "Открыть ссылку (Внешний)"}
+                                            >
+                                                <Download className="w-4 h-4"/>
+                                            </button>
                                             <button onClick={() => removeTrackFromPlaylist(viewedPlaylist.id, track.id)} className="p-2 text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-4 h-4" /></button>
                                         </div>
                                     </div>
