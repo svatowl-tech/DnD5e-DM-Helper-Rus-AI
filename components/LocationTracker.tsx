@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { LocationData, PartyMember, Combatant, EntityType, LoreEntry, LocationTrackerProps, Note, SavedImage, TravelResult, CampaignNpc, FullQuest, TravelState, BestiaryEntry } from '../types';
 import { parseLoreFromText, generateEncounterIntro, generateScenarioDescription, generateFullLocation, generateLocationContent, generateExtendedDetails, generateMultiverseBreach, generateRealityGlitch, generateImage, generateNpc, generateQuest, generateMonster } from '../services/polzaService';
@@ -120,7 +121,20 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         if (savedParty) setParty(JSON.parse(savedParty).filter((p: PartyMember) => p.active));
         
         const savedLoc = localStorage.getItem('dmc_active_location');
-        if (savedLoc) setLocation(JSON.parse(savedLoc));
+        if (savedLoc) {
+            const parsedLoc = JSON.parse(savedLoc);
+            setLocation(parsedLoc);
+            // Restore image if exists in saved location data
+            if (parsedLoc.imageUrl) {
+                setLocationImage({
+                    id: 'restored-init',
+                    url: parsedLoc.imageUrl,
+                    title: parsedLoc.name,
+                    type: 'location',
+                    timestamp: Date.now()
+                });
+            }
+        }
         
         const savedRegionId = localStorage.getItem('dmc_active_region_id');
         if (savedRegionId) {
@@ -163,9 +177,10 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     useEffect(() => {
         if (location) {
             localStorage.setItem('dmc_active_location', JSON.stringify(location));
-            setLocationImage(null); 
+            // Note: We DO NOT clear locationImage here anymore to avoid flickering/loss on updates
         } else {
             localStorage.removeItem('dmc_active_location');
+            setLocationImage(null);
         }
     }, [location]);
 
@@ -241,6 +256,19 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         setShowHandbook(false);
         setEncounterIntro('');
         setActiveView('details');
+        
+        // Restore image if available in location data
+        if (loc.imageUrl) {
+            setLocationImage({
+                id: 'restored',
+                url: loc.imageUrl,
+                title: loc.name,
+                type: 'location',
+                timestamp: Date.now()
+            });
+        } else {
+            setLocationImage(null);
+        }
         
         // Auto-DJ trigger
         autoPlayMusic('location', `${loc.type} ${loc.name} ${loc.atmosphere} ${loc.description}`);
@@ -687,7 +715,12 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             const prompt = `Fantasy landscape: ${location.name}, ${location.type}. ${location.atmosphere}. ${shortDesc}. Cinematic lighting, highly detailed, digital art.`;
             const url = await generateImage(prompt, "16:9");
             const newImage: SavedImage = { id: Date.now().toString(), url: url, title: location.name, type: 'location', timestamp: Date.now() };
+            
             setLocationImage(newImage);
+            
+            // Save image URL to location data
+            setLocation(prev => prev ? ({ ...prev, imageUrl: url }) : null);
+            
             if (onImageGenerated) onImageGenerated(newImage);
         } catch (e: any) {
             alert("Ошибка генерации изображения: " + e.message);

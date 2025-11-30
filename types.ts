@@ -201,6 +201,7 @@ export interface LocationData {
         goal: string;
         threats: string[];
     };
+    imageUrl?: string;
 }
 
 // Travel Types
