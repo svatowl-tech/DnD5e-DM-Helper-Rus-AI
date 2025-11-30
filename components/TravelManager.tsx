@@ -10,6 +10,7 @@ import {
     Settings, ArrowLeft, Clock, Calendar, Feather,
     Hexagon, TreePine, Castle, Landmark
 } from 'lucide-react';
+import { useAudio } from '../contexts/AudioContext';
 import { useToast } from '../contexts/ToastContext';
 
 interface TravelManagerProps {
@@ -61,6 +62,7 @@ const TravelManager: React.FC<TravelManagerProps> = ({
     onGenerateLocation, 
     onCancelTravel 
 }) => {
+    const { autoPlayMusic } = useAudio();
     const { showToast } = useToast();
     
     // View Modes: 'plan' (setup), 'loading' (AI working), 'journey' (active trip), 'error' (API failure)
@@ -176,6 +178,8 @@ const TravelManager: React.FC<TravelManagerProps> = ({
 
             onUpdateTravelState(newState);
             setViewMode('journey');
+            // Start Travel Music
+            autoPlayMusic('travel');
 
         } catch (error: any) {
             console.error("Travel Generation Failed:", error);
@@ -264,6 +268,9 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                 window.dispatchEvent(new CustomEvent('dmc-switch-tab', { detail: 'combat' }));
                 markCompleted();
                 
+                // Switch music
+                autoPlayMusic('combat', threats.join(' '));
+
             } catch (e) {
                 console.error(e);
                 alert("Ошибка подготовки боя.");
@@ -288,6 +295,9 @@ const TravelManager: React.FC<TravelManagerProps> = ({
                 
                 onGenerateLocation(newLoc);
                 markCompleted();
+                
+                // Auto-switch music to location based
+                autoPlayMusic('location', newLoc.name + " " + newLoc.type + " " + newLoc.atmosphere);
                 
                 onClose(); // Switch back to Location Details tab
             } catch (e: any) {
@@ -363,6 +373,9 @@ const TravelManager: React.FC<TravelManagerProps> = ({
         }
 
         onTravelComplete(finalLocation, destRegionId);
+        
+        // Auto switch music to location
+        autoPlayMusic('location', finalLocation.name + " " + finalLocation.type + " " + finalLocation.atmosphere);
         
         onClose(); // Switch back to Location Details
     };

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, Suspense } from 'react';
 import { Tab, LogEntry, Note, SavedImage, PartyMember, LocationData, FullQuest, Combatant, EntityType, CampaignNpc, InventoryItem } from './types';
 import { 
@@ -19,6 +20,7 @@ import {
     getAllImagesFromDB, 
     deleteImageFromDB 
 } from './services/db';
+import { AudioProvider } from './contexts/AudioContext';
 import { ToastProvider, useToast } from './contexts/ToastContext';
 import Omnibar from './components/Omnibar';
 import { 
@@ -33,6 +35,7 @@ import {
   MapPin,
   Trash2,
   Save,
+  Music,
   HelpCircle,
   Download,
   X,
@@ -65,6 +68,7 @@ import { CONDITIONS } from './constants';
 import { RULES_DATA } from './data/rulesData';
 import { searchMonsters, getMonsterDetails } from './services/dndApiService';
 
+import GlobalPlayer from './components/GlobalPlayer';
 import ImageTheater from './components/ImageTheater';
 import DmHelperWidget from './components/DmHelperWidget';
 
@@ -75,6 +79,7 @@ const CampaignNotes = React.lazy(() => import('./components/CampaignNotes'));
 const Dashboard = React.lazy(() => import('./components/Dashboard'));
 const PartyManager = React.lazy(() => import('./components/PartyManager'));
 const LocationTracker = React.lazy(() => import('./components/LocationTracker'));
+const SoundBoard = React.lazy(() => import('./components/SoundBoard'));
 const QuestTracker = React.lazy(() => import('./components/QuestTracker'));
 const Gallery = React.lazy(() => import('./components/Gallery'));
 const NpcTracker = React.lazy(() => import('./components/NpcTracker'));
@@ -376,6 +381,7 @@ const AppContent: React.FC = () => {
       case Tab.NOTES: return <CampaignNotes key="notes-tab" />;
       case Tab.GENERATORS: return <Generators addLog={addLog} onImageGenerated={addToGallery} onShowImage={openTheater} />;
       case Tab.SCREEN: return <DmScreen onImageGenerated={addToGallery} onShowImage={openTheater} />;
+      case Tab.SOUNDS: return <SoundBoard />;
       case Tab.GALLERY: return <Gallery images={gallery} onShow={openTheater} onDelete={removeFromGallery} />;
       default: return <div className="text-center text-gray-500 mt-20">Модуль в разработке</div>;
     }
@@ -425,6 +431,7 @@ const AppContent: React.FC = () => {
             <NavButton active={activeTab === Tab.COMBAT} onClick={() => setActiveTab(Tab.COMBAT)} icon={<Swords />} label="Бой" />
             <NavButton active={activeTab === Tab.NOTES} onClick={() => setActiveTab(Tab.NOTES)} icon={<BookOpen />} label="Журнал" />
             <NavButton active={activeTab === Tab.GALLERY} onClick={() => setActiveTab(Tab.GALLERY)} icon={<ImageIcon />} label="Галерея" />
+            <NavButton active={activeTab === Tab.SOUNDS} onClick={() => setActiveTab(Tab.SOUNDS)} icon={<Music />} label="Атмосфера" />
             <NavButton active={activeTab === Tab.GENERATORS} onClick={() => setActiveTab(Tab.GENERATORS)} icon={<BrainCircuit />} label="AI Генератор" />
             <NavButton active={activeTab === Tab.SCREEN} onClick={() => setActiveTab(Tab.SCREEN)} icon={<ScrollText />} label="Ширма" />
           </div>
@@ -437,7 +444,7 @@ const AppContent: React.FC = () => {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col h-full overflow-hidden relative bg-dnd-darker">
         {/* Content Scroll Area */}
-        <div className="flex-1 p-3 md:p-6 overflow-y-auto custom-scrollbar relative pb-24 xl:pb-14">
+        <div className="flex-1 p-3 md:p-6 overflow-y-auto custom-scrollbar relative pb-24 xl:pb-0">
              <Suspense fallback={<div className="flex h-full items-center justify-center text-gold-500"><Loader className="w-12 h-12 animate-spin"/></div>}>
                 {renderContent()}
              </Suspense>
@@ -452,6 +459,14 @@ const AppContent: React.FC = () => {
              <button onClick={() => setShowMobileMenu(true)} className={`flex flex-col items-center gap-1 p-2 rounded-lg ${showMobileMenu ? 'text-gold-500' : 'text-gray-400'}`}><Menu className="w-6 h-6"/><span className="text-[10px] font-bold">Меню</span></button>
         </nav>
         
+        {/* Global Player (Fixed on Mobile, Relative on Desktop) */}
+        <div className="xl:hidden fixed bottom-[57px] left-0 right-0 z-40">
+             <GlobalPlayer />
+        </div>
+        <div className="hidden xl:block shrink-0">
+             <GlobalPlayer />
+        </div>
+
         {/* Desktop Bottom Log Panel (Collapsible) */}
         <div className={`hidden xl:flex w-full border-t border-gray-800 bg-gray-900/95 flex-col shrink-0 z-30 shadow-[0_-4px_10px_rgba(0,0,0,0.5)] transition-all duration-300 ease-in-out ${isLogOpen ? 'h-80' : 'h-12'}`}>
             <div 
@@ -560,6 +575,7 @@ const AppContent: React.FC = () => {
                         <MobileMenuBtn onClick={() => changeTabMobile(Tab.NPCS)} icon={<UserSquare2/>} label="NPC" active={activeTab === Tab.NPCS}/>
                         <MobileMenuBtn onClick={() => changeTabMobile(Tab.NOTES)} icon={<BookOpen/>} label="Журнал" active={activeTab === Tab.NOTES}/>
                         <MobileMenuBtn onClick={() => changeTabMobile(Tab.QUESTS)} icon={<ScrollText/>} label="Квесты" active={activeTab === Tab.QUESTS}/>
+                        <MobileMenuBtn onClick={() => changeTabMobile(Tab.SOUNDS)} icon={<Music/>} label="Атмосфера" active={activeTab === Tab.SOUNDS}/>
                         <MobileMenuBtn onClick={() => changeTabMobile(Tab.SCREEN)} icon={<ScrollText/>} label="Ширма" active={activeTab === Tab.SCREEN}/>
                         <MobileMenuBtn onClick={() => changeTabMobile(Tab.GALLERY)} icon={<ImageIcon/>} label="Галерея" active={activeTab === Tab.GALLERY}/>
                         <MobileMenuBtn onClick={() => changeTabMobile(Tab.GENERATORS)} icon={<BrainCircuit/>} label="AI" active={activeTab === Tab.GENERATORS}/>
@@ -597,9 +613,11 @@ const MobileMenuBtn: React.FC<{ active: boolean; onClick: () => void; icon: Reac
 );
 
 const App: React.FC = () => (
+  <AudioProvider>
       <ToastProvider>
         <AppContent />
       </ToastProvider>
+  </AudioProvider>
 );
 
 export default App;

@@ -1,11 +1,12 @@
-
 import React, { useState, useRef } from 'react';
 import { 
   Music, Upload, Trash2, X, 
-  Link as LinkIcon, ListMusic, Shuffle, Search, PlayCircle, Download, PlusSquare
+  Link as LinkIcon, ListMusic, Shuffle, Search, PlayCircle, Download, PlusSquare, Archive
 } from 'lucide-react';
 import { useAudio } from '../contexts/AudioContext';
 import { AudioCategory, Track, Playlist } from '../types';
+import JSZip from 'jszip';
+import { useToast } from '../contexts/ToastContext';
 
 const CATEGORIES: Record<AudioCategory, string> = {
     combat: 'Боевые сцены',
@@ -34,11 +35,13 @@ const SoundBoard: React.FC = () => {
       playlists, currentTrack, currentPlaylistId, isPlaying, isShuffle,
       playTrack, playPlaylist, addTrackToPlaylist, removeTrackFromPlaylist, importLocalTracks, toggleShuffle
   } = useAudio();
+  const { showToast } = useToast();
 
   const [viewPlaylistId, setViewPlaylistId] = useState<string | null>(null);
   const [newUrl, setNewUrl] = useState('');
   const [newTitle, setNewTitle] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isZipLoading, setIsZipLoading] = useState(false);
   
   // Drag & Drop State
   const [isDragging, setIsDragging] = useState(false);
@@ -91,21 +94,80 @@ const SoundBoard: React.FC = () => {
       }
   };
 
+  const saveBlob = (blob: Blob, filename: string) => {
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+  };
+
   const downloadTrack = async (url: string, title: string) => {
       try {
           const response = await fetch(url);
           const blob = await response.blob();
-          const blobUrl = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = blobUrl;
-          link.download = `${title}.mp3`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(blobUrl);
+          saveBlob(blob, `${title}.mp3`);
       } catch (e) {
           // Fallback for CORS
           window.open(url, '_blank');
+      }
+  };
+
+  const handleDownloadAll = async () => {
+      setIsZipLoading(true);
+      showToast("Начало архивации треков...", "info");
+      
+      try {
+          const zip = new JSZip();
+          let trackCount = 0;
+
+          for (const playlist of playlists) {
+              if (!playlist.tracks || playlist.tracks.length === 0) continue;
+              
+              // Create folder for playlist, sanitize name
+              const folderName = playlist.name.replace(/[\\/:*?"<>|]/g, "_");
+              const folder = zip.folder(folderName);
+              
+              if (!folder) continue;
+
+              for (const track of playlist.tracks) {
+                  trackCount++;
+                  const safeTitle = track.title.replace(/[\\/:*?"<>|]/g, "_");
+                  
+                  try {
+                      // Attempt to fetch the audio file
+                      // Note: This relies on the server allowing CORS. 
+                      // Local blobs (created via Import) will work fine.
+                      const response = await fetch(track.url);
+                      if (!response.ok) throw new Error('Network error');
+                      const blob = await response.blob();
+                      folder.file(`${safeTitle}.mp3`, blob);
+                  } catch (e) {
+                      // If fetch fails (likely CORS on external link), save a text file with the URL
+                      folder.file(`${safeTitle}_link.txt`, `Track: ${track.title}\nURL: ${track.url}\n\n(Audio could not be downloaded directly due to browser security restrictions on external links.)`);
+                  }
+              }
+          }
+
+          if (trackCount === 0) {
+              showToast("Нет треков для скачивания", "warning");
+              setIsZipLoading(false);
+              return;
+          }
+
+          const content = await zip.generateAsync({ type: "blob" });
+          const dateStr = new Date().toISOString().split('T')[0];
+          saveBlob(content, `DM_Codex_Audio_${dateStr}.zip`);
+          showToast("Архив успешно создан", "success");
+
+      } catch (error: any) {
+          console.error("Zip error:", error);
+          showToast("Ошибка при создании архива", "error");
+      } finally {
+          setIsZipLoading(false);
       }
   };
 
@@ -123,9 +185,9 @@ const SoundBoard: React.FC = () => {
   return (
     <div className="h-full flex flex-col relative overflow-hidden bg-dnd-darker">
         
-        {/* Search Bar */}
-        <div className="p-4 border-b border-gray-800 sticky top-0 bg-dnd-darker z-20 shadow-md">
-            <div className="relative max-w-2xl mx-auto">
+        {/* Search Bar & Controls */}
+        <div className="p-4 border-b border-gray-800 sticky top-0 bg-dnd-darker z-20 shadow-md flex gap-3">
+            <div className="relative flex-1">
                 <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-500"/>
                 <input 
                     className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder-gray-500 focus:border-gold-500 outline-none transition-colors"
@@ -142,6 +204,15 @@ const SoundBoard: React.FC = () => {
                     </button>
                 )}
             </div>
+            <button 
+                onClick={handleDownloadAll}
+                disabled={isZipLoading}
+                className="bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 px-4 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50 whitespace-nowrap"
+                title="Скачать все треки архивом"
+            >
+                {isZipLoading ? <div className="animate-spin w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full"></div> : <Archive className="w-4 h-4"/>}
+                <span className="text-xs font-bold hidden sm:inline">Скачать всё</span>
+            </button>
         </div>
 
         {/* --- Content: Dashboard Grid --- */}

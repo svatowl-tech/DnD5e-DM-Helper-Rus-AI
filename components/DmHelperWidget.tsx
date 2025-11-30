@@ -1,8 +1,8 @@
-
 import React, { useState, useRef } from 'react';
 import { BrainCircuit, Dices, Sparkles, X, Cloud, User, Skull, Volume2, Sword, Ghost, Square, Download, Upload, Plus } from 'lucide-react';
 import { generateNpc, generateScenarioDescription } from '../services/polzaService';
 import { CONDITIONS } from '../constants';
+import { useAudio } from '../contexts/AudioContext';
 
 // Updated SFX Library using reliable Mixkit Preview links (MP3)
 const SFX_LIBRARY = [
@@ -49,6 +49,7 @@ const SFX_LIBRARY = [
 ];
 
 const DmHelperWidget: React.FC = () => {
+    const { playSfx, stopAllSfx } = useAudio();
     const [isOpen, setIsOpen] = useState(false);
     const [dcValue, setDcValue] = useState(15);
     const [activeTab, setActiveTab] = useState<'dc' | 'improv' | 'conditions' | 'sfx'>('dc');
@@ -56,25 +57,9 @@ const DmHelperWidget: React.FC = () => {
     const [improvResult, setImprovResult] = useState<string | null>(null);
     const [selectedCondition, setSelectedCondition] = useState<string | null>(null);
     
-    // Local SFX State
-    const activeAudios = useRef<HTMLAudioElement[]>([]);
+    // Custom SFX
     const [customSounds, setCustomSounds] = useState<{ label: string, url: string }[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const playSfx = (url: string) => {
-        const audio = new Audio(url);
-        audio.volume = 0.5;
-        audio.play().catch(e => console.error(e));
-        activeAudios.current.push(audio);
-        audio.onended = () => {
-             activeAudios.current = activeAudios.current.filter(a => a !== audio);
-        };
-    };
-
-    const stopAllSfx = () => {
-        activeAudios.current.forEach(a => { a.pause(); a.currentTime = 0; });
-        activeAudios.current = [];
-    };
 
     const getDcDescription = (val: number) => {
         if (val <= 5) return "Очень легко (Ребенок)";
@@ -136,116 +121,135 @@ const DmHelperWidget: React.FC = () => {
         return (
             <button 
                 onClick={() => setIsOpen(true)}
-                className="fixed bottom-28 right-4 z-[60] bg-gold-600 text-black p-3 rounded-full shadow-lg hover:bg-gold-500 transition-transform hover:scale-110"
-                title="DM Помощник"
+                className="fixed bottom-28 right-4 z-[60] bg-gold-600 text-black p-3 rounded-full shadow-lg hover:scale-110 transition-transform border-2 border-white xl:bottom-32"
+                title="Помощник ДМ"
             >
-                <BrainCircuit className="w-6 h-6"/>
+                <BrainCircuit className="w-6 h-6" />
             </button>
         );
     }
 
     return (
-        <div className="fixed bottom-28 right-4 z-[60] bg-dnd-card border border-gold-600 rounded-lg shadow-2xl w-80 sm:w-96 max-h-[60vh] flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4">
-            {/* Header */}
-            <div className="p-3 bg-gray-900 border-b border-gray-700 flex justify-between items-center">
-                <h3 className="font-bold text-gold-500 flex items-center gap-2">
-                    <BrainCircuit className="w-5 h-5"/> DM Помощник
-                </h3>
-                <button onClick={() => setIsOpen(false)}><X className="w-5 h-5 text-gray-400 hover:text-white"/></button>
-            </div>
-            
-            {/* Tabs */}
-            <div className="flex bg-gray-800 p-1 shrink-0">
-                <button onClick={() => setActiveTab('dc')} className={`flex-1 py-2 rounded text-xs font-bold ${activeTab === 'dc' ? 'bg-gold-600 text-black' : 'text-gray-400 hover:text-white'}`}>DC</button>
-                <button onClick={() => setActiveTab('improv')} className={`flex-1 py-2 rounded text-xs font-bold ${activeTab === 'improv' ? 'bg-gold-600 text-black' : 'text-gray-400 hover:text-white'}`}>Импров</button>
-                <button onClick={() => setActiveTab('conditions')} className={`flex-1 py-2 rounded text-xs font-bold ${activeTab === 'conditions' ? 'bg-gold-600 text-black' : 'text-gray-400 hover:text-white'}`}>Сост.</button>
-                <button onClick={() => setActiveTab('sfx')} className={`flex-1 py-2 rounded text-xs font-bold ${activeTab === 'sfx' ? 'bg-gold-600 text-black' : 'text-gray-400 hover:text-white'}`}>SFX</button>
+        <div className="fixed bottom-28 right-4 z-[60] bg-dnd-card border border-gold-600 rounded-lg shadow-2xl w-80 overflow-hidden animate-in slide-in-from-bottom-5 xl:bottom-32 flex flex-col max-h-[500px]">
+            <div className="flex justify-between items-center bg-gray-900 p-2 border-b border-gray-700 shrink-0">
+                <h4 className="font-bold text-gold-500 text-sm flex items-center gap-2"><BrainCircuit className="w-4 h-4"/> DM Helper</h4>
+                <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-white"><X className="w-4 h-4"/></button>
             </div>
 
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+            <div className="flex bg-gray-800 shrink-0">
+                <button onClick={() => setActiveTab('dc')} className={`flex-1 py-2 text-xs font-bold ${activeTab === 'dc' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`} title="Сложность">
+                    <Dices className="w-4 h-4 mx-auto"/>
+                </button>
+                <button onClick={() => setActiveTab('improv')} className={`flex-1 py-2 text-xs font-bold ${activeTab === 'improv' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`} title="Импровизация">
+                    <Sparkles className="w-4 h-4 mx-auto"/>
+                </button>
+                <button onClick={() => setActiveTab('conditions')} className={`flex-1 py-2 text-xs font-bold ${activeTab === 'conditions' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`} title="Состояния">
+                    <Skull className="w-4 h-4 mx-auto"/>
+                </button>
+                <button onClick={() => setActiveTab('sfx')} className={`flex-1 py-2 text-xs font-bold ${activeTab === 'sfx' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`} title="Звуки">
+                    <Volume2 className="w-4 h-4 mx-auto"/>
+                </button>
+            </div>
+
+            <div className="p-4 bg-dnd-darker flex-1 overflow-y-auto custom-scrollbar">
                 {activeTab === 'dc' && (
-                    <div className="space-y-4 text-center">
-                        <div className="text-4xl font-bold text-white">{dcValue}</div>
-                        <div className="text-gold-500 font-serif text-lg">{getDcDescription(dcValue)}</div>
+                    <div className="text-center space-y-4">
+                        <div className="text-4xl font-bold text-white font-mono">{dcValue}</div>
+                        <div className="text-sm text-gold-500">{getDcDescription(dcValue)}</div>
                         <input 
-                            type="range" 
-                            min="5" 
-                            max="30" 
-                            step="5" 
-                            value={dcValue} 
-                            onChange={(e) => setDcValue(Number(e.target.value))}
+                            type="range" min="5" max="30" step="5" 
+                            value={dcValue} onChange={e => setDcValue(Number(e.target.value))}
                             className="w-full accent-gold-600"
                         />
-                        <div className="flex justify-between text-xs text-gray-500 px-1">
-                            <span>5</span>
-                            <span>10</span>
-                            <span>15</span>
-                            <span>20</span>
-                            <span>25</span>
-                            <span>30</span>
+                        <div className="flex justify-between text-[10px] text-gray-500">
+                            <span>5</span><span>15</span><span>30</span>
                         </div>
                     </div>
                 )}
 
                 {activeTab === 'improv' && (
                     <div className="space-y-3">
-                        <div className="grid grid-cols-3 gap-2">
-                            <button onClick={() => handleImprov('npc')} className="bg-indigo-900/50 hover:bg-indigo-800 text-indigo-200 border border-indigo-700 py-2 rounded text-xs font-bold flex flex-col items-center gap-1">
-                                <User className="w-4 h-4"/> NPC
+                        <div className="flex justify-between gap-2">
+                            <button onClick={() => handleImprov('npc')} disabled={loading} className="flex-1 bg-gray-800 p-2 rounded hover:bg-gray-700 flex flex-col items-center gap-1 border border-gray-700">
+                                <User className="w-4 h-4 text-blue-400"/> <span className="text-[10px]">NPC</span>
                             </button>
-                            <button onClick={() => handleImprov('event')} className="bg-orange-900/50 hover:bg-orange-800 text-orange-200 border border-orange-700 py-2 rounded text-xs font-bold flex flex-col items-center gap-1">
-                                <Sparkles className="w-4 h-4"/> Сцена
+                            <button onClick={() => handleImprov('event')} disabled={loading} className="flex-1 bg-gray-800 p-2 rounded hover:bg-gray-700 flex flex-col items-center gap-1 border border-gray-700">
+                                <Dices className="w-4 h-4 text-red-400"/> <span className="text-[10px]">Событие</span>
                             </button>
-                            <button onClick={() => handleImprov('weather')} className="bg-blue-900/50 hover:bg-blue-800 text-blue-200 border border-blue-700 py-2 rounded text-xs font-bold flex flex-col items-center gap-1">
-                                <Cloud className="w-4 h-4"/> Погода
+                            <button onClick={() => handleImprov('weather')} disabled={loading} className="flex-1 bg-gray-800 p-2 rounded hover:bg-gray-700 flex flex-col items-center gap-1 border border-gray-700">
+                                <Cloud className="w-4 h-4 text-gray-300"/> <span className="text-[10px]">Погода</span>
                             </button>
                         </div>
                         
-                        <div className="min-h-[100px] bg-gray-900 p-3 rounded border border-gray-700 text-sm text-gray-300">
-                            {loading ? (
-                                <span className="animate-pulse">Думаем...</span>
-                            ) : (
-                                improvResult || <span className="text-gray-600 italic">Нажмите кнопку для вдохновения.</span>
-                            )}
-                        </div>
+                        {loading && <div className="text-center text-xs text-gold-500 animate-pulse">Думаем...</div>}
+                        
+                        {improvResult && (
+                            <div className="text-xs bg-gray-900 p-3 rounded text-gray-300 border border-gray-700 max-h-48 overflow-y-auto">
+                                {improvResult}
+                            </div>
+                        )}
+                        
+                        <p className="text-[10px] text-gray-500 text-center mt-2">Генерирует случайный контент для сцены.</p>
                     </div>
                 )}
 
                 {activeTab === 'conditions' && (
                     <div className="space-y-2">
-                        {CONDITIONS.map(c => (
-                            <div key={c.id} className="border border-gray-700 rounded p-2 hover:bg-gray-800">
-                                <div 
-                                    className="flex justify-between items-center cursor-pointer"
-                                    onClick={() => setSelectedCondition(selectedCondition === c.id ? null : c.id)}
-                                >
-                                    <span className="font-bold text-sm text-white">{c.name}</span>
+                        {selectedCondition ? (
+                            <div className="bg-gray-900 border border-gold-600/50 rounded p-3 animate-in fade-in zoom-in">
+                                <div className="flex justify-between items-start mb-2">
+                                    <h5 className="font-bold text-white text-sm">{CONDITIONS.find(c => c.id === selectedCondition)?.name}</h5>
+                                    <button onClick={() => setSelectedCondition(null)} className="text-gray-400 hover:text-white"><X className="w-4 h-4"/></button>
                                 </div>
-                                {selectedCondition === c.id && (
-                                    <p className="text-xs text-gray-400 mt-1 border-t border-gray-700 pt-1">{c.description}</p>
-                                )}
+                                <p className="text-xs text-gray-300 leading-relaxed">
+                                    {CONDITIONS.find(c => c.id === selectedCondition)?.description}
+                                </p>
                             </div>
-                        ))}
+                        ) : (
+                            <div className="grid grid-cols-2 gap-2">
+                                {CONDITIONS.map(c => (
+                                    <button 
+                                        key={c.id}
+                                        onClick={() => setSelectedCondition(c.id)}
+                                        className="text-[10px] bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 py-1.5 px-2 rounded truncate text-left"
+                                    >
+                                        {c.name.split(' (')[0]}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
 
                 {activeTab === 'sfx' && (
                     <div className="space-y-4">
-                        <button onClick={stopAllSfx} className="w-full bg-red-900/50 text-red-200 text-xs py-1 rounded hover:bg-red-900 border border-red-800 flex items-center justify-center gap-2">
-                            <Square className="w-3 h-3 fill-current"/> Остановить всё
+                        {/* Stop Button */}
+                        <button 
+                            onClick={stopAllSfx}
+                            className="w-full bg-red-900/80 hover:bg-red-800 text-white py-2 rounded flex justify-center items-center gap-2 font-bold text-xs border border-red-700 mb-2 shadow-lg"
+                        >
+                            <Square className="w-3 h-3 fill-current"/> Стоп Эффекты
                         </button>
-                        
-                        {SFX_LIBRARY.map((cat, idx) => (
-                            <div key={idx}>
-                                <h4 className="text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-2">{cat.icon} {cat.category}</h4>
+
+                        {SFX_LIBRARY.map((group, idx) => (
+                            <div key={idx} className="space-y-2">
+                                <h5 className="text-xs text-gold-500 font-bold uppercase flex items-center gap-2 border-b border-gray-800 pb-1">
+                                    {group.icon} {group.category}
+                                </h5>
                                 <div className="grid grid-cols-2 gap-2">
-                                    {cat.sounds.map((s, i) => (
-                                        <div key={i} className="flex gap-1">
-                                            <button onClick={() => playSfx(s.url)} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-xs py-2 rounded border border-gray-700 flex items-center justify-center gap-1">
-                                                <Volume2 className="w-3 h-3"/> {s.label}
+                                    {group.sounds.map((snd, sIdx) => (
+                                        <div key={sIdx} className="flex gap-1">
+                                            <button 
+                                                onClick={() => playSfx(snd.url)}
+                                                className="flex-1 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gold-500/50 text-gray-300 py-2 rounded text-xs font-bold transition-all active:scale-95 flex justify-center items-center"
+                                            >
+                                                {snd.label}
                                             </button>
-                                            <button onClick={() => downloadSfx(s.url, s.label)} className="bg-gray-800 hover:bg-gray-700 text-gray-400 px-2 rounded border border-gray-700">
+                                            <button 
+                                                onClick={() => downloadSfx(snd.url, snd.label)}
+                                                className="bg-gray-900 hover:bg-gray-800 border border-gray-700 text-gray-500 hover:text-white px-2 rounded"
+                                                title="Скачать"
+                                            >
                                                 <Download className="w-3 h-3"/>
                                             </button>
                                         </div>
@@ -254,24 +258,38 @@ const DmHelperWidget: React.FC = () => {
                             </div>
                         ))}
 
-                        {/* Custom Sounds */}
-                        {customSounds.length > 0 && (
-                            <div>
-                                <h4 className="text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-2"><Upload className="w-3 h-3"/> Свои</h4>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {customSounds.map((s, i) => (
-                                        <button key={i} onClick={() => playSfx(s.url)} className="bg-gray-800 hover:bg-gray-700 text-white text-xs py-2 rounded border border-gray-700 flex items-center justify-center gap-1">
-                                            <Volume2 className="w-3 h-3"/> {s.label}
-                                        </button>
-                                    ))}
-                                </div>
+                        {/* Custom SFX Section */}
+                        <div className="space-y-2 pt-2 border-t border-gray-800">
+                            <h5 className="text-xs text-gold-500 font-bold uppercase flex items-center gap-2">
+                                <Volume2 className="w-4 h-4"/> Свои звуки
+                            </h5>
+                            <div className="grid grid-cols-2 gap-2">
+                                {customSounds.map((snd, idx) => (
+                                    <button 
+                                        key={idx}
+                                        onClick={() => playSfx(snd.url)}
+                                        className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 py-2 rounded text-xs font-bold transition-all active:scale-95 truncate"
+                                        title={snd.label}
+                                    >
+                                        {snd.label}
+                                    </button>
+                                ))}
+                                <button 
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="bg-gray-800 hover:bg-gray-700 border border-dashed border-gray-600 text-gray-400 py-2 rounded text-xs font-bold flex justify-center items-center gap-1"
+                                >
+                                    <Plus className="w-3 h-3"/> Загрузить
+                                </button>
+                                <input 
+                                    type="file" 
+                                    className="hidden" 
+                                    ref={fileInputRef} 
+                                    accept="audio/*" 
+                                    onChange={handleFileUpload}
+                                />
                             </div>
-                        )}
-
-                        <button onClick={() => fileInputRef.current?.click()} className="w-full border border-dashed border-gray-600 text-gray-400 text-xs py-2 rounded hover:text-white hover:border-gray-500 flex items-center justify-center gap-2">
-                            <Plus className="w-3 h-3"/> Добавить (MP3)
-                        </button>
-                        <input type="file" ref={fileInputRef} className="hidden" accept="audio/*" onChange={handleFileUpload} />
+                            <p className="text-[10px] text-gray-500 text-center">Загрузите скачанные файлы для игры офлайн.</p>
+                        </div>
                     </div>
                 )}
             </div>
