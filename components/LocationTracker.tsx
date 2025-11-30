@@ -1,12 +1,10 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { LocationData, PartyMember, Combatant, EntityType, LoreEntry, LocationTrackerProps, Note, SavedImage, TravelResult, CampaignNpc, FullQuest, TravelState, BestiaryEntry } from '../types';
 import { parseLoreFromText, generateEncounterIntro, generateScenarioDescription, generateFullLocation, generateLocationContent, generateExtendedDetails, generateMultiverseBreach, generateRealityGlitch, generateImage, generateNpc, generateQuest, generateMonster } from '../services/polzaService';
 import { getMonstersByCr } from '../services/dndApiService';
 import { MapPin, Users, Skull, Sparkles, BookOpen, Loader, Search, Eye, ChevronRight, ArrowRight, Menu, Map, Copy, Plus, Home, Trees, Tent, Castle, ArrowLeft, LandPlot, Landmark, Beer, Footprints, ShieldAlert, Ghost, Info, X, Save, FileText, RefreshCcw, ChevronDown, ChevronUp, Zap, Anchor, Globe, Hexagon, Activity, Radio, Flame, Image as ImageIcon, ZoomIn, Church, Building, Mountain, ScrollText, Swords, UserPlus, Pickaxe, Wheat, Ship, ShoppingBag, Gavel, Gem, Compass, UserSquare2, PenTool, Wand2, Route, Signpost, DoorOpen, Feather } from 'lucide-react';
 import { FAERUN_LORE } from '../data/faerunLore';
-import { useAudio } from '../contexts/AudioContext';
 import SmartText from './SmartText';
 import TravelManager from './TravelManager';
 import BestiaryBrowser from './BestiaryBrowser';
@@ -46,7 +44,6 @@ const GENERIC_LOCATIONS = [
 
 const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, onImageGenerated, onShowImage }) => {
     // Audio Context for automation
-    const { autoPlayMusic } = useAudio();
     const { showToast } = useToast();
 
     const [lore, setLore] = useState<LoreEntry[]>(() => {
@@ -269,9 +266,6 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         } else {
             setLocationImage(null);
         }
-        
-        // Auto-DJ trigger
-        autoPlayMusic('location', `${loc.type} ${loc.name} ${loc.atmosphere} ${loc.description}`);
     };
 
     const logLocationArrival = () => {

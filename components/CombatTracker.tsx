@@ -6,7 +6,6 @@ import { Shield, Heart, Sword, Skull, Play, RefreshCw, Plus, X, Trash2, Users, B
 import BestiaryBrowser from './BestiaryBrowser';
 import { generateCombatLoot, generateMonster } from '../services/polzaService';
 import { calculateEncounterDifficulty, EncounterResult } from '../services/encounterService';
-import { useAudio } from '../contexts/AudioContext';
 import { useToast } from '../contexts/ToastContext';
 import SmartText from './SmartText';
 import LootInteraction from './LootInteraction';
@@ -70,7 +69,6 @@ const ActionRenderer: React.FC<{ text: string, sourceName: string, onRoll: (expr
 };
 
 const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
-  const { playPlaylist, autoPlayMusic } = useAudio();
   const { showToast } = useToast();
 
   const [combatants, setCombatants] = useState<Combatant[]>(() => {
@@ -128,7 +126,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
           const saved = localStorage.getItem('dmc_combatants');
           if (saved) {
               setCombatants(JSON.parse(saved));
-              playCombatMusic();
           }
       };
       window.addEventListener('dmc-update-combat', handleUpdate);
@@ -161,12 +158,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
           setInitRolls(rolls);
       }
   }, [showInitModal]);
-
-  const playCombatMusic = () => {
-      // Check names for intelligent switching
-      const monsterNames = combatants.filter(c => c.type === EntityType.MONSTER).map(c => c.name + " " + c.notes).join(' ');
-      autoPlayMusic('combat', monsterNames);
-  };
 
   const sortCombatants = () => {
     const sorted = [...combatants].sort((a, b) => b.initiative - a.initiative);
@@ -262,9 +253,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
     };
     setCombatants(prev => {
         const updated = [...prev, combatant];
-        if (combatant.type === EntityType.MONSTER && prev.filter(c => c.type === EntityType.MONSTER).length === 0) {
-            playCombatMusic();
-        }
         return updated;
     });
     setNewCombatant({ name: '', initiative: 10, hp: 10, maxHp: 10, ac: 10, type: EntityType.MONSTER });
@@ -296,9 +284,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
       setVictoryXp(xpPerPlayer);
       setVictoryLoot('');
       setShowVictoryModal(true);
-      
-      // Auto play victory music
-      autoPlayMusic('victory');
   };
 
   const cleanCombatState = () => {
@@ -427,11 +412,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
     }
 
     setCombatants(prev => {
-        const monstersBefore = prev.filter(c => c.type === EntityType.MONSTER).length;
-        if (monstersBefore === 0) {
-             const contextText = `${monster.name} ${monster.type} CR ${monster.cr}`;
-             autoPlayMusic('combat', contextText);
-        }
         return [...prev, ...newMonsters];
     });
     showToast(`${count} x ${monster.name} добавлены`, "success");
@@ -446,9 +426,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
               // Switch to Location tab and trigger travel modal open
               window.dispatchEvent(new CustomEvent('dmc-switch-tab', { detail: 'location' }));
               setTimeout(() => window.dispatchEvent(new CustomEvent('dmc-open-travel')), 100);
-              
-              // Switch back to travel music
-              autoPlayMusic('travel');
               setConfirmAction(null);
           }
       });

@@ -1,8 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { LogEntry, Note, PartyMember, FullQuest } from '../types';
-import { Check, Save, X, Play, Users, ScrollText, Shield, Skull, Music, Heart, MapPin, Globe, Sparkles, Loader, PenTool } from 'lucide-react';
-import { useAudio } from '../contexts/AudioContext';
+import { Check, Save, X, Play, Users, ScrollText, Shield, Skull, Heart, Globe, Sparkles, Loader } from 'lucide-react';
 import { generateStoryFromLog } from '../services/polzaService';
 
 interface SessionWizardProps {
@@ -23,11 +22,7 @@ const SessionWizard: React.FC<SessionWizardProps> = ({
     isOpen, onClose, type, logs, party, combatants, onAddLog, onSaveNote, onClearCombat, onUpdateParty, activeQuests 
 }) => {
     const [step, setStep] = useState(0);
-    const { playPlaylist } = useAudio();
     
-    // Start Session State
-    const [selectedAtmosphere, setSelectedAtmosphere] = useState<string | null>(null);
-
     // End Session State
     const [sessionTitle, setSessionTitle] = useState(`Сессия ${new Date().toLocaleDateString()}`);
     const [xpEarned, setXpEarned] = useState(0);
@@ -48,17 +43,12 @@ const SessionWizard: React.FC<SessionWizardProps> = ({
             logs.filter(l => l.text.includes('[NPC]')).map(l => l.text.replace('[NPC]', '').trim())
         ));
         
-        // Prioritize explicit [Location] tags, fallback to atmosphere changes
+        // Prioritize explicit [Location] tags
         const locationLogs = logs.filter(l => l.text.includes('[Локация]'));
         let locations: string[] = [];
         
         if (locationLogs.length > 0) {
              locations = Array.from(new Set(locationLogs.map(l => l.text.replace('[Локация]', '').trim())));
-        } else {
-             locations = Array.from(new Set(
-                logs.filter(l => l.text.includes('Включена атмосфера'))
-                    .map(l => l.text.replace('Включена атмосфера:', '').trim())
-            ));
         }
 
         const quests = Array.from(new Set(
@@ -106,11 +96,6 @@ const SessionWizard: React.FC<SessionWizardProps> = ({
             onUpdateParty(updated);
             onAddLog({ id: Date.now().toString(), timestamp: Date.now(), text: "Группа завершила Длинный Отдых.", type: 'system' });
         }
-    };
-
-    const handlePlayAtmosphere = (playlistId: string) => {
-        playPlaylist(playlistId, true);
-        setSelectedAtmosphere(playlistId);
     };
 
     if (!isOpen) return null;
@@ -163,40 +148,6 @@ const SessionWizard: React.FC<SessionWizardProps> = ({
                                 </ul>
                             </div>
                         )}
-                    </div>
-                )
-            },
-            {
-                title: "Атмосфера",
-                icon: <Music className="w-6 h-6 text-purple-400"/>,
-                content: (
-                    <div className="space-y-3">
-                        <p className="text-sm text-gray-300">Задайте тон начала игры.</p>
-                        <div className="grid grid-cols-2 gap-2">
-                            {[
-                                { id: 'atmosphere', label: '🌲 Путешествие' },
-                                { id: 'dungeon', label: '🏰 Подземелье' },
-                                { id: 'tavern', label: '🍺 Таверна' },
-                                { id: 'mood', label: '🔮 Тайна' },
-                                { id: 'city', label: '🏙️ Город' },
-                                { id: 'combat', label: '⚔️ Бой (Сразу)', danger: true },
-                            ].map(opt => (
-                                <button 
-                                    key={opt.id}
-                                    onClick={() => handlePlayAtmosphere(opt.id)}
-                                    className={`p-2 rounded text-xs text-left flex items-center gap-2 transition-all border ${
-                                        selectedAtmosphere === opt.id 
-                                        ? 'bg-gold-600 text-black border-white shadow-[0_0_10px_rgba(212,175,55,0.5)] font-bold' 
-                                        : opt.danger 
-                                            ? 'bg-red-900/30 hover:bg-red-900/50 border-red-800 text-gray-300' 
-                                            : 'bg-gray-800 hover:bg-gray-700 border-gray-700 text-gray-300'
-                                    }`}
-                                >
-                                    {opt.label}
-                                    {selectedAtmosphere === opt.id && <Check className="w-3 h-3 ml-auto"/>}
-                                </button>
-                            ))}
-                        </div>
                     </div>
                 )
             }

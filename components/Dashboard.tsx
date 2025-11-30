@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { Combatant, EntityType, PartyMember, CampaignSettings, FullQuest, LogEntry, Note } from '../types';
 import { Sword, BrainCircuit, Users, Settings, Play, StopCircle, AlertTriangle, Eye, Target, Zap, MapPin, ScrollText, Key, Image as ImageIcon, Download, Upload, Database, FileJson } from 'lucide-react';
@@ -265,7 +264,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
     const displayParty = (party || []).filter(p => p.active);
 
     return (
-        <div className="space-y-6 h-full flex flex-col">
+        <div className="space-y-6 flex flex-col lg:h-full">
             {/* Session Wizard Modal */}
             <SessionWizard 
                 isOpen={!!wizardType}
@@ -332,10 +331,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
             </div>
 
             {/* Main Dashboard Grid - Rebalanced */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:flex-1 lg:min-h-0">
                 
                 {/* Col 1: Live Status */}
-                <div className="space-y-4 flex flex-col">
+                <div className="space-y-4 flex flex-col lg:h-full">
                     {/* Combat Status */}
                     <div className={`p-4 rounded-lg border shadow-md ${monsters.length > 0 ? 'bg-red-950/30 border-red-900' : 'bg-dnd-card border-gray-700'}`}>
                         <div className="flex items-center justify-between mb-2">
@@ -355,7 +354,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
                     </div>
 
                     {/* Party Status */}
-                    <div className="p-4 rounded-lg border border-gray-700 bg-dnd-card flex-1 shadow-md flex flex-col">
+                    <div className="p-4 rounded-lg border border-gray-700 bg-dnd-card flex-1 shadow-md flex flex-col min-h-[200px]">
                         <div className="flex items-center justify-between mb-3 border-b border-gray-700 pb-2">
                             <div className="flex items-center gap-2 text-blue-400 font-bold uppercase tracking-wider text-sm">
                                 <Users className="w-4 h-4"/> Группа
@@ -379,7 +378,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
                 </div>
 
                 {/* Col 2: Mental Load (Focus) */}
-                <div className="flex flex-col h-full gap-4">
+                <div className="flex flex-col lg:h-full gap-4 min-h-[300px]">
                     <div className="bg-indigo-950/20 border border-indigo-500/30 p-4 rounded-lg relative group flex-1 shadow-md flex flex-col">
                         <div className="flex items-center gap-2 mb-3 text-indigo-400 font-bold text-sm uppercase tracking-wider">
                             <Eye className="w-4 h-4"/> Фокус Мастера
@@ -398,9 +397,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onChangeTab }) => {
                 </div>
 
                 {/* Col 3: Quests & Location */}
-                <div className="flex flex-col h-full gap-4">
+                <div className="flex flex-col lg:h-full gap-4">
                     {/* Active Quests */}
-                    <div className="bg-dnd-card p-4 rounded-lg border border-gray-700 shadow-md flex-1 flex flex-col">
+                    <div className="bg-dnd-card p-4 rounded-lg border border-gray-700 shadow-md flex-1 flex flex-col min-h-[200px]">
                         <div className="flex items-center justify-between mb-3 border-b border-gray-700 pb-2">
                             <h3 className="font-bold text-gold-500 uppercase tracking-wider text-sm flex items-center gap-2">
                                 <AlertTriangle className="w-4 h-4"/> Задачи
