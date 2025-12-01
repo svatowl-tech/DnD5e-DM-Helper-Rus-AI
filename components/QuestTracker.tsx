@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import { FullQuest, QuestObjective, Combatant, EntityType, QuestTrackerProps } from '../types';
 import { generateFullQuestTracker, parseQuestFromText, enhanceQuest } from '../services/polzaService';
@@ -7,9 +5,10 @@ import { searchMonsters, getMonsterDetails } from '../services/dndApiService';
 import { 
     ScrollText, Plus, Trash2, CheckCircle, Circle, Save, 
     Swords, Sparkles, Loader, ArrowLeft, Edit2, X, 
-    ChevronDown, ChevronUp, Wand2, MapPin
+    ChevronDown, ChevronUp, Wand2, MapPin, Coins
 } from 'lucide-react';
 import SmartText from './SmartText';
+import LootInteraction from './LootInteraction';
 
 const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
     const [quests, setQuests] = useState<FullQuest[]>(() => {
@@ -342,6 +341,13 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
         }
     };
 
+    // Prepare content for LootInteraction (wrap plain text in ul/li if needed)
+    const getFormattedReward = (text: string) => {
+        if (!text) return "";
+        if (text.includes("<li>") || text.includes("<ul>")) return text;
+        return `<ul><li>${text}</li></ul>`;
+    };
+
     // Helper for badge colors
     const getStatusBadge = (status: string) => {
         switch(status) {
@@ -637,11 +643,11 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
                                         value={activeQuest.reward}
                                         onChange={e => updateQuest(activeQuest.id, { reward: e.target.value })}
                                     />
-                                    {/* Preview for HTML content in reward */}
-                                    {activeQuest.reward && activeQuest.reward.includes('<') && (
-                                        <div className="mt-2 p-2 border border-gold-900/30 rounded bg-black/20">
-                                            <p className="text-xs text-gray-500 mb-1 uppercase">Предпросмотр:</p>
-                                            <SmartText content={activeQuest.reward} className="text-sm text-gold-100" />
+                                    {/* Preview for Loot Interaction */}
+                                    {activeQuest.reward && (
+                                        <div className="mt-2 p-3 border border-gold-900/30 rounded bg-black/20">
+                                            <p className="text-[10px] text-gray-500 mb-2 uppercase font-bold flex items-center gap-2"><Coins className="w-3 h-3"/> Добыча</p>
+                                            <LootInteraction htmlContent={getFormattedReward(activeQuest.reward)} />
                                         </div>
                                     )}
                                 </div>

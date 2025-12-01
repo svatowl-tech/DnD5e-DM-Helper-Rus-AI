@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, Suspense } from 'react';
-import { Tab, LogEntry, Note, SavedImage, PartyMember, LocationData, FullQuest, Combatant, EntityType, CampaignNpc, InventoryItem } from './types';
+import { Tab, LogEntry, Note, SavedImage, PartyMember, LocationData, FullQuest, Combatant, EntityType, CampaignNpc, InventoryItem, PartyStash } from './types';
 import { 
   setCustomApiKey, 
   getCustomApiKey, 
@@ -202,15 +201,6 @@ const AppContent: React.FC = () => {
       localStorage.setItem('dmc_recent_events', storyLogs);
   }, [logs]);
 
-  // Global Listeners
-  useEffect(() => {
-      const handleListeners = (e: any) => { /* ... Simplified for brevity as logic is same ... */ };
-      // ... (Re-using existing listener logic, truncated for diff clarity) ...
-      // Listeners are essential, keeping them hooked up
-  }, []);
-
-  // ... (Rest of existing listeners for tabs, install, etc) ...
-  
   // Re-bind global event listeners
   useEffect(() => {
       const handleAddQuest = (e: CustomEvent) => {
@@ -288,17 +278,127 @@ const AppContent: React.FC = () => {
           window.dispatchEvent(new Event('dmc-update-npcs'));
           showToast(`NPC ${newNpc.name} сохранен`, 'success');
       };
+
+      const handleGiveItem = (e: CustomEvent) => {
+          const { memberId, itemName, itemDescription } = e.detail;
+          if (!itemName) return;
+
+          const newItem: InventoryItem = {
+              id: Date.now().toString() + Math.random(),
+              name: itemName,
+              quantity: 1,
+              description: itemDescription || ''
+          };
+
+          const existingParty: PartyMember[] = JSON.parse(localStorage.getItem('dmc_party') || '[]');
+          const updatedParty = existingParty.map(p => {
+              if (p.id === memberId) {
+                  return { ...p, inventory: [...(p.inventory || []), newItem] };
+              }
+              return p;
+          });
+          
+          localStorage.setItem('dmc_party', JSON.stringify(updatedParty));
+          window.dispatchEvent(new Event('dmc-update-party'));
+          
+          const recipient = existingParty.find(p => p.id === memberId);
+          showToast(`${itemName} добавлен в инвентарь ${recipient?.name || 'героя'}`, 'success');
+      };
+
+      const handleAddToStash = (e: CustomEvent) => {
+          const { itemName, itemDescription, coins } = e.detail;
+          const stash: PartyStash = JSON.parse(localStorage.getItem('dmc_party_stash') || '{"items":[],"wallet":{"gp":0,"sp":0,"cp":0}}');
+
+          if (itemName) {
+             const newItem: InventoryItem = {
+                id: Date.now().toString() + Math.random(),
+                name: itemName,
+                quantity: 1,
+                description: itemDescription || ''
+             };
+             stash.items.push(newItem);
+             showToast(`"${itemName}" в общем инвентаре`, 'success');
+          }
+
+          if (coins) {
+             if (coins.gp) stash.wallet.gp = (stash.wallet.gp || 0) + coins.gp;
+             if (coins.sp) stash.wallet.sp = (stash.wallet.sp || 0) + coins.sp;
+             if (coins.cp) stash.wallet.cp = (stash.wallet.cp || 0) + coins.cp;
+             showToast(`Деньги добавлены в казну`, 'success');
+          }
+
+          localStorage.setItem('dmc_party_stash', JSON.stringify(stash));
+          window.dispatchEvent(new Event('dmc-update-stash'));
+      };
+
+      const handleSplitCurrency = (e: CustomEvent) => {
+          // Split whatever is in the stash wallet equally among active members
+          const stash: PartyStash = JSON.parse(localStorage.getItem('dmc_party_stash') || '{"items":[],"wallet":{"gp":0,"sp":0,"cp":0}}');
+          const party: PartyMember[] = JSON.parse(localStorage.getItem('dmc_party') || '[]');
+          const activeMembers = party.filter(p => p.active);
+
+          if (activeMembers.length === 0) {
+              showToast("Нет активных героев для раздела", "warning");
+              return;
+          }
+
+          const { gp, sp, cp } = stash.wallet;
+          if (gp === 0 && sp === 0 && cp === 0) {
+             showToast("Казна пуста", "warning");
+             return;
+          }
+
+          const gpSplit = Math.floor(gp / activeMembers.length);
+          const gpRem = gp % activeMembers.length;
+          
+          const spSplit = Math.floor(sp / activeMembers.length);
+          const spRem = sp % activeMembers.length;
+
+          const cpSplit = Math.floor(cp / activeMembers.length);
+          const cpRem = cp % activeMembers.length;
+
+          const updatedParty = party.map(p => {
+              if (p.active) {
+                  return {
+                      ...p,
+                      wallet: {
+                          gp: (p.wallet?.gp || 0) + gpSplit,
+                          sp: (p.wallet?.sp || 0) + spSplit,
+                          cp: (p.wallet?.cp || 0) + cpSplit
+                      }
+                  };
+              }
+              return p;
+          });
+
+          // Update Stash (Keep remainders)
+          stash.wallet = { gp: gpRem, sp: spRem, cp: cpRem };
+
+          localStorage.setItem('dmc_party', JSON.stringify(updatedParty));
+          localStorage.setItem('dmc_party_stash', JSON.stringify(stash));
+          
+          window.dispatchEvent(new Event('dmc-update-party'));
+          window.dispatchEvent(new Event('dmc-update-stash'));
+          
+          showToast(`Казна разделена между ${activeMembers.length} героями`, 'success');
+      };
       
       window.addEventListener('dmc-add-quest' as any, handleAddQuest);
       window.addEventListener('dmc-add-combatant' as any, handleAddCombatant);
       window.addEventListener('dmc-add-note' as any, handleAddNote);
       window.addEventListener('dmc-add-npc' as any, handleAddNpc);
+      window.addEventListener('dmc-give-item' as any, handleGiveItem);
+      window.addEventListener('dmc-add-to-stash' as any, handleAddToStash);
+      window.addEventListener('dmc-distribute-currency' as any, handleSplitCurrency);
       
       return () => {
           window.removeEventListener('dmc-add-quest' as any, handleAddQuest);
           window.removeEventListener('dmc-add-combatant' as any, handleAddCombatant);
           window.removeEventListener('dmc-add-note' as any, handleAddNote);
           window.removeEventListener('dmc-add-npc' as any, handleAddNpc);
+          window.removeEventListener('dmc-give-item' as any, handleGiveItem);
+          window.removeEventListener('dmc-add-to-stash' as any, handleAddToStash);
+          window.removeEventListener('dmc-distribute-currency' as any, handleSplitCurrency);
       };
   }, []);
 

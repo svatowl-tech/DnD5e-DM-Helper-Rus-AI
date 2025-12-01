@@ -1,16 +1,15 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { LocationData, PartyMember, Combatant, EntityType, LoreEntry, LocationTrackerProps, Note, SavedImage, TravelResult, CampaignNpc, FullQuest, TravelState, BestiaryEntry } from '../types';
 import { parseLoreFromText, generateEncounterIntro, generateScenarioDescription, generateFullLocation, generateLocationContent, generateExtendedDetails, generateMultiverseBreach, generateRealityGlitch, generateImage, generateNpc, generateQuest, generateMonster } from '../services/polzaService';
 import { getMonstersByCr } from '../services/dndApiService';
-import { MapPin, Users, Skull, Sparkles, BookOpen, Loader, Search, Eye, ChevronRight, ArrowRight, Menu, Map, Copy, Plus, Home, Trees, Tent, Castle, ArrowLeft, LandPlot, Landmark, Beer, Footprints, ShieldAlert, Ghost, Info, X, Save, FileText, RefreshCcw, ChevronDown, ChevronUp, Zap, Anchor, Globe, Hexagon, Activity, Radio, Flame, Image as ImageIcon, ZoomIn, Church, Building, Mountain, ScrollText, Swords, UserPlus, Pickaxe, Wheat, Ship, ShoppingBag, Gavel, Gem, Compass, UserSquare2, PenTool, Wand2, Route, Signpost, DoorOpen, Feather } from 'lucide-react';
+import { MapPin, Users, Skull, Sparkles, BookOpen, Loader, Search, Eye, ChevronRight, ArrowRight, Menu, Map, Copy, Plus, Home, Trees, Tent, Castle, ArrowLeft, LandPlot, Landmark, Beer, Footprints, ShieldAlert, Ghost, Info, X, Save, FileText, RefreshCcw, ChevronDown, ChevronUp, Zap, Anchor, Globe, Hexagon, Activity, Radio, Flame, Image as ImageIcon, ZoomIn, Church, Building, Mountain, ScrollText, Swords, UserPlus, Pickaxe, Wheat, Ship, ShoppingBag, Gavel, Gem, Compass, UserSquare2, PenTool, Wand2, Route, Signpost, DoorOpen, Feather, PackagePlus, Coins, Landmark as LandmarkIcon, MoreHorizontal, Archive } from 'lucide-react';
 import { FAERUN_LORE } from '../data/faerunLore';
 import { useAudio } from '../contexts/AudioContext';
 import SmartText from './SmartText';
 import TravelManager from './TravelManager';
 import BestiaryBrowser from './BestiaryBrowser';
 import { useToast } from '../contexts/ToastContext';
+import LootInteraction from './LootInteraction';
 
 // Extended location types for the generator grid
 const GENERIC_LOCATIONS = [
@@ -57,6 +56,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     // Global Tracker Data
     const [trackerNpcs, setTrackerNpcs] = useState<CampaignNpc[]>([]);
     const [trackerQuests, setTrackerQuests] = useState<FullQuest[]>([]);
+    const [party, setParty] = useState<PartyMember[]>([]);
 
     const [location, setLocation] = useState<LocationData | null>(null);
     const [selectedRegion, setSelectedRegion] = useState<LoreEntry | null>(null);
@@ -64,7 +64,6 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     const [loading, setLoading] = useState(false);
     const [breachLoading, setBreachLoading] = useState(false); 
     const [generatingSection, setGeneratingSection] = useState<string | null>(null);
-    const [party, setParty] = useState<PartyMember[]>([]);
     const [showLoreInput, setShowLoreInput] = useState(false);
     const [encounterLoading, setEncounterLoading] = useState(false);
     const [encounterIntro, setEncounterIntro] = useState('');
@@ -72,6 +71,9 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     const [handbookSearch, setHandbookSearch] = useState('');
     const [expandedRegion, setExpandedRegion] = useState<string | null>(null);
     const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+    
+    // Loot Management State
+    const [selectedLootItem, setSelectedLootItem] = useState<string | null>(null);
     
     // View Mode: 'details' or 'travel'
     const [activeView, setActiveView] = useState<'details' | 'travel'>('details');
@@ -110,6 +112,8 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         if (savedNpcs) setTrackerNpcs(JSON.parse(savedNpcs));
         const savedQuests = localStorage.getItem('dmc_quests');
         if (savedQuests) setTrackerQuests(JSON.parse(savedQuests));
+        const savedParty = localStorage.getItem('dmc_party');
+        if (savedParty) setParty(JSON.parse(savedParty).filter((p: PartyMember) => p.active));
     };
 
     useEffect(() => {
@@ -117,8 +121,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     }, [lore]);
 
     useEffect(() => {
-        const savedParty = localStorage.getItem('dmc_party');
-        if (savedParty) setParty(JSON.parse(savedParty).filter((p: PartyMember) => p.active));
+        loadTrackerData();
         
         const savedLoc = localStorage.getItem('dmc_active_location');
         if (savedLoc) {
@@ -146,24 +149,22 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         if (savedTravel) {
             const state = JSON.parse(savedTravel);
             setActiveTravelPlan(state);
-            // If there is an active journey, default to travel view if location is generic/empty,
-            // but if user is just loading app, maybe stay on details? 
-            // Let's switch to travel if there's an active plan to remind them.
             if (state.result) setActiveView('travel');
         }
-
-        loadTrackerData();
-
+        
         // Listen for updates from other components
         const handleUpdateNpcs = () => loadTrackerData();
         const handleUpdateQuests = () => loadTrackerData();
+        const handleUpdateParty = () => loadTrackerData();
 
         window.addEventListener('dmc-update-npcs', handleUpdateNpcs);
         window.addEventListener('dmc-update-quests', handleUpdateQuests);
+        window.addEventListener('dmc-update-party', handleUpdateParty);
 
         return () => {
             window.removeEventListener('dmc-update-npcs', handleUpdateNpcs);
             window.removeEventListener('dmc-update-quests', handleUpdateQuests);
+            window.removeEventListener('dmc-update-party', handleUpdateParty);
         };
     }, []); 
 
@@ -250,6 +251,46 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     };
 
     // --- ACTION HANDLERS ---
+    
+    const handleLootClick = (e: React.MouseEvent, item: string) => {
+        e.stopPropagation();
+        setSelectedLootItem(item);
+    };
+
+    const dispatchLootEvent = (itemName: string, memberId?: string) => {
+        if (memberId) {
+             window.dispatchEvent(new CustomEvent('dmc-give-item', {
+                detail: { memberId, itemName }
+            }));
+        } else {
+            // Check for money pattern
+            const isMoney = /(\d+)\s*(?:gp|zm|зм|sp|см|cp|мм|gold|silver|copper)/i.test(itemName);
+            if (isMoney) {
+                 const matches = itemName.match(/(\d+)\s*(?:gp|zm|зм|sp|см|cp|мм|gold|silver|copper)/i);
+                 if (matches) {
+                    const amount = parseInt(matches[1]);
+                    const typeStr = matches[0].toLowerCase();
+                    let coins = { gp: 0, sp: 0, cp: 0 };
+                    if (typeStr.includes('gp') || typeStr.includes('зм') || typeStr.includes('zm') || typeStr.includes('gold')) coins.gp = amount;
+                    else if (typeStr.includes('sp') || typeStr.includes('см') || typeStr.includes('silver')) coins.sp = amount;
+                    else if (typeStr.includes('cp') || typeStr.includes('мм') || typeStr.includes('copper')) coins.cp = amount;
+                    
+                    window.dispatchEvent(new CustomEvent('dmc-add-to-stash', { detail: { coins } }));
+                 }
+            } else {
+                window.dispatchEvent(new CustomEvent('dmc-add-to-stash', { detail: { itemName } }));
+            }
+        }
+        setSelectedLootItem(null);
+    };
+
+    const handleSplitMoney = (itemName: string) => {
+        dispatchLootEvent(itemName); // Add to stash first
+        setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('dmc-distribute-currency'));
+        }, 100);
+        setSelectedLootItem(null);
+    };
 
     const updateLocation = (loc: LocationData) => {
         setLocation(loc);
@@ -422,7 +463,8 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                 title: quest.title,
                 description: quest.description,
                 giver: location?.name || 'Локация',
-                location: location?.name
+                location: location?.name,
+                reward: quest.reward || ''
             } 
         });
         window.dispatchEvent(event);
@@ -763,6 +805,12 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             setShowBestiary(false);
         }
     };
+    
+    const getFormattedReward = (text: string) => {
+        if (!text) return "";
+        if (text.includes("<li>") || text.includes("<ul>")) return text;
+        return `<ul><li>${text}</li></ul>`;
+    };
 
     const filteredLore = lore.filter(region => 
         region.name.toLowerCase().includes(handbookSearch.toLowerCase()) ||
@@ -772,6 +820,67 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     return (
         <div className="h-full flex gap-4 relative">
             
+            {/* Loot Interaction Modal */}
+            {selectedLootItem && (
+                <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+                     <div className="bg-dnd-card border border-gold-600 w-full max-w-sm rounded-lg shadow-2xl overflow-hidden">
+                         <div className="p-3 bg-gray-900 border-b border-gray-700 flex justify-between items-center">
+                             <h3 className="font-bold text-white truncate pr-2">{selectedLootItem}</h3>
+                             <button onClick={() => setSelectedLootItem(null)} className="text-gray-400 hover:text-white"><X className="w-5 h-5"/></button>
+                         </div>
+                         <div className="p-4 grid gap-2">
+                             <button 
+                                onClick={() => { openDetailModal('loot', selectedLootItem); setSelectedLootItem(null); }} 
+                                className="w-full text-left px-4 py-3 bg-indigo-900/30 hover:bg-indigo-800/50 border border-indigo-800/50 rounded text-indigo-200 flex items-center gap-3 font-bold"
+                             >
+                                <Sparkles className="w-5 h-5"/> Изучить (AI)
+                             </button>
+                             
+                             {/(\d+)\s*(?:gp|zm|зм|sp|см|cp|мм)/i.test(selectedLootItem) ? (
+                                 <button 
+                                     onClick={() => { handleSplitMoney(selectedLootItem); setSelectedLootItem(null); }} 
+                                     className="w-full text-left px-4 py-3 bg-green-900/30 hover:bg-green-800/50 border border-green-800/50 rounded text-green-200 flex items-center gap-3 font-bold"
+                                 >
+                                     <Coins className="w-5 h-5"/> Разделить деньги
+                                 </button>
+                             ) : (
+                                 <>
+                                     <button 
+                                         onClick={() => { dispatchLootEvent(selectedLootItem); setSelectedLootItem(null); }} 
+                                         className="w-full text-left px-4 py-3 bg-blue-900/30 hover:bg-blue-800/50 border border-blue-800/50 rounded text-blue-200 flex items-center gap-3 font-bold"
+                                     >
+                                         <Archive className="w-5 h-5"/> В Общий Мешок
+                                     </button>
+                                     
+                                     <div className="border-t border-gray-800 my-1"></div>
+                                     <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">Отдать герою:</p>
+                                     <div className="grid grid-cols-2 gap-2">
+                                         {party.map(p => (
+                                             <button 
+                                                key={p.id}
+                                                onClick={() => { dispatchLootEvent(selectedLootItem, p.id); setSelectedLootItem(null); }}
+                                                className="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded py-2 px-2 truncate"
+                                             >
+                                                 {p.name}
+                                             </button>
+                                         ))}
+                                         {party.length === 0 && <span className="text-xs text-gray-600 italic col-span-2">Нет активных героев</span>}
+                                     </div>
+                                 </>
+                             )}
+                             
+                             <div className="border-t border-gray-800 my-1"></div>
+                             <button 
+                                 onClick={() => { handleCopyToLog('Лут', selectedLootItem); setSelectedLootItem(null); }} 
+                                 className="w-full text-left px-4 py-2 hover:bg-gray-800 rounded text-gray-400 text-sm flex items-center gap-3"
+                             >
+                                 <Feather className="w-4 h-4"/> Записать в летопись
+                             </button>
+                         </div>
+                     </div>
+                </div>
+            )}
+
             {showBestiary && (
                 <BestiaryBrowser 
                     onClose={() => setShowBestiary(false)} 
@@ -1387,12 +1496,21 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                         {getMergedQuests().map((item, i) => {
                                             const q = item.original;
                                             return (
-                                                <li key={i} className={`text-sm p-2 rounded border group relative pr-20 cursor-pointer hover:bg-gray-800/80 ${item.source === 'tracker' ? 'bg-indigo-950/20 border-indigo-500/50' : 'bg-indigo-900/20 border-indigo-900/40'}`} onClick={() => handleOpenItem(item)}>
-                                                    <div className="flex items-center gap-2">
+                                                <li key={i} className={`text-sm p-2 rounded border group relative cursor-pointer hover:bg-gray-800/80 ${item.source === 'tracker' ? 'bg-indigo-950/20 border-indigo-500/50' : 'bg-indigo-900/20 border-indigo-900/40'}`} onClick={() => handleOpenItem(item)}>
+                                                    <div className="flex items-center gap-2 pr-20">
                                                         <div className={`font-bold ${item.source === 'tracker' ? 'text-green-400' : 'text-indigo-300'}`}>{q.title}</div>
                                                         {item.source === 'tracker' && <ScrollText className="w-3 h-3 text-green-500" title="В трекере"/>}
                                                     </div>
                                                     <SmartText content={item.description} className="text-gray-400 line-clamp-2" />
+                                                    
+                                                    {/* Render Loot if present directly in list */}
+                                                    {q.reward && (
+                                                        <div className="mt-2 pt-1 border-t border-gray-700/50" onClick={e => e.stopPropagation()}>
+                                                            <p className="text-[10px] text-gold-600 uppercase font-bold mb-1 flex items-center gap-1"><Coins className="w-3 h-3"/> Награда</p>
+                                                            <LootInteraction htmlContent={getFormattedReward(q.reward)} />
+                                                        </div>
+                                                    )}
+                                                    
                                                     <div className="absolute top-2 right-2 flex gap-1" onClick={e => e.stopPropagation()}>
                                                         {item.source === 'lore' && (
                                                             <button 
@@ -1507,21 +1625,14 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         {(location.loot || []).map((l, i) => (
-                                            <div key={i} className="relative group inline-flex">
-                                                <span 
-                                                    onClick={() => openDetailModal('loot', l)}
-                                                    className="text-xs bg-gray-800 px-2 py-1 rounded text-gold-600 border border-gray-700 cursor-pointer hover:bg-gray-700 hover:border-gold-500 transition-colors"
-                                                >
-                                                    {l}
-                                                </span>
-                                                <button 
-                                                    onClick={() => handleCopyToLog('Лут', l)}
-                                                    className="absolute -top-2 -right-2 bg-gray-700 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-gray-600"
-                                                    title="В летопись"
-                                                >
-                                                    <Feather className="w-2 h-2" />
-                                                </button>
-                                            </div>
+                                            <button 
+                                                key={i} 
+                                                onClick={(e) => handleLootClick(e, l)}
+                                                className="text-xs bg-gray-800 px-3 py-2 rounded text-gold-400 border border-gray-700 hover:border-gold-500 transition-colors flex items-center gap-2 relative group"
+                                            >
+                                                <span className="truncate max-w-[150px]">{l}</span>
+                                                <PackagePlus className="w-3 h-3 opacity-50 group-hover:opacity-100"/>
+                                            </button>
                                         ))}
                                         {(location.loot || []).length === 0 && <span className="text-gray-600 italic text-sm">Пусто.</span>}
                                     </div>

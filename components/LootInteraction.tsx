@@ -1,7 +1,8 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { PartyMember } from '../types';
-import { Gift, ChevronDown, Coins, Check } from 'lucide-react';
+import { Gift, ChevronDown, Coins, Check, PackagePlus, Landmark, MoreHorizontal, X, Sparkles, Archive, Feather } from 'lucide-react';
 
 interface LootInteractionProps {
     htmlContent: string;
@@ -28,13 +29,66 @@ const LootInteraction: React.FC<LootInteractionProps> = ({ htmlContent }) => {
         return () => window.removeEventListener('click', close);
     }, []);
 
-    const handleGiveItem = (e: React.MouseEvent, itemName: string, memberId: string) => {
+    const handleGiveItem = (e: React.MouseEvent, itemName: string, itemDesc: string, memberId: string) => {
         e.stopPropagation();
-        // Dispatch event to App.tsx to handle storage update
         window.dispatchEvent(new CustomEvent('dmc-give-item', {
-            detail: { memberId, itemName }
+            detail: { memberId, itemName, itemDescription: itemDesc }
         }));
         setOpenDropdownIndex(null);
+    };
+
+    const handleAddToStash = (e: React.MouseEvent, itemName: string, itemDesc: string, isMoney: boolean = false) => {
+        e.stopPropagation();
+        
+        if (isMoney) {
+            // Parse amount and type
+            const matches = itemName.match(/(\d+)\s*(?:gp|zm|зм|sp|см|cp|мм|gold|silver|copper)/i);
+            if (matches) {
+                const amount = parseInt(matches[1]);
+                const typeStr = matches[0].toLowerCase();
+                
+                let coins = { gp: 0, sp: 0, cp: 0 };
+                if (typeStr.includes('gp') || typeStr.includes('зм') || typeStr.includes('zm') || typeStr.includes('gold')) coins.gp = amount;
+                else if (typeStr.includes('sp') || typeStr.includes('см') || typeStr.includes('silver')) coins.sp = amount;
+                else if (typeStr.includes('cp') || typeStr.includes('мм') || typeStr.includes('copper')) coins.cp = amount;
+                
+                window.dispatchEvent(new CustomEvent('dmc-add-to-stash', {
+                    detail: { coins }
+                }));
+            }
+        } else {
+            window.dispatchEvent(new CustomEvent('dmc-add-to-stash', {
+                detail: { itemName, itemDescription: itemDesc }
+            }));
+        }
+        
+        setOpenDropdownIndex(null);
+    };
+
+    const handleSplitMoney = (e: React.MouseEvent, itemName: string) => {
+        e.stopPropagation();
+        // First add to stash wallet, then trigger distribute
+        handleAddToStash(e, itemName, "", true);
+        setTimeout(() => {
+             window.dispatchEvent(new CustomEvent('dmc-distribute-currency'));
+        }, 100); // slight delay to ensure add completes
+    };
+
+    const handleInspect = (e: React.MouseEvent, itemName: string) => {
+        e.stopPropagation();
+        const event = new CustomEvent('dmc-show-details', {
+            detail: { type: 'loot', id: itemName, title: itemName }
+        });
+        window.dispatchEvent(event);
+        setOpenDropdownIndex(null);
+    };
+    
+    const handleLog = (e: React.MouseEvent, itemName: string) => {
+        e.stopPropagation();
+         // Assuming addLog isn't directly available, we might need a global event for logging if not passed as prop
+         // Or rely on the fact this component is usually inside something that handles logs.
+         // But for now, let's skip "Log" here since it's already IN the log usually.
+         setOpenDropdownIndex(null);
     };
 
     const toggleDropdown = (e: React.MouseEvent, index: number) => {
@@ -62,48 +116,118 @@ const LootInteraction: React.FC<LootInteractionProps> = ({ htmlContent }) => {
                 
                 // If it's a list item <li>, make it interactive
                 if (tagName === 'li') {
-                    const itemText = el.textContent || '';
-                    const cleanItemText = itemText.replace(/<[^>]*>/g, '').trim();
+                    // Smart Parsing for "Name: Description" format
+                    let name = "";
+                    let desc = "";
+                    
+                    // Try to find bold tag at start for name
+                    const boldTag = el.querySelector('strong, b');
+                    if (boldTag) {
+                        name = boldTag.textContent || "";
+                        // Description is everything after the bold tag (and colon)
+                        let fullText = el.innerHTML;
+                        // Remove the bold part from description
+                        desc = fullText.replace(boldTag.outerHTML, '').trim();
+                        // Remove leading colon or dash if present
+                        desc = desc.replace(/^[:\-\s]+/, '').trim();
+                    } else {
+                        // Fallback: Split by colon if bold tag missing
+                        const textContent = el.textContent || "";
+                        const colonIndex = textContent.indexOf(':');
+                        if (colonIndex > -1) {
+                            name = textContent.substring(0, colonIndex).trim();
+                            desc = textContent.substring(colonIndex + 1).trim();
+                        } else {
+                            name = textContent.trim();
+                            desc = ""; // No description found
+                        }
+                    }
+                    
+                    const cleanItemText = name.replace(/<[^>]*>/g, '').trim();
                     
                     // Check if it looks like an item (not just text)
-                    const isItem = cleanItemText.length > 2;
+                    const isItem = cleanItemText.length > 1;
+                    
+                    // Simple money detection
+                    const isMoney = /(\d+)\s*(?:gp|zm|зм|sp|см|cp|мм|gold|silver|copper)/i.test(cleanItemText);
 
                     return (
                         <li key={index} className="group flex items-start justify-between gap-2 py-1 px-2 hover:bg-gray-800/50 rounded transition-colors relative">
-                            <span className="text-gray-300 text-sm leading-snug" dangerouslySetInnerHTML={{__html: el.innerHTML}} />
+                            <span className="text-gray-300 text-sm leading-snug flex-1" dangerouslySetInnerHTML={{__html: el.innerHTML}} />
                             
                             {isItem && (
-                                <div className="relative shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <>
                                     <button 
                                         onClick={(e) => toggleDropdown(e, index)}
-                                        className="p-1 text-gray-500 hover:text-gold-500 bg-gray-800 rounded border border-gray-600 hover:border-gold-500 transition-all"
-                                        title="Отдать герою"
+                                        className={`shrink-0 p-1.5 rounded border transition-all ${isMoney ? 'text-yellow-400 border-yellow-600/50 bg-yellow-900/10' : 'text-gray-400 border-gray-700 bg-gray-800'}`}
+                                        title={isMoney ? "Управление деньгами" : "Действия с предметом"}
                                     >
-                                        <Gift className="w-3 h-3" />
+                                        {isMoney ? <Coins className="w-4 h-4"/> : <Gift className="w-4 h-4" />}
                                     </button>
                                     
                                     {openDropdownIndex === index && (
-                                        <div className="absolute right-0 top-full mt-1 w-40 bg-gray-900 border border-gold-600 rounded shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95">
-                                            <div className="bg-gray-800 px-2 py-1 text-[10px] font-bold text-gray-400 uppercase border-b border-gray-700">
-                                                В инвентарь:
+                                        <div className="fixed inset-0 z-[90] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={(e) => e.stopPropagation()}>
+                                            <div className="bg-dnd-card border border-gold-600 w-full max-w-xs rounded-lg shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                                                <div className="p-3 bg-gray-900 border-b border-gray-700 flex justify-between items-center">
+                                                     <h3 className="font-bold text-white truncate pr-2">{cleanItemText}</h3>
+                                                     <button onClick={() => setOpenDropdownIndex(null)} className="text-gray-400 hover:text-white"><X className="w-5 h-5"/></button>
+                                                </div>
+                                                <div className="p-2">
+                                                    {isMoney ? (
+                                                        <>
+                                                           <button 
+                                                                onClick={(e) => handleAddToStash(e, cleanItemText, "", true)}
+                                                                className="w-full text-left px-3 py-3 text-sm text-yellow-200 hover:bg-yellow-900/50 transition-colors flex items-center gap-3 border-b border-gray-700/50"
+                                                           >
+                                                                <Landmark className="w-4 h-4"/> В казну
+                                                           </button>
+                                                           <button 
+                                                                onClick={(e) => handleSplitMoney(e, cleanItemText)}
+                                                                className="w-full text-left px-3 py-3 text-sm text-green-300 hover:bg-green-900/50 transition-colors flex items-center gap-3"
+                                                           >
+                                                                <Coins className="w-4 h-4"/> Разделить на всех
+                                                           </button>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <button 
+                                                                onClick={(e) => handleInspect(e, cleanItemText)}
+                                                                className="w-full text-left px-3 py-3 text-sm text-indigo-200 hover:bg-indigo-900/50 transition-colors flex items-center gap-3 border-b border-gray-700/50"
+                                                            >
+                                                                <Sparkles className="w-4 h-4"/> Изучить (AI)
+                                                            </button>
+                                                            <button 
+                                                                onClick={(e) => handleAddToStash(e, cleanItemText, desc, false)}
+                                                                className="w-full text-left px-3 py-3 text-sm text-blue-200 hover:bg-blue-900/50 transition-colors flex items-center gap-3 border-b border-gray-700/50"
+                                                            >
+                                                                <Archive className="w-4 h-4"/> В общий мешок
+                                                            </button>
+                                                            
+                                                            <div className="bg-gray-800/50 px-3 py-1 text-[10px] font-bold text-gray-500 uppercase mt-1">
+                                                                Отдать герою:
+                                                            </div>
+                                                            <div className="grid grid-cols-2 gap-1 p-1">
+                                                                {party.length === 0 ? (
+                                                                    <div className="px-2 py-1 text-xs text-gray-500 italic col-span-2 text-center">Нет героев</div>
+                                                                ) : (
+                                                                    party.map(p => (
+                                                                        <button
+                                                                            key={p.id}
+                                                                            onClick={(e) => handleGiveItem(e, cleanItemText, desc, p.id)}
+                                                                            className="text-left px-2 py-2 text-xs text-gray-300 bg-gray-800 hover:bg-gold-600 hover:text-black transition-colors rounded truncate"
+                                                                        >
+                                                                            {p.name}
+                                                                        </button>
+                                                                    ))
+                                                                )}
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
                                             </div>
-                                            {party.length === 0 ? (
-                                                <div className="px-3 py-2 text-xs text-gray-500 italic">Нет героев</div>
-                                            ) : (
-                                                party.map(p => (
-                                                    <button
-                                                        key={p.id}
-                                                        onClick={(e) => handleGiveItem(e, cleanItemText, p.id)}
-                                                        className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gold-600 hover:text-black transition-colors flex items-center gap-2"
-                                                    >
-                                                        <div className="w-2 h-2 rounded-full bg-gray-500 shrink-0"></div>
-                                                        {p.name}
-                                                    </button>
-                                                ))
-                                            )}
                                         </div>
                                     )}
-                                </div>
+                                </>
                             )}
                         </li>
                     );

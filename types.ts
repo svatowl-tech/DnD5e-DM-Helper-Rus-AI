@@ -62,6 +62,18 @@ export interface InventoryItem {
   name: string;
   quantity: number;
   description?: string;
+  value?: string; 
+}
+
+export interface Wallet {
+  gp: number;
+  sp: number;
+  cp: number;
+}
+
+export interface PartyStash {
+  items: InventoryItem[];
+  wallet: Wallet;
 }
 
 export interface PartyMember {
@@ -77,6 +89,7 @@ export interface PartyMember {
   notes: string;
   active: boolean; // Is currently playing in the session
   inventory: InventoryItem[];
+  wallet: Wallet;
 }
 
 export interface LogEntry {
