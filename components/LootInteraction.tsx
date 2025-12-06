@@ -1,8 +1,7 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { PartyMember } from '../types';
-import { Gift, ChevronDown, Coins, Check, PackagePlus, Landmark, MoreHorizontal, X, Sparkles, Archive, Feather } from 'lucide-react';
+import { Gift, ChevronDown, Coins, Check, PackagePlus, Landmark, MoreHorizontal, X, Sparkles, Archive, Feather, ArrowRightCircle } from 'lucide-react';
 
 interface LootInteractionProps {
     htmlContent: string;
@@ -166,62 +165,68 @@ const LootInteraction: React.FC<LootInteractionProps> = ({ htmlContent }) => {
                                     </button>
                                     
                                     {openDropdownIndex === index && (
-                                        <div className="fixed inset-0 z-[90] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={(e) => e.stopPropagation()}>
-                                            <div className="bg-dnd-card border border-gold-600 w-full max-w-xs rounded-lg shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-                                                <div className="p-3 bg-gray-900 border-b border-gray-700 flex justify-between items-center">
-                                                     <h3 className="font-bold text-white truncate pr-2">{cleanItemText}</h3>
-                                                     <button onClick={() => setOpenDropdownIndex(null)} className="text-gray-400 hover:text-white"><X className="w-5 h-5"/></button>
+                                        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={(e) => e.stopPropagation()}>
+                                            <div className="bg-dnd-card border-2 border-gold-600 w-full max-w-sm rounded-lg shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                                                <div className="p-4 bg-gray-900 border-b border-gray-700 flex justify-between items-center">
+                                                     <h3 className="font-bold text-white text-lg truncate pr-2">{cleanItemText}</h3>
+                                                     <button onClick={() => setOpenDropdownIndex(null)} className="text-gray-400 hover:text-white p-2"><X className="w-6 h-6"/></button>
                                                 </div>
-                                                <div className="p-2">
+                                                <div className="p-4 space-y-3">
                                                     {isMoney ? (
-                                                        <>
+                                                        <div className="space-y-2">
                                                            <button 
                                                                 onClick={(e) => handleAddToStash(e, cleanItemText, "", true)}
-                                                                className="w-full text-left px-3 py-3 text-sm text-yellow-200 hover:bg-yellow-900/50 transition-colors flex items-center gap-3 border-b border-gray-700/50"
+                                                                className="w-full text-left px-4 py-3 bg-yellow-900/30 hover:bg-yellow-900/50 border border-yellow-700 rounded text-yellow-200 flex items-center gap-3 font-bold"
                                                            >
-                                                                <Landmark className="w-4 h-4"/> В казну
+                                                                <Landmark className="w-5 h-5"/> В казну
                                                            </button>
                                                            <button 
                                                                 onClick={(e) => handleSplitMoney(e, cleanItemText)}
-                                                                className="w-full text-left px-3 py-3 text-sm text-green-300 hover:bg-green-900/50 transition-colors flex items-center gap-3"
+                                                                className="w-full text-left px-4 py-3 bg-green-900/30 hover:bg-green-900/50 border border-green-700 rounded text-green-300 flex items-center gap-3 font-bold"
                                                            >
-                                                                <Coins className="w-4 h-4"/> Разделить на всех
+                                                                <Coins className="w-5 h-5"/> Разделить на всех
                                                            </button>
-                                                        </>
+                                                        </div>
                                                     ) : (
-                                                        <>
-                                                            <button 
-                                                                onClick={(e) => handleInspect(e, cleanItemText)}
-                                                                className="w-full text-left px-3 py-3 text-sm text-indigo-200 hover:bg-indigo-900/50 transition-colors flex items-center gap-3 border-b border-gray-700/50"
-                                                            >
-                                                                <Sparkles className="w-4 h-4"/> Изучить (AI)
-                                                            </button>
-                                                            <button 
-                                                                onClick={(e) => handleAddToStash(e, cleanItemText, desc, false)}
-                                                                className="w-full text-left px-3 py-3 text-sm text-blue-200 hover:bg-blue-900/50 transition-colors flex items-center gap-3 border-b border-gray-700/50"
-                                                            >
-                                                                <Archive className="w-4 h-4"/> В общий мешок
-                                                            </button>
+                                                        <div className="space-y-4">
+                                                            <div className="grid grid-cols-2 gap-2">
+                                                                <button 
+                                                                    onClick={(e) => handleInspect(e, cleanItemText)}
+                                                                    className="px-3 py-3 bg-indigo-900/30 hover:bg-indigo-900/50 border border-indigo-700 rounded text-indigo-200 flex flex-col items-center justify-center gap-1 font-bold text-xs"
+                                                                >
+                                                                    <Sparkles className="w-5 h-5"/> Изучить (AI)
+                                                                </button>
+                                                                <button 
+                                                                    onClick={(e) => handleAddToStash(e, cleanItemText, desc, false)}
+                                                                    className="px-3 py-3 bg-blue-900/30 hover:bg-blue-900/50 border border-blue-700 rounded text-blue-200 flex flex-col items-center justify-center gap-1 font-bold text-xs"
+                                                                >
+                                                                    <Archive className="w-5 h-5"/> В общий мешок
+                                                                </button>
+                                                            </div>
                                                             
-                                                            <div className="bg-gray-800/50 px-3 py-1 text-[10px] font-bold text-gray-500 uppercase mt-1">
-                                                                Отдать герою:
+                                                            <div>
+                                                                <p className="text-xs font-bold text-gray-500 uppercase mb-2">Передать герою:</p>
+                                                                <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto custom-scrollbar">
+                                                                    {party.length === 0 ? (
+                                                                        <div className="px-2 py-2 text-sm text-gray-500 italic text-center border border-dashed border-gray-700 rounded">Нет активных героев</div>
+                                                                    ) : (
+                                                                        party.map(p => (
+                                                                            <button
+                                                                                key={p.id}
+                                                                                onClick={(e) => handleGiveItem(e, cleanItemText, desc, p.id)}
+                                                                                className="flex items-center gap-3 p-2 bg-gray-800 hover:bg-gold-900/30 border border-gray-700 hover:border-gold-500 rounded text-left transition-colors active:scale-95"
+                                                                            >
+                                                                                <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm font-bold text-white shrink-0">
+                                                                                    {p.name.charAt(0)}
+                                                                                </div>
+                                                                                <span className="text-sm font-bold text-gray-200 flex-1 truncate">{p.name}</span>
+                                                                                <ArrowRightCircle className="w-5 h-5 text-gray-500"/>
+                                                                            </button>
+                                                                        ))
+                                                                    )}
+                                                                </div>
                                                             </div>
-                                                            <div className="grid grid-cols-2 gap-1 p-1">
-                                                                {party.length === 0 ? (
-                                                                    <div className="px-2 py-1 text-xs text-gray-500 italic col-span-2 text-center">Нет героев</div>
-                                                                ) : (
-                                                                    party.map(p => (
-                                                                        <button
-                                                                            key={p.id}
-                                                                            onClick={(e) => handleGiveItem(e, cleanItemText, desc, p.id)}
-                                                                            className="text-left px-2 py-2 text-xs text-gray-300 bg-gray-800 hover:bg-gold-600 hover:text-black transition-colors rounded truncate"
-                                                                        >
-                                                                            {p.name}
-                                                                        </button>
-                                                                    ))
-                                                                )}
-                                                            </div>
-                                                        </>
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>

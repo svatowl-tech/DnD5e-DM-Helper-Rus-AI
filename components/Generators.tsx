@@ -37,7 +37,8 @@ import {
     Save,
     FileText,
     Swords,
-    UserPlus
+    UserPlus,
+    ScrollText
 } from 'lucide-react';
 import SmartText from './SmartText';
 import LootInteraction from './LootInteraction';
@@ -189,6 +190,30 @@ const Generators: React.FC<GeneratorsProps> = ({ onImageGenerated, onShowImage, 
       });
       window.dispatchEvent(event);
       // Toast is handled in App.tsx via listener
+  };
+
+  const saveToQuestTracker = () => {
+      if (!generatedText || activeTool !== 'quest') return;
+      
+      // Try to parse title from HTML <h3>...</h3>
+      let title = "Новый квест";
+      const titleMatch = generatedText.match(/<h3>(.*?)<\/h3>/);
+      if (titleMatch && titleMatch[1]) {
+          title = titleMatch[1].replace(/<[^>]*>?/gm, '');
+      }
+
+      const plainText = generatedText.replace(/<[^>]*>?/gm, ' ');
+      
+      const event = new CustomEvent('dmc-add-quest', {
+          detail: {
+              title: title,
+              description: generatedText, // Keep full HTML in description
+              summary: plainText.substring(0, 100) + "...",
+              giver: "AI Generator",
+              status: 'unreceived'
+          }
+      });
+      window.dispatchEvent(event);
   };
 
   const saveToNotes = () => {
@@ -487,6 +512,11 @@ const Generators: React.FC<GeneratorsProps> = ({ onImageGenerated, onShowImage, 
          {generatedText && !errorText && (
              <div className="animate-in fade-in text-sm text-gray-300 [&_h1]:text-gold-500 [&_h1]:text-2xl [&_h1]:font-serif [&_h1]:font-bold [&_h1]:mb-3 [&_h2]:text-gold-500 [&_h2]:text-xl [&_h2]:font-serif [&_h2]:font-bold [&_h2]:mb-3 [&_h2]:mt-5 [&_h3]:text-gold-500 [&_h3]:font-serif [&_h3]:text-lg [&_h3]:font-bold [&_h3]:mb-2 [&_h3]:mt-4 [&_h3:first-child]:mt-0 [&_h4]:text-gold-400 [&_h4]:font-bold [&_h4]:mb-2 [&_strong]:text-white [&_strong]:font-bold [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mb-1 [&_p]:mb-3 [&_table]:w-full [&_table]:border-collapse [&_th]:text-left [&_th]:p-2 [&_th]:border-b [&_th]:border-gray-700 [&_td]:p-2 [&_td]:border-b [&_td]:border-gray-800">
                  <div className="flex justify-end gap-2 mb-2 sticky top-0 bg-gray-900 py-2 z-10 border-b border-gray-800">
+                    {activeTool === 'quest' && (
+                         <button onClick={saveToQuestTracker} className="text-indigo-400 hover:text-white flex items-center gap-1 text-xs uppercase font-bold mr-auto">
+                            <ScrollText className="w-3 h-3"/> Сохранить Квест
+                        </button>
+                    )}
                     <button onClick={saveToNotes} className="text-green-400 hover:text-white flex items-center gap-1 text-xs uppercase font-bold">
                         <FileText className="w-3 h-3"/> Заметка
                     </button>

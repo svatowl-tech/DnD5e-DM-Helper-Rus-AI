@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { LocationData, PartyMember, Combatant, EntityType, LoreEntry, LocationTrackerProps, Note, SavedImage, TravelResult, CampaignNpc, FullQuest, TravelState, BestiaryEntry } from '../types';
 import { parseLoreFromText, generateEncounterIntro, generateScenarioDescription, generateFullLocation, generateLocationContent, generateExtendedDetails, generateMultiverseBreach, generateRealityGlitch, generateImage, generateNpc, generateQuest, generateMonster } from '../services/polzaService';
 import { getMonstersByCr } from '../services/dndApiService';
-import { MapPin, Users, Skull, Sparkles, BookOpen, Loader, Search, Eye, ChevronRight, ArrowRight, Menu, Map, Copy, Plus, Home, Trees, Tent, Castle, ArrowLeft, LandPlot, Landmark, Beer, Footprints, ShieldAlert, Ghost, Info, X, Save, FileText, RefreshCcw, ChevronDown, ChevronUp, Zap, Anchor, Globe, Hexagon, Activity, Radio, Flame, Image as ImageIcon, ZoomIn, Church, Building, Mountain, ScrollText, Swords, UserPlus, Pickaxe, Wheat, Ship, ShoppingBag, Gavel, Gem, Compass, UserSquare2, PenTool, Wand2, Route, Signpost, DoorOpen, Feather, PackagePlus, Coins, Landmark as LandmarkIcon, MoreHorizontal, Archive } from 'lucide-react';
+import { MapPin, Users, Skull, Sparkles, BookOpen, Loader, Search, Eye, ChevronRight, ArrowRight, Menu, Map, Copy, Plus, Home, Trees, Tent, Castle, ArrowLeft, LandPlot, Landmark, Beer, Footprints, ShieldAlert, Ghost, Info, X, Save, FileText, RefreshCcw, ChevronDown, ChevronUp, Zap, Anchor, Globe, Hexagon, Activity, Radio, Flame, Image as ImageIcon, ZoomIn, Church, Building, Mountain, ScrollText, Swords, UserPlus, Pickaxe, Wheat, Ship, ShoppingBag, Gavel, Gem, Compass, UserSquare2, PenTool, Wand2, Route, Signpost, DoorOpen, Feather, PackagePlus, Coins, Landmark as LandmarkIcon, MoreHorizontal, Archive, Upload } from 'lucide-react';
 import { FAERUN_LORE } from '../data/faerunLore';
 import { useAudio } from '../contexts/AudioContext';
 import SmartText from './SmartText';
@@ -86,6 +87,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     // Image Generation State
     const [locationImage, setLocationImage] = useState<SavedImage | null>(null);
     const [imageLoading, setImageLoading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Modal State (Detail)
     const [modalOpen, setModalOpen] = useState(false);
@@ -454,7 +456,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             }
         });
         window.dispatchEvent(event);
-        showToast(`${npc.name} добавлен в NPC Трекер`, 'success');
+        // Toast handled by App listener
     };
 
     const handleTrackQuest = (quest: any) => {
@@ -468,7 +470,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             } 
         });
         window.dispatchEvent(event);
-        showToast(`Квест "${quest.title}" отслеживается`, 'success');
+        // Toast handled by App listener
     };
 
     // ... Existing Handlers ...
@@ -727,7 +729,37 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             }
         });
         window.dispatchEvent(event);
-        showToast(`NPC ${modalTitle} сохранен`, 'success');
+        setModalOpen(false);
+    };
+    
+    const handleSaveModalToStash = () => {
+        if (modalCategory !== 'loot') return;
+        // Assuming modalTitle is the item name
+        const plainText = modalContent.replace(/<[^>]*>?/gm, ' ');
+        window.dispatchEvent(new CustomEvent('dmc-add-to-stash', {
+            detail: {
+                itemName: modalTitle,
+                itemDescription: plainText
+            }
+        }));
+        setModalOpen(false);
+    };
+    
+    const handleSaveModalToQuest = () => {
+        if (modalCategory !== 'quest') return;
+        // Parse HTML content to extract details if possible, or dump to description
+        const plainText = modalContent.replace(/<[^>]*>?/gm, ' ');
+        
+        const event = new CustomEvent('dmc-add-quest', {
+             detail: {
+                 title: modalTitle,
+                 description: modalContent, // Full HTML
+                 summary: plainText.substring(0, 100) + '...',
+                 giver: location?.name || 'Локация',
+                 status: 'active'
+             }
+        });
+        window.dispatchEvent(event);
         setModalOpen(false);
     };
 
@@ -747,6 +779,28 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             setModalLoading(false);
         }
     };
+    
+    const updateLoreWithImage = (url: string) => {
+        if (selectedRegion && location) {
+             setLore(prevLore => {
+                const newLore = prevLore.map(region => {
+                    if (region.id === selectedRegion.id) {
+                        const existingIndex = region.locations.findIndex(l => (location.id && l.id === location.id) || l.name === location.name);
+                        const updatedLocations = [...region.locations];
+                        if (existingIndex >= 0) {
+                            updatedLocations[existingIndex] = { ...updatedLocations[existingIndex], imageUrl: url };
+                        } else {
+                             // If it's a generated location not in lore yet, add it
+                             updatedLocations.push({ ...location, imageUrl: url, id: location.id || Date.now().toString() });
+                        }
+                        return { ...region, locations: updatedLocations };
+                    }
+                    return region;
+                });
+                return newLore;
+            });
+        }
+    };
 
     const handleGenerateLocationImage = async () => {
         if (!location) return;
@@ -761,7 +815,9 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             setLocationImage(newImage);
             
             // Save image URL to location data
-            setLocation(prev => prev ? ({ ...prev, imageUrl: url }) : null);
+            const updatedLocation = { ...location, imageUrl: url };
+            setLocation(updatedLocation);
+            updateLoreWithImage(url);
             
             if (onImageGenerated) onImageGenerated(newImage);
         } catch (e: any) {
@@ -769,6 +825,42 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         } finally {
             setImageLoading(false);
         }
+    };
+    
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !location) return;
+        
+        // Limit size 2MB
+        if (file.size > 2 * 1024 * 1024) {
+             showToast("Файл слишком большой (макс 2МБ)", "error");
+             return;
+        }
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const result = reader.result as string;
+             const newImage: SavedImage = {
+                id: Date.now().toString(),
+                url: result,
+                title: location.name,
+                type: 'location',
+                timestamp: Date.now()
+            };
+            
+            setLocationImage(newImage);
+            
+            const updatedLocation = { ...location, imageUrl: result };
+            setLocation(updatedLocation);
+            updateLoreWithImage(result);
+            
+            if (onImageGenerated) onImageGenerated(newImage);
+            showToast("Изображение загружено", "success");
+        };
+        reader.readAsDataURL(file);
+        
+        // Reset input
+        e.target.value = '';
     };
 
     const handleGenerateNpcImage = async (name: string, description: string) => {
@@ -1044,20 +1136,38 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                         <Feather className="w-4 h-4" /> В Летопись
                                     </button>
 
+                                    {/* Context Buttons */}
                                     {modalCategory === 'npc' && (
                                         <button 
                                             onClick={handleSaveModalToTracker}
                                             className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2"
                                         >
-                                            <UserPlus className="w-4 h-4" /> В Трекер
+                                            <UserPlus className="w-4 h-4" /> В Трекер NPC
                                         </button>
                                     )}
+                                    {modalCategory === 'loot' && (
+                                        <button 
+                                            onClick={handleSaveModalToStash}
+                                            className="bg-yellow-600 hover:bg-yellow-500 text-black px-4 py-2 rounded text-sm font-bold flex items-center gap-2"
+                                        >
+                                            <Archive className="w-4 h-4" /> В Общий Мешок
+                                        </button>
+                                    )}
+                                    {modalCategory === 'quest' && (
+                                        <button 
+                                            onClick={handleSaveModalToQuest}
+                                            className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2"
+                                        >
+                                            <ScrollText className="w-4 h-4" /> В Трекер Квестов
+                                        </button>
+                                    )}
+                                    
                                     <button 
                                         onClick={handleSaveModalToJournal}
                                         disabled={modalLoading || modalContent.includes('Ошибка')}
                                         className="bg-green-800 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        <FileText className="w-4 h-4" /> Сохранить в Журнал
+                                        <FileText className="w-4 h-4" /> В Журнал
                                     </button>
                                     <button 
                                         onClick={() => setModalOpen(false)}
@@ -1252,10 +1362,17 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
                                     <button 
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="text-gray-400 hover:text-white p-2 bg-gray-800 rounded-full"
+                                        title="Загрузить изображение"
+                                    >
+                                        <Upload className="w-4 h-4"/>
+                                    </button>
+                                    <button 
                                         onClick={handleGenerateLocationImage}
                                         disabled={imageLoading}
                                         className="text-gold-500 hover:text-white p-2 bg-gray-800 rounded-full"
-                                        title="Визуализировать локацию"
+                                        title="Визуализировать локацию (AI)"
                                     >
                                         {imageLoading ? <Loader className="w-4 h-4 animate-spin"/> : <ImageIcon className="w-4 h-4"/>}
                                     </button>
@@ -1275,6 +1392,14 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                     >
                                         <Save className="w-4 h-4" />
                                     </button>
+                                    
+                                    <input 
+                                        type="file" 
+                                        ref={fileInputRef} 
+                                        className="hidden" 
+                                        accept="image/*" 
+                                        onChange={handleFileUpload} 
+                                    />
                                 </div>
                             </div>
                             

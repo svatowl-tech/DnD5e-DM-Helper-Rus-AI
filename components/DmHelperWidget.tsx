@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { BrainCircuit, Dices, Sparkles, X, Cloud, User, Skull, Volume2, Sword, Ghost, Square, Download, Upload, Plus } from 'lucide-react';
 import { generateNpc, generateScenarioDescription } from '../services/polzaService';
@@ -104,7 +105,6 @@ const DmHelperWidget: React.FC = () => {
             document.body.removeChild(link);
             URL.revokeObjectURL(blobUrl);
         } catch (e) {
-            // Fallback for CORS issues
             window.open(url, '_blank');
         }
     };
@@ -121,7 +121,7 @@ const DmHelperWidget: React.FC = () => {
         return (
             <button 
                 onClick={() => setIsOpen(true)}
-                className="fixed bottom-28 right-4 z-[60] bg-gold-600 text-black p-3 rounded-full shadow-lg hover:scale-110 transition-transform border-2 border-white xl:bottom-32"
+                className="fixed bottom-40 md:bottom-28 right-4 z-[60] bg-gold-600 text-black p-3 rounded-full shadow-lg hover:scale-110 transition-transform border-2 border-white xl:bottom-32"
                 title="Помощник ДМ"
             >
                 <BrainCircuit className="w-6 h-6" />
@@ -130,7 +130,7 @@ const DmHelperWidget: React.FC = () => {
     }
 
     return (
-        <div className="fixed bottom-28 right-4 z-[60] bg-dnd-card border border-gold-600 rounded-lg shadow-2xl w-80 overflow-hidden animate-in slide-in-from-bottom-5 xl:bottom-32 flex flex-col max-h-[500px]">
+        <div className="fixed bottom-40 md:bottom-28 right-4 z-[60] bg-dnd-card border border-gold-600 rounded-lg shadow-2xl w-80 overflow-hidden animate-in slide-in-from-bottom-5 xl:bottom-32 flex flex-col max-h-[500px]">
             <div className="flex justify-between items-center bg-gray-900 p-2 border-b border-gray-700 shrink-0">
                 <h4 className="font-bold text-gold-500 text-sm flex items-center gap-2"><BrainCircuit className="w-4 h-4"/> DM Helper</h4>
                 <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-white"><X className="w-4 h-4"/></button>
@@ -159,7 +159,7 @@ const DmHelperWidget: React.FC = () => {
                         <input 
                             type="range" min="5" max="30" step="5" 
                             value={dcValue} onChange={e => setDcValue(Number(e.target.value))}
-                            className="w-full accent-gold-600"
+                            className="w-full accent-gold-600 h-6"
                         />
                         <div className="flex justify-between text-[10px] text-gray-500">
                             <span>5</span><span>15</span><span>30</span>
@@ -170,14 +170,14 @@ const DmHelperWidget: React.FC = () => {
                 {activeTab === 'improv' && (
                     <div className="space-y-3">
                         <div className="flex justify-between gap-2">
-                            <button onClick={() => handleImprov('npc')} disabled={loading} className="flex-1 bg-gray-800 p-2 rounded hover:bg-gray-700 flex flex-col items-center gap-1 border border-gray-700">
-                                <User className="w-4 h-4 text-blue-400"/> <span className="text-[10px]">NPC</span>
+                            <button onClick={() => handleImprov('npc')} disabled={loading} className="flex-1 bg-gray-800 p-3 rounded hover:bg-gray-700 flex flex-col items-center gap-1 border border-gray-700 touch-manipulation">
+                                <User className="w-5 h-5 text-blue-400"/> <span className="text-[10px]">NPC</span>
                             </button>
-                            <button onClick={() => handleImprov('event')} disabled={loading} className="flex-1 bg-gray-800 p-2 rounded hover:bg-gray-700 flex flex-col items-center gap-1 border border-gray-700">
-                                <Dices className="w-4 h-4 text-red-400"/> <span className="text-[10px]">Событие</span>
+                            <button onClick={() => handleImprov('event')} disabled={loading} className="flex-1 bg-gray-800 p-3 rounded hover:bg-gray-700 flex flex-col items-center gap-1 border border-gray-700 touch-manipulation">
+                                <Dices className="w-5 h-5 text-red-400"/> <span className="text-[10px]">Событие</span>
                             </button>
-                            <button onClick={() => handleImprov('weather')} disabled={loading} className="flex-1 bg-gray-800 p-2 rounded hover:bg-gray-700 flex flex-col items-center gap-1 border border-gray-700">
-                                <Cloud className="w-4 h-4 text-gray-300"/> <span className="text-[10px]">Погода</span>
+                            <button onClick={() => handleImprov('weather')} disabled={loading} className="flex-1 bg-gray-800 p-3 rounded hover:bg-gray-700 flex flex-col items-center gap-1 border border-gray-700 touch-manipulation">
+                                <Cloud className="w-5 h-5 text-gray-300"/> <span className="text-[10px]">Погода</span>
                             </button>
                         </div>
                         
@@ -199,7 +199,7 @@ const DmHelperWidget: React.FC = () => {
                             <div className="bg-gray-900 border border-gold-600/50 rounded p-3 animate-in fade-in zoom-in">
                                 <div className="flex justify-between items-start mb-2">
                                     <h5 className="font-bold text-white text-sm">{CONDITIONS.find(c => c.id === selectedCondition)?.name}</h5>
-                                    <button onClick={() => setSelectedCondition(null)} className="text-gray-400 hover:text-white"><X className="w-4 h-4"/></button>
+                                    <button onClick={() => setSelectedCondition(null)} className="text-gray-400 hover:text-white p-1"><X className="w-4 h-4"/></button>
                                 </div>
                                 <p className="text-xs text-gray-300 leading-relaxed">
                                     {CONDITIONS.find(c => c.id === selectedCondition)?.description}
@@ -211,7 +211,7 @@ const DmHelperWidget: React.FC = () => {
                                     <button 
                                         key={c.id}
                                         onClick={() => setSelectedCondition(c.id)}
-                                        className="text-[10px] bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 py-1.5 px-2 rounded truncate text-left"
+                                        className="text-[10px] bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 py-2 px-2 rounded truncate text-left touch-manipulation"
                                     >
                                         {c.name.split(' (')[0]}
                                     </button>
@@ -226,7 +226,7 @@ const DmHelperWidget: React.FC = () => {
                         {/* Stop Button */}
                         <button 
                             onClick={stopAllSfx}
-                            className="w-full bg-red-900/80 hover:bg-red-800 text-white py-2 rounded flex justify-center items-center gap-2 font-bold text-xs border border-red-700 mb-2 shadow-lg"
+                            className="w-full bg-red-900/80 hover:bg-red-800 text-white py-3 rounded flex justify-center items-center gap-2 font-bold text-xs border border-red-700 mb-2 shadow-lg touch-manipulation"
                         >
                             <Square className="w-3 h-3 fill-current"/> Стоп Эффекты
                         </button>
@@ -241,13 +241,13 @@ const DmHelperWidget: React.FC = () => {
                                         <div key={sIdx} className="flex gap-1">
                                             <button 
                                                 onClick={() => playSfx(snd.url)}
-                                                className="flex-1 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gold-500/50 text-gray-300 py-2 rounded text-xs font-bold transition-all active:scale-95 flex justify-center items-center"
+                                                className="flex-1 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gold-500/50 text-gray-300 py-2 rounded text-xs font-bold transition-all active:scale-95 flex justify-center items-center touch-manipulation"
                                             >
                                                 {snd.label}
                                             </button>
                                             <button 
                                                 onClick={() => downloadSfx(snd.url, snd.label)}
-                                                className="bg-gray-900 hover:bg-gray-800 border border-gray-700 text-gray-500 hover:text-white px-2 rounded"
+                                                className="bg-gray-900 hover:bg-gray-800 border border-gray-700 text-gray-500 hover:text-white px-2 rounded touch-manipulation"
                                                 title="Скачать"
                                             >
                                                 <Download className="w-3 h-3"/>
@@ -268,7 +268,7 @@ const DmHelperWidget: React.FC = () => {
                                     <button 
                                         key={idx}
                                         onClick={() => playSfx(snd.url)}
-                                        className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 py-2 rounded text-xs font-bold transition-all active:scale-95 truncate"
+                                        className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 py-2 rounded text-xs font-bold transition-all active:scale-95 truncate touch-manipulation"
                                         title={snd.label}
                                     >
                                         {snd.label}
@@ -276,7 +276,7 @@ const DmHelperWidget: React.FC = () => {
                                 ))}
                                 <button 
                                     onClick={() => fileInputRef.current?.click()}
-                                    className="bg-gray-800 hover:bg-gray-700 border border-dashed border-gray-600 text-gray-400 py-2 rounded text-xs font-bold flex justify-center items-center gap-1"
+                                    className="bg-gray-800 hover:bg-gray-700 border border-dashed border-gray-600 text-gray-400 py-2 rounded text-xs font-bold flex justify-center items-center gap-1 touch-manipulation"
                                 >
                                     <Plus className="w-3 h-3"/> Загрузить
                                 </button>
@@ -288,7 +288,6 @@ const DmHelperWidget: React.FC = () => {
                                     onChange={handleFileUpload}
                                 />
                             </div>
-                            <p className="text-[10px] text-gray-500 text-center">Загрузите скачанные файлы для игры офлайн.</p>
                         </div>
                     </div>
                 )}

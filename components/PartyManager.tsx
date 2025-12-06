@@ -1,8 +1,7 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { PartyMember, InventoryItem, PartyManagerProps, PartyStash, Wallet } from '../types';
-import { Users, Shield, Heart, Eye, Trash2, Edit2, Plus, Save, X, CheckCircle, Circle, Backpack, Coins, Archive, Divide, ArrowRight, Landmark, Info, Sparkles, Loader } from 'lucide-react';
+import { Users, Shield, Heart, Eye, Trash2, Edit2, Plus, Save, X, CheckCircle, Circle, Backpack, Coins, Archive, Divide, ArrowRight, Landmark, Info, Sparkles, Loader, ArrowRightCircle, Gift } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 import { generateExtendedDetails } from '../services/polzaService';
 import SmartText from './SmartText';
@@ -160,6 +159,34 @@ const PartyManager: React.FC<PartyManagerProps> = ({ addLog }) => {
       showToast(`"${item.name}" передан ${memberName}`);
   };
 
+  const transferItemBetweenMembers = (item: InventoryItem, fromId: string, toId: string) => {
+      // Remove from sender
+      setParty(prev => {
+          const senderIndex = prev.findIndex(p => p.id === fromId);
+          const receiverIndex = prev.findIndex(p => p.id === toId);
+          if (senderIndex === -1 || receiverIndex === -1) return prev;
+
+          const newParty = [...prev];
+          
+          // Remove from sender
+          newParty[senderIndex] = {
+              ...newParty[senderIndex],
+              inventory: newParty[senderIndex].inventory.filter(i => i.id !== item.id)
+          };
+
+          // Add to receiver
+          newParty[receiverIndex] = {
+              ...newParty[receiverIndex],
+              inventory: [...newParty[receiverIndex].inventory, item]
+          };
+
+          return newParty;
+      });
+      
+      const receiverName = party.find(p => p.id === toId)?.name;
+      showToast(`"${item.name}" передан ${receiverName}`, 'success');
+  };
+
   const addStashItem = () => {
       if (!newStashItem.trim()) return;
       const item: InventoryItem = {
@@ -270,6 +297,36 @@ const PartyManager: React.FC<PartyManagerProps> = ({ addLog }) => {
       setInspectingItem(null);
       showToast("Предмет сохранен", "success");
   };
+  
+  const handleDirectTransfer = (targetId: string) => {
+      if (!inspectingItem) return;
+      
+      if (targetId === 'stash') {
+          moveItemToStash(inspectingItem.sourceId, inspectingItem.item);
+          setInspectingItem(null);
+          return;
+      }
+      
+      if (inspectingItem.sourceId === 'stash') {
+          moveItemFromStash(inspectingItem.item, targetId);
+      } else {
+          transferItemBetweenMembers(inspectingItem.item, inspectingItem.sourceId, targetId);
+      }
+      setInspectingItem(null);
+  };
+  
+  const handleDirectDelete = () => {
+      if (!inspectingItem) return;
+      if (window.confirm(`Удалить "${inspectingItem.item.name}" безвозвратно?`)) {
+          if (inspectingItem.sourceId === 'stash') {
+              removeStashItem(inspectingItem.item.id);
+          } else {
+              removeItem(inspectingItem.sourceId, inspectingItem.item.id);
+          }
+          setInspectingItem(null);
+          showToast("Предмет удален");
+      }
+  };
 
   // Helper for XP bar (visual only)
   const XP_TABLE: Record<number, number> = {
@@ -285,7 +342,7 @@ const PartyManager: React.FC<PartyManagerProps> = ({ addLog }) => {
   return (
     <div className="h-full flex flex-col space-y-4 relative">
       
-      {/* Item Inspection Modal */}
+      {/* Item Inspection & Transfer Modal */}
       {inspectingItem && (
           <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
               <div className="bg-dnd-card border-2 border-gold-600 w-full max-w-md rounded-lg shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
@@ -305,7 +362,6 @@ const PartyManager: React.FC<PartyManagerProps> = ({ addLog }) => {
                               <Info className="w-3 h-3"/> Описание
                           </label>
                           
-                          {/* Editable Description Area - using SmartText only for preview if needed, but here we edit */}
                           <div className="relative">
                               {inspectingItem.item.description && inspectingItem.item.description.length > 50 ? (
                                    <div className="bg-black/30 p-3 rounded border border-gray-700 text-sm text-gray-300 mb-2 max-h-40 overflow-y-auto">
@@ -314,7 +370,7 @@ const PartyManager: React.FC<PartyManagerProps> = ({ addLog }) => {
                               ) : null}
                               
                               <textarea 
-                                  className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-sm text-white h-32 focus:border-gold-500 outline-none resize-none"
+                                  className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-sm text-white h-24 focus:border-gold-500 outline-none resize-none"
                                   placeholder="Добавьте описание или используйте AI..."
                                   value={inspectingItem.item.description || ''}
                                   onChange={e => setInspectingItem({ ...inspectingItem, item: { ...inspectingItem.item, description: e.target.value } })}
@@ -327,8 +383,53 @@ const PartyManager: React.FC<PartyManagerProps> = ({ addLog }) => {
                               className="w-full bg-indigo-900/50 hover:bg-indigo-800 text-indigo-200 border border-indigo-700 py-2 rounded text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
                           >
                               {enhancing ? <Loader className="w-4 h-4 animate-spin"/> : <Sparkles className="w-4 h-4"/>}
-                              {inspectingItem.item.description ? 'Улучшить / Переписать (AI)' : 'Сгенерировать описание (AI)'}
+                              {inspectingItem.item.description ? 'Улучшить описание (AI)' : 'Сгенерировать (AI)'}
                           </button>
+                      </div>
+                      
+                      {/* Transfer Section */}
+                      <div className="pt-2 border-t border-gray-800">
+                          <label className="text-xs text-blue-400 font-bold uppercase flex items-center gap-2 mb-2">
+                              <Gift className="w-3 h-3"/> Передать кому:
+                          </label>
+                          <div className="grid grid-cols-2 gap-2">
+                              {/* Party Members */}
+                              {party.filter(p => p.id !== inspectingItem.sourceId && p.active).map(p => (
+                                  <button 
+                                    key={p.id}
+                                    onClick={() => handleDirectTransfer(p.id)}
+                                    className="flex items-center gap-2 p-2 bg-gray-800 hover:bg-blue-900/30 border border-gray-700 hover:border-blue-500 rounded text-left transition-colors active:scale-95"
+                                  >
+                                      <div className="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-[10px] font-bold text-gray-300">
+                                          {p.name.charAt(0)}
+                                      </div>
+                                      <span className="text-xs font-bold truncate flex-1">{p.name}</span>
+                                      <ArrowRightCircle className="w-4 h-4 text-gray-500"/>
+                                  </button>
+                              ))}
+                              
+                              {/* Stash Option */}
+                              {inspectingItem.sourceId !== 'stash' && (
+                                  <button 
+                                    onClick={() => handleDirectTransfer('stash')}
+                                    className="flex items-center gap-2 p-2 bg-gray-800 hover:bg-yellow-900/30 border border-gray-700 hover:border-yellow-500 rounded text-left transition-colors active:scale-95"
+                                  >
+                                      <div className="w-6 h-6 rounded-full bg-yellow-900/50 flex items-center justify-center text-yellow-500">
+                                          <Archive className="w-3 h-3"/>
+                                      </div>
+                                      <span className="text-xs font-bold truncate flex-1 text-yellow-500">В Общий Мешок</span>
+                                  </button>
+                              )}
+                          </div>
+                      </div>
+                      
+                      <div className="pt-2">
+                           <button 
+                                onClick={handleDirectDelete}
+                                className="w-full py-2 bg-red-900/20 hover:bg-red-900/50 text-red-400 border border-red-900/50 rounded text-xs font-bold flex items-center justify-center gap-2"
+                           >
+                               <Trash2 className="w-3 h-3"/> Удалить предмет
+                           </button>
                       </div>
                   </div>
 
@@ -415,26 +516,14 @@ const PartyManager: React.FC<PartyManagerProps> = ({ addLog }) => {
                           {partyStash.items.map(item => (
                               <div 
                                   key={item.id} 
-                                  className="flex justify-between items-center group text-sm bg-black/20 px-2 py-1 rounded cursor-pointer hover:bg-black/40"
+                                  className="flex justify-between items-center group text-sm bg-black/20 px-2 py-2 rounded cursor-pointer hover:bg-black/40 active:bg-indigo-900/30"
                                   onClick={() => handleInspectItem(item, 'stash', 'Общий Мешок')}
                               >
                                   <div className="flex items-center gap-2 flex-1 overflow-hidden">
                                       <span className="text-indigo-200 truncate">{item.name}</span>
                                       {item.description && <Info className="w-3 h-3 text-gray-500 shrink-0"/>}
                                   </div>
-                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-                                      {party.filter(p => p.active).map(p => (
-                                          <button 
-                                            key={p.id} 
-                                            onClick={() => moveItemFromStash(item, p.id)}
-                                            className="w-5 h-5 rounded-full bg-gray-700 hover:bg-green-600 flex items-center justify-center text-[10px] text-white font-bold"
-                                            title={`Отдать ${p.name}`}
-                                          >
-                                              {p.name[0]}
-                                          </button>
-                                      ))}
-                                      <button onClick={() => removeStashItem(item.id)} className="text-gray-500 hover:text-red-500 ml-1"><X className="w-3 h-3"/></button>
-                                  </div>
+                                  <span className="text-xs text-gray-500">x{item.quantity}</span>
                               </div>
                           ))}
                       </div>
@@ -601,21 +690,18 @@ const PartyManager: React.FC<PartyManagerProps> = ({ addLog }) => {
                                     />
                                     <button onClick={() => addItem(p.id)} className="text-green-500 hover:text-green-400"><Plus className="w-4 h-4"/></button>
                                 </div>
-                                <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
+                                <div className="space-y-1 max-h-48 overflow-y-auto custom-scrollbar">
                                     {p.inventory?.map(item => (
                                         <div 
                                             key={item.id} 
-                                            className="flex justify-between items-center group/item bg-black/20 px-2 py-1 rounded cursor-pointer hover:bg-black/40"
+                                            className="flex justify-between items-center group/item bg-black/20 px-2 py-2 rounded cursor-pointer hover:bg-black/40 active:bg-indigo-900/30"
                                             onClick={() => handleInspectItem(item, p.id, p.name)}
                                         >
                                             <div className="flex items-center gap-2 flex-1 overflow-hidden">
                                                 <span className="text-gray-300 truncate text-xs">{item.name}</span>
                                                 {item.description && <Info className="w-3 h-3 text-gray-500 shrink-0"/>}
                                             </div>
-                                            <div className="flex gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-                                                <button onClick={() => moveItemToStash(p.id, item)} className="text-indigo-400 hover:text-indigo-300" title="В общий мешок"><Archive className="w-3 h-3"/></button>
-                                                <button onClick={() => removeItem(p.id, item.id)} className="text-gray-600 hover:text-red-500"><X className="w-3 h-3"/></button>
-                                            </div>
+                                            {item.quantity > 1 && <span className="text-xs text-gray-500 ml-1">x{item.quantity}</span>}
                                         </div>
                                     ))}
                                     {(!p.inventory || p.inventory.length === 0) && <span className="text-gray-600 italic text-xs">Пусто</span>}

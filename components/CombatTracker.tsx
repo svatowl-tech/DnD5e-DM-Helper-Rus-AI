@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Combatant, EntityType, LogEntry, PartyMember, Condition, BestiaryEntry } from '../types';
 import { CONDITIONS, SAMPLE_COMBATANTS } from '../constants';
-import { Shield, Heart, Sword, Skull, Play, RefreshCw, Plus, X, Trash2, Users, BookOpen, Coins, Loader, Flag, Zap, Activity, HelpCircle, Trophy, Star, Dices, Compass, ArrowLeft, Check, Book, Sparkles, Save, UserPlus, Feather } from 'lucide-react';
+import { Shield, Heart, Sword, Skull, Play, RefreshCw, Plus, X, Trash2, Users, BookOpen, Coins, Loader, Flag, Zap, Activity, HelpCircle, Trophy, Star, Dices, Compass, ArrowLeft, Check, Book, Sparkles, Save, UserPlus, Feather, RotateCcw } from 'lucide-react';
 import BestiaryBrowser from './BestiaryBrowser';
 import { generateCombatLoot, generateMonster } from '../services/polzaService';
 import { calculateEncounterDifficulty, EncounterResult } from '../services/encounterService';
@@ -17,9 +17,7 @@ interface CombatTrackerProps {
 
 // Helper to parse text and make dice clickable
 const ActionRenderer: React.FC<{ text: string, sourceName: string, onRoll: (expr: string, result: number, total: number) => void }> = ({ text, sourceName, onRoll }) => {
-    // Regex for dice notation: e.g., 1d8, 2d6 + 3, 1d4+1, 10d10
     const diceRegex = /(\d+d\d+(?:\s*[+\-]\s*\d+)?)/g;
-    
     const parts = text.split(diceRegex);
     
     const rollDice = (expression: string) => {
@@ -31,16 +29,10 @@ const ActionRenderer: React.FC<{ text: string, sourceName: string, onRoll: (expr
             const isNegative = cleanExpr.includes('-');
             
             let total = 0;
-            const rolls = [];
-            
             for (let i = 0; i < count; i++) {
-                const val = Math.floor(Math.random() * sides) + 1;
-                rolls.push(val);
-                total += val;
+                total += Math.floor(Math.random() * sides) + 1;
             }
-            
             const finalTotal = isNegative ? total - modifier : total + modifier;
-            
             onRoll(expression, finalTotal, finalTotal);
         } catch (e) {
             console.error("Dice parse error", e);
@@ -55,14 +47,12 @@ const ActionRenderer: React.FC<{ text: string, sourceName: string, onRoll: (expr
                         <button 
                             key={i}
                             onClick={(e) => { e.stopPropagation(); rollDice(part); }}
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-1 bg-indigo-900/50 hover:bg-indigo-600 border border-indigo-500/50 rounded text-indigo-200 hover:text-white font-mono text-xs cursor-pointer transition-colors"
-                            title="Нажмите, чтобы бросить"
+                            className="inline-flex items-center gap-1 px-2 py-1 mx-1 bg-indigo-900/80 hover:bg-indigo-600 border border-indigo-500/50 rounded text-indigo-100 font-mono text-sm font-bold cursor-pointer transition-colors active:scale-95 touch-manipulation"
                         >
                             <Dices className="w-3 h-3"/> {part}
                         </button>
                     );
                 }
-                // Render HTML if present in the text parts (e.g. <b> tags from source)
                 return <span key={i} dangerouslySetInnerHTML={{__html: part}} />;
             })}
         </span>
@@ -70,7 +60,7 @@ const ActionRenderer: React.FC<{ text: string, sourceName: string, onRoll: (expr
 };
 
 const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
-  const { playPlaylist, autoPlayMusic } = useAudio();
+  const { autoPlayMusic } = useAudio();
   const { showToast } = useToast();
 
   const [combatants, setCombatants] = useState<Combatant[]>(() => {
@@ -101,28 +91,21 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
   const [victoryLoot, setVictoryLoot] = useState<string>('');
   const [showInitModal, setShowInitModal] = useState(false);
   const [initRolls, setInitRolls] = useState<Record<string, number>>({});
-  
-  // Stat Block Modal State
   const [viewingStatBlock, setViewingStatBlock] = useState<BestiaryEntry | null>(null);
   const [generatingStats, setGeneratingStats] = useState(false);
-  
-  // Custom Confirmation State (replaces window.confirm)
   const [confirmAction, setConfirmAction] = useState<{ message: string, onConfirm: () => void } | null>(null);
 
   const [newCombatant, setNewCombatant] = useState<Partial<Combatant>>({
     name: '', initiative: 10, hp: 10, maxHp: 10, ac: 10, type: EntityType.MONSTER
   });
 
-  // Travel Integration State
   const [hasActiveTravel, setHasActiveTravel] = useState(false);
 
-  // Check for active travel on mount
   useEffect(() => {
       const travelState = localStorage.getItem('dmc_active_travel');
       if (travelState) setHasActiveTravel(true);
   }, []);
 
-  // Listen for updates
   useEffect(() => {
       const handleUpdate = () => {
           const saved = localStorage.getItem('dmc_combatants');
@@ -135,7 +118,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
       return () => window.removeEventListener('dmc-update-combat', handleUpdate);
   }, []);
 
-  // Save & Calc Difficulty
   useEffect(() => {
     localStorage.setItem('dmc_combatants', JSON.stringify(combatants));
     const savedParty = localStorage.getItem('dmc_party');
@@ -153,7 +135,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
       else localStorage.removeItem('dmc_combat_active_id');
   }, [round, turnIndex, activeId]);
 
-  // Init State
   useEffect(() => {
       if (showInitModal) {
           const rolls: Record<string, number> = {};
@@ -163,7 +144,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
   }, [showInitModal]);
 
   const playCombatMusic = () => {
-      // Check names for intelligent switching
       const monsterNames = combatants.filter(c => c.type === EntityType.MONSTER).map(c => c.name + " " + c.notes).join(' ');
       autoPlayMusic('combat', monsterNames);
   };
@@ -209,6 +189,10 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
     }
     setTurnIndex(nextIndex);
     setActiveId(combatants[nextIndex].id);
+    
+    // Scroll to active combatant (optional, but good UX)
+    const el = document.getElementById(`combatant-${combatants[nextIndex].id}`);
+    if(el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   };
 
   const updateHp = (id: string, delta: number) => {
@@ -277,7 +261,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
 
   const handleEndCombatClick = () => {
       if (combatants.filter(c => c.type === EntityType.MONSTER).length === 0) {
-          // Use custom confirm instead of window.confirm
           setConfirmAction({
               message: "В бою нет монстров. Просто очистить трекер и закончить?",
               onConfirm: () => {
@@ -296,8 +279,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
       setVictoryXp(xpPerPlayer);
       setVictoryLoot('');
       setShowVictoryModal(true);
-      
-      // Auto play victory music
       autoPlayMusic('victory');
   };
 
@@ -315,7 +296,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
           detail: { amount: victoryXp, reason: 'за победу в бою' } 
       });
       window.dispatchEvent(event);
-      // Toast handled in App.tsx listener
   };
 
   const generateVictoryLoot = async () => {
@@ -327,7 +307,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
           const avgLevel = players.length > 0 ? 3 : 1; 
           const result = await generateCombatLoot(names, avgLevel);
           setVictoryLoot(result);
-          // Removed auto-log. User can manually add if needed.
       } catch (e: any) {
           setVictoryLoot(`<span class='text-red-400'>Ошибка: ${e.message}</span>`);
       } finally {
@@ -349,10 +328,9 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
           const namesToUse = names.length > 0 ? names : ["Неизвестный враг"];
           
           const result = await generateCombatLoot(namesToUse, avgLevel);
-          // For manual generation during combat, we open the Victory modal to show loot
           setVictoryLoot(result);
           setShowVictoryModal(true);
-          setVictoryXp(0); // Don't show XP part if just checking loot, or user ignores it
+          setVictoryXp(0); 
           
           showToast("Добыча сгенерирована", "success");
       } catch (e: any) {
@@ -403,12 +381,10 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
 
   const addMonsterToTracker = (monster: BestiaryEntry, count: number) => {
     const newMonsters: Combatant[] = [];
-
     for (let i = 1; i <= count; i++) {
         const dexMod = Math.floor((monster.stats.dex - 10) / 2);
         const initRoll = Math.floor(Math.random() * 20) + 1 + dexMod;
         const name = count > 1 ? `${monster.name} ${i}` : monster.name;
-        // Format actions for display
         const actions = monster.actions?.map(a => `<b>${a.name}:</b> ${a.desc}`) || [];
 
         newMonsters.push({
@@ -438,16 +414,12 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
   };
 
   const returnToTravel = () => {
-      // Custom confirm for returning to travel
       setConfirmAction({
           message: "Завершить бой и вернуться к экрану путешествия?",
           onConfirm: () => {
               cleanCombatState();
-              // Switch to Location tab and trigger travel modal open
               window.dispatchEvent(new CustomEvent('dmc-switch-tab', { detail: 'location' }));
               setTimeout(() => window.dispatchEvent(new CustomEvent('dmc-open-travel')), 100);
-              
-              // Switch back to travel music
               autoPlayMusic('travel');
               setConfirmAction(null);
           }
@@ -456,21 +428,14 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
 
   const openStatBlock = (combatant: Combatant) => {
       if (combatant.type !== EntityType.MONSTER) return;
-
-      // Try to find in local bestiary first
       const localBestiary = JSON.parse(localStorage.getItem('dmc_local_bestiary') || '[]');
-      // Match by name (ignoring numbers if multiple added like "Goblin 2")
       const baseName = combatant.name.replace(/\s\d+$/, '');
       const foundEntry = localBestiary.find((b: BestiaryEntry) => b.name.toLowerCase() === baseName.toLowerCase() || b.name === combatant.name);
 
       if (foundEntry) {
-          // Pass the combatant ID so we know who we are viewing (important for conversion)
           setViewingStatBlock({ ...foundEntry, id: combatant.id });
       } else {
-          // Fallback: Construct a partial entry from combatant data
-          // Attempt to parse actions from strings if available
           const parsedActions = combatant.actions?.map(a => {
-              // Simple parser for bolded names in actions
                const match = a.match(/<b>(.*?):<\/b>(.*)/);
                if (match) return { name: match[1], desc: match[2] };
                return { name: 'Action', desc: a };
@@ -494,49 +459,29 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
 
   const saveStatBlockToBestiary = () => {
     if (!viewingStatBlock) return;
-
     const localBestiary = JSON.parse(localStorage.getItem('dmc_local_bestiary') || '[]');
-    // Filter out existing entry with same name to overwrite/update
     const filtered = localBestiary.filter((b: BestiaryEntry) => b.name !== viewingStatBlock.name);
-    
     const entryToSave = { ...viewingStatBlock, source: 'local' as const };
-    // Remove the temp ID from combatant before saving to bestiary logic if needed, 
-    // though bestiary usually ignores IDs or regenerates them.
-    
     const updatedBestiary = [entryToSave, ...filtered];
     localStorage.setItem('dmc_local_bestiary', JSON.stringify(updatedBestiary));
-    
     showToast("Сохранено в Бестиарий!", "success");
   };
 
   const convertToNpc = () => {
         if (!viewingStatBlock) return;
-
-        // 1. Add to NPC Tracker
         const npcData = {
             name: viewingStatBlock.name,
             race: viewingStatBlock.type || 'Монстр',
             description: viewingStatBlock.description || "Бывший враг, спасенный в бою.",
             location: "С группой",
             status: 'alive',
-            attitude: 'neutral', // Default to neutral/friendly
+            attitude: 'neutral',
             notes: `CR ${viewingStatBlock.cr}. HP: ${viewingStatBlock.hp}. AC: ${viewingStatBlock.ac}.`
         };
-
         window.dispatchEvent(new CustomEvent('dmc-add-npc', { detail: npcData }));
-
-        // 2. Update Combatant Type in Tracker to NPC (Friendly)
-        setCombatants(prev => prev.map(c => {
-            if (c.id === viewingStatBlock.id) {
-                return { ...c, type: EntityType.NPC };
-            }
-            return c;
-        }));
-
-        // 3. Log and Notify
+        setCombatants(prev => prev.map(c => c.id === viewingStatBlock.id ? { ...c, type: EntityType.NPC } : c));
         showToast(`${viewingStatBlock.name} теперь NPC`, 'success');
-        
-        setViewingStatBlock(null); // Close modal
+        setViewingStatBlock(null);
   };
 
   const handleGenerateStats = async () => {
@@ -545,30 +490,15 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
     try {
         const prompt = viewingStatBlock.name + (viewingStatBlock.description ? `. ${viewingStatBlock.description}` : "");
         const crHint = typeof viewingStatBlock.cr === 'string' && viewingStatBlock.cr !== '?' ? viewingStatBlock.cr : undefined;
-        
         const newStats = await generateMonster(prompt, crHint);
-        
-        // Save to local bestiary
         const savedBestiary = JSON.parse(localStorage.getItem('dmc_local_bestiary') || '[]');
         const filtered = savedBestiary.filter((b: BestiaryEntry) => b.name !== newStats.name);
         const updatedBestiary = [newStats, ...filtered];
         localStorage.setItem('dmc_local_bestiary', JSON.stringify(updatedBestiary));
-
-        // Update view - preserve the combatant ID!
         setViewingStatBlock({ ...newStats, id: viewingStatBlock.id });
-
-        // Update combatants in tracker to include these new actions
-        setCombatants(prev => prev.map(c => {
-            // Match ID if possible, else fallback to name
-            if (c.id === viewingStatBlock.id) {
-                return {
-                    ...c,
-                    actions: newStats.actions?.map(a => `<b>${a.name}:</b> ${a.desc}`) || []
-                };
-            }
-            return c;
-        }));
-
+        setCombatants(prev => prev.map(c => c.id === viewingStatBlock.id ? {
+            ...c, actions: newStats.actions?.map(a => `<b>${a.name}:</b> ${a.desc}`) || []
+        } : c));
     } catch (e: any) {
         showToast(`Ошибка: ${e.message}`, "error");
     } finally {
@@ -578,8 +508,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
 
   const handleActionRoll = (expr: string, result: number, total: number) => {
       const name = activeCombatant ? activeCombatant.name : 'Монстр';
-      // Dice rolls are not auto-logged to the main chronicle to reduce noise
-      // They are shown in toast and the DiceRoller component history (if integrated)
       showToast(`${name}: ${total} (${expr})`, 'info');
   };
 
@@ -608,35 +536,20 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
 
   return (
     <div className="h-full flex flex-col space-y-4 relative">
-      {/* Custom Confirmation Modal */}
+      {/* Confirm Modal */}
       {confirmAction && (
           <div className="fixed inset-0 z-[70] bg-black/90 flex items-center justify-center p-4 animate-in fade-in">
               <div className="bg-gray-900 border border-gold-600 p-6 rounded-lg max-w-sm w-full text-center">
                   <h3 className="text-lg font-bold text-white mb-4">{confirmAction.message}</h3>
                   <div className="flex gap-4 justify-center">
-                      <button 
-                        onClick={() => setConfirmAction(null)} 
-                        className="px-4 py-2 text-gray-400 hover:text-white border border-gray-700 rounded"
-                      >
-                          Отмена
-                      </button>
-                      <button 
-                        onClick={confirmAction.onConfirm} 
-                        className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded font-bold shadow-lg"
-                      >
-                          Подтвердить
-                      </button>
+                      <button onClick={() => setConfirmAction(null)} className="px-4 py-2 text-gray-400 hover:text-white border border-gray-700 rounded">Отмена</button>
+                      <button onClick={confirmAction.onConfirm} className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded font-bold shadow-lg">Подтвердить</button>
                   </div>
               </div>
           </div>
       )}
 
-      {showBestiary && (
-        <BestiaryBrowser 
-            onClose={() => setShowBestiary(false)} 
-            onAddMonster={addMonsterToTracker} 
-        />
-      )}
+      {showBestiary && <BestiaryBrowser onClose={() => setShowBestiary(false)} onAddMonster={addMonsterToTracker} />}
 
       {/* Stat Block Modal */}
       {viewingStatBlock && (
@@ -647,100 +560,43 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
                           <h3 className="text-2xl font-serif font-bold text-white leading-tight">{viewingStatBlock.name}</h3>
                           <p className="text-gold-500 italic text-sm capitalize mt-1">{viewingStatBlock.type} • CR {viewingStatBlock.cr} ({viewingStatBlock.xp} XP)</p>
                       </div>
-                      <div className="flex gap-2">
-                          <button onClick={convertToNpc} className="text-gray-400 hover:text-green-500" title="Перевести в NPC (Союзник)">
-                              <UserPlus className="w-6 h-6"/>
-                          </button>
-                          <button onClick={saveStatBlockToBestiary} className="text-gray-400 hover:text-blue-500" title="Сохранить в Бестиарий">
-                              <Save className="w-6 h-6"/>
-                          </button>
-                          <button onClick={() => setViewingStatBlock(null)} className="text-gray-400 hover:text-white">
-                              <X className="w-6 h-6"/>
-                          </button>
-                      </div>
+                      <button onClick={() => setViewingStatBlock(null)} className="text-gray-400 hover:text-white p-2"><X className="w-6 h-6"/></button>
                   </div>
-                  
                   <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-gray-900/95">
-                      {/* Vitals */}
-                      <div className="grid grid-cols-3 gap-2 bg-gray-800 p-3 rounded border border-gray-700 text-center">
-                          <div>
-                              <div className="text-xs text-gray-500 uppercase font-bold">AC</div>
-                              <div className="text-xl font-bold text-white">{viewingStatBlock.ac}</div>
-                          </div>
-                          <div className="border-l border-gray-700">
-                              <div className="text-xs text-gray-500 uppercase font-bold">HP</div>
-                              <div className="text-xl font-bold text-green-400">{viewingStatBlock.hp}</div>
-                          </div>
-                          <div className="border-l border-gray-700">
-                              <div className="text-xs text-gray-500 uppercase font-bold">SPD</div>
-                              <div className="text-xl font-bold text-blue-400">30 ft</div>
-                          </div>
-                      </div>
-
                       {/* Attributes */}
-                      <div className="grid grid-cols-6 gap-1 text-center text-xs">
-                          <div className="bg-gray-800 p-1 rounded border border-gray-700">
-                              <div className="font-bold text-gray-500">STR</div>
-                              <div>{viewingStatBlock.stats.str} <span className="text-gray-400">({Math.floor((viewingStatBlock.stats.str - 10) / 2)})</span></div>
-                          </div>
-                          <div className="bg-gray-800 p-1 rounded border border-gray-700">
-                              <div className="font-bold text-gray-500">DEX</div>
-                              <div>{viewingStatBlock.stats.dex} <span className="text-gray-400">({Math.floor((viewingStatBlock.stats.dex - 10) / 2)})</span></div>
-                          </div>
-                          <div className="bg-gray-800 p-1 rounded border border-gray-700">
-                              <div className="font-bold text-gray-500">CON</div>
-                              <div>{viewingStatBlock.stats.con} <span className="text-gray-400">({Math.floor((viewingStatBlock.stats.con - 10) / 2)})</span></div>
-                          </div>
-                          <div className="bg-gray-800 p-1 rounded border border-gray-700">
-                              <div className="font-bold text-gray-500">INT</div>
-                              <div>{viewingStatBlock.stats.int} <span className="text-gray-400">({Math.floor((viewingStatBlock.stats.int - 10) / 2)})</span></div>
-                          </div>
-                          <div className="bg-gray-800 p-1 rounded border border-gray-700">
-                              <div className="font-bold text-gray-500">WIS</div>
-                              <div>{viewingStatBlock.stats.wis} <span className="text-gray-400">({Math.floor((viewingStatBlock.stats.wis - 10) / 2)})</span></div>
-                          </div>
-                          <div className="bg-gray-800 p-1 rounded border border-gray-700">
-                              <div className="font-bold text-gray-500">CHA</div>
-                              <div>{viewingStatBlock.stats.cha} <span className="text-gray-400">({Math.floor((viewingStatBlock.stats.cha - 10) / 2)})</span></div>
-                          </div>
+                      <div className="grid grid-cols-3 gap-2 bg-gray-800 p-3 rounded border border-gray-700 text-center">
+                          <div><div className="text-xs text-gray-500 uppercase font-bold">AC</div><div className="text-xl font-bold text-white">{viewingStatBlock.ac}</div></div>
+                          <div className="border-l border-gray-700"><div className="text-xs text-gray-500 uppercase font-bold">HP</div><div className="text-xl font-bold text-green-400">{viewingStatBlock.hp}</div></div>
+                          <div className="border-l border-gray-700"><div className="text-xs text-gray-500 uppercase font-bold">SPD</div><div className="text-xl font-bold text-blue-400">30 ft</div></div>
                       </div>
-
-                      {/* Description */}
-                      {viewingStatBlock.description && (
-                          <div className="text-sm text-gray-300 italic border-l-2 border-gold-500 pl-3 py-1">
-                              <SmartText content={viewingStatBlock.description} />
-                          </div>
-                      )}
-
-                      {/* Actions */}
+                      {/* Stats */}
+                      <div className="grid grid-cols-6 gap-1 text-center text-xs">
+                          {Object.entries(viewingStatBlock.stats).map(([key, val]) => (
+                              <div key={key} className="bg-gray-800 p-1 rounded border border-gray-700">
+                                  <div className="font-bold text-gray-500 uppercase">{key}</div>
+                                  <div>{val} <span className="text-gray-400">({Math.floor(((val as number) - 10) / 2)})</span></div>
+                              </div>
+                          ))}
+                      </div>
+                      {viewingStatBlock.description && <div className="text-sm text-gray-300 italic border-l-2 border-gold-500 pl-3 py-1"><SmartText content={viewingStatBlock.description} /></div>}
                       {viewingStatBlock.actions && viewingStatBlock.actions.length > 0 ? (
                           <div>
                               <h4 className="text-gold-500 font-bold uppercase text-xs border-b border-gray-700 pb-1 mb-2">Actions</h4>
                               <ul className="space-y-3">
                                   {viewingStatBlock.actions.map((action, i) => (
-                                      <li key={i} className="text-sm">
-                                          <span className="font-bold text-white">{action.name}.</span> <ActionRenderer text={action.desc} sourceName={viewingStatBlock.name} onRoll={handleActionRoll} />
-                                      </li>
+                                      <li key={i} className="text-sm"><span className="font-bold text-white">{action.name}.</span> <ActionRenderer text={action.desc} sourceName={viewingStatBlock.name} onRoll={handleActionRoll} /></li>
                                   ))}
                               </ul>
                           </div>
                       ) : (
-                          <div className="text-center py-2">
-                             <p className="text-xs text-gray-500 italic mb-2">Статблок неполный (только базовые данные).</p>
-                             <button 
-                                onClick={handleGenerateStats}
-                                disabled={generatingStats}
-                                className="w-full bg-indigo-900/50 hover:bg-indigo-800 text-indigo-200 border border-indigo-700 rounded py-2 text-sm font-bold flex items-center justify-center gap-2 transition-colors"
-                             >
-                                {generatingStats ? <Loader className="w-4 h-4 animate-spin"/> : <Sparkles className="w-4 h-4"/>}
-                                Сгенерировать статблок
-                             </button>
-                          </div>
+                          <button onClick={handleGenerateStats} disabled={generatingStats} className="w-full bg-indigo-900/50 hover:bg-indigo-800 text-indigo-200 border border-indigo-700 rounded py-3 text-sm font-bold flex items-center justify-center gap-2">
+                            {generatingStats ? <Loader className="w-4 h-4 animate-spin"/> : <Sparkles className="w-4 h-4"/>} Сгенерировать статблок
+                          </button>
                       )}
                   </div>
-                  
-                  <div className="p-3 bg-gray-900 border-t border-gray-700 text-right shrink-0">
-                      <button onClick={() => setViewingStatBlock(null)} className="bg-gold-600 hover:bg-gold-500 text-black px-4 py-1 rounded font-bold text-sm">Закрыть</button>
+                  <div className="p-3 bg-gray-900 border-t border-gray-700 flex justify-end gap-2 shrink-0">
+                      <button onClick={convertToNpc} className="text-gray-400 hover:text-green-500 p-2"><UserPlus className="w-6 h-6"/></button>
+                      <button onClick={saveStatBlockToBestiary} className="text-gray-400 hover:text-blue-500 p-2"><Save className="w-6 h-6"/></button>
                   </div>
               </div>
           </div>
@@ -751,46 +607,22 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
           <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
               <div className="bg-dnd-card border-2 border-gold-600 w-full max-w-lg rounded-lg shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
                   <div className="p-4 bg-gray-900 border-b border-gray-700 flex justify-between items-center shrink-0">
-                      <h3 className="text-xl font-serif font-bold text-gold-500 flex items-center gap-2">
-                          <Dices className="w-5 h-5"/> Бросок Инициативы
-                      </h3>
-                      <button onClick={() => setShowInitModal(false)} className="text-gray-400 hover:text-white"><X className="w-6 h-6"/></button>
+                      <h3 className="text-xl font-serif font-bold text-gold-500 flex items-center gap-2"><Dices className="w-5 h-5"/> Бросок Инициативы</h3>
+                      <button onClick={() => setShowInitModal(false)} className="text-gray-400 hover:text-white p-2"><X className="w-6 h-6"/></button>
                   </div>
-                  
                   <div className="p-4 border-b border-gray-700 bg-gray-800/50 flex gap-2 shrink-0">
-                      <button 
-                        onClick={rollForMonsters}
-                        className="flex-1 bg-red-900/50 hover:bg-red-900 text-red-200 border border-red-800 py-2 rounded text-sm font-bold flex items-center justify-center gap-2"
-                      >
-                          <Dices className="w-4 h-4"/> Бросить за Монстров (d20)
-                      </button>
+                      <button onClick={rollForMonsters} className="flex-1 bg-red-900/50 hover:bg-red-900 text-red-200 border border-red-800 py-3 rounded text-sm font-bold flex items-center justify-center gap-2"><Dices className="w-4 h-4"/> Бросить за Монстров</button>
                   </div>
-
-                  <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                       {combatants.map(c => (
-                          <div key={c.id} className="flex items-center justify-between bg-gray-900/50 p-2 rounded border border-gray-700">
-                              <div className="flex items-center gap-2">
-                                  <span className={`w-2 h-2 rounded-full ${c.type === EntityType.PLAYER ? 'bg-blue-500' : 'bg-red-500'}`}></span>
-                                  <span className={c.type === EntityType.PLAYER ? 'font-bold text-white' : 'text-gray-300'}>{c.name}</span>
-                              </div>
-                              <input 
-                                type="number" 
-                                className="w-16 bg-black border border-gray-600 rounded p-1 text-center text-white font-bold"
-                                value={initRolls[c.id]}
-                                onChange={(e) => setInitRolls({...initRolls, [c.id]: Number(e.target.value)})}
-                              />
+                          <div key={c.id} className="flex items-center justify-between bg-gray-900/50 p-3 rounded border border-gray-700">
+                              <div className="flex items-center gap-2"><span className={`w-3 h-3 rounded-full ${c.type === EntityType.PLAYER ? 'bg-blue-500' : 'bg-red-500'}`}></span><span className="font-bold text-white text-lg">{c.name}</span></div>
+                              <input type="number" className="w-20 h-10 bg-black border border-gray-600 rounded p-1 text-center text-white font-bold text-lg" value={initRolls[c.id]} onChange={(e) => setInitRolls({...initRolls, [c.id]: Number(e.target.value)})} />
                           </div>
                       ))}
                   </div>
-
                   <div className="p-4 bg-gray-900 border-t border-gray-700 flex justify-end gap-2 shrink-0">
-                      <button onClick={() => setShowInitModal(false)} className="text-gray-400 px-4 py-2 hover:text-white">Отмена</button>
-                      <button 
-                        onClick={applyInitiativeRolls}
-                        className="bg-gold-600 hover:bg-gold-500 text-black font-bold px-6 py-2 rounded shadow-lg"
-                      >
-                          Применить и Сортировать
-                      </button>
+                      <button onClick={applyInitiativeRolls} className="w-full bg-gold-600 hover:bg-gold-500 text-black font-bold px-6 py-3 rounded shadow-lg text-lg">Применить</button>
                   </div>
               </div>
           </div>
@@ -801,138 +633,68 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
           <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95">
               <div className="bg-dnd-card border-2 border-gold-600 w-full max-w-lg rounded-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                   <div className="bg-gradient-to-r from-gold-600 to-yellow-500 p-4 text-center shrink-0">
-                      <h2 className="text-3xl font-serif font-bold text-black flex items-center justify-center gap-2">
-                          <Trophy className="w-8 h-8"/> ПОБЕДА!
-                      </h2>
+                      <h2 className="text-3xl font-serif font-bold text-black flex items-center justify-center gap-2"><Trophy className="w-8 h-8"/> ПОБЕДА!</h2>
                   </div>
                   <div className="p-6 space-y-6 flex-1 overflow-y-auto custom-scrollbar">
                       <div className="text-center">
                           <p className="text-gray-400 text-sm uppercase tracking-widest">Награда за голову</p>
-                          <div className="text-4xl font-bold text-gold-500 mt-2 flex items-center justify-center gap-2">
-                              <Star className="w-6 h-6 fill-current"/> {victoryXp} XP
-                          </div>
+                          <div className="text-4xl font-bold text-gold-500 mt-2 flex items-center justify-center gap-2"><Star className="w-6 h-6 fill-current"/> {victoryXp} XP</div>
                           <p className="text-xs text-gray-500">каждому герою</p>
-                          {victoryXp > 0 && (
-                              <button 
-                                onClick={distributeXp}
-                                className="mt-2 text-sm bg-blue-600 hover:bg-blue-500 text-white px-4 py-1 rounded font-bold"
-                              >
-                                  Начислить Опыт
-                              </button>
-                          )}
+                          {victoryXp > 0 && <button onClick={distributeXp} className="mt-3 text-sm bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold w-full">Начислить Опыт</button>}
                       </div>
-
                       <div className="border-t border-gray-700 pt-4">
                           <div className="flex justify-between items-center mb-2">
                               <h3 className="font-bold text-white flex items-center gap-2"><Coins className="w-5 h-5 text-yellow-500"/> Добыча</h3>
                               <div className="flex gap-2">
-                                  {victoryLoot && (
-                                      <button 
-                                        onClick={saveLootToLog}
-                                        className="text-xs bg-gray-800 hover:bg-gray-700 text-green-400 px-3 py-1 rounded flex items-center gap-1 border border-green-900"
-                                        title="Записать в летопись"
-                                      >
-                                          <Feather className="w-3 h-3"/> В летопись
-                                      </button>
-                                  )}
-                                  <button 
-                                    onClick={generateVictoryLoot}
-                                    disabled={lootLoading}
-                                    className="text-xs bg-gray-800 hover:bg-gray-700 text-gold-500 px-3 py-1 rounded flex items-center gap-1 disabled:opacity-50"
-                                  >
-                                      {lootLoading ? <Loader className="w-3 h-3 animate-spin"/> : <RefreshCw className="w-3 h-3"/>} Генерировать
-                                  </button>
+                                  {victoryLoot && <button onClick={saveLootToLog} className="text-xs bg-gray-800 hover:bg-gray-700 text-green-400 px-3 py-2 rounded flex items-center gap-1 border border-green-900"><Feather className="w-3 h-3"/> В летопись</button>}
+                                  <button onClick={generateVictoryLoot} disabled={lootLoading} className="text-xs bg-gray-800 hover:bg-gray-700 text-gold-500 px-3 py-2 rounded flex items-center gap-1"><RefreshCw className="w-3 h-3"/> Генерировать</button>
                               </div>
                           </div>
                           <div className="bg-gray-900 p-3 rounded border border-gray-700 min-h-[100px] text-sm text-gray-300">
-                              {victoryLoot ? (
-                                  // USE LOOT INTERACTION HERE
-                                  <LootInteraction htmlContent={victoryLoot} />
-                              ) : (
-                                  <p className="text-gray-600 italic text-center mt-4">Трофеи еще не собраны...</p>
-                              )}
+                              {victoryLoot ? <LootInteraction htmlContent={victoryLoot} /> : <p className="text-gray-600 italic text-center mt-4">Трофеи еще не собраны...</p>}
                           </div>
                       </div>
                   </div>
-                  <div className="p-4 bg-gray-900 border-t border-gray-700 flex justify-between shrink-0">
-                      <button onClick={() => setShowVictoryModal(false)} className="text-gray-400 hover:text-white px-4">Отмена</button>
-                      
-                      {/* Show proper exit button based on context */}
+                  <div className="p-4 bg-gray-900 border-t border-gray-700 flex flex-col gap-3 shrink-0">
                       {hasActiveTravel ? (
-                          <button onClick={returnToTravel} className="bg-green-600 hover:bg-green-500 text-white px-6 py-2 rounded font-bold shadow-lg flex items-center gap-2">
-                              <Compass className="w-4 h-4"/> В Путешествие
-                          </button>
+                          <button onClick={returnToTravel} className="bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded font-bold shadow-lg flex items-center justify-center gap-2 w-full"><Compass className="w-4 h-4"/> В Путешествие</button>
                       ) : (
-                          <button onClick={cleanCombatState} className="bg-green-600 hover:bg-green-500 text-white px-6 py-2 rounded font-bold shadow-lg">
-                              Завершить Сцену
-                          </button>
+                          <button onClick={cleanCombatState} className="bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded font-bold shadow-lg w-full">Завершить Сцену</button>
                       )}
+                      <button onClick={() => setShowVictoryModal(false)} className="text-gray-400 hover:text-white px-4 py-2 w-full text-center">Отмена</button>
                   </div>
               </div>
           </div>
       )}
 
-      {/* Header Controls */}
+      {/* Top Bar Info */}
       <div className="flex flex-col gap-2 bg-dnd-card p-3 rounded-lg border border-gray-700 shadow-sm shrink-0">
         <div className="flex justify-between items-center">
             <div className="flex items-center gap-4">
-                <div className="text-gold-500 font-serif text-xl font-bold leading-none">
-                    <span>Раунд {round}</span>
-                </div>
-                
+                <div className="text-gold-500 font-serif text-xl font-bold leading-none">Раунд {round}</div>
                 {difficulty && difficulty.difficulty !== 'Trivial' && (
                     <div className={`text-xs flex items-center gap-1 border px-2 py-1 rounded bg-gray-900/50 border-gray-700 ${getDifficultyColor(difficulty.difficulty)}`}>
                         <Skull className="w-3 h-3"/>
                         <span className="uppercase font-bold tracking-wider hidden sm:inline">{difficulty.difficulty === 'Deadly' ? 'Смертельно' : difficulty.difficulty === 'Hard' ? 'Сложно' : difficulty.difficulty === 'Medium' ? 'Средне' : 'Легко'}</span>
-                        <span className="text-gray-500 ml-1">({Math.round(difficulty.adjustedXp)} XP)</span>
                     </div>
                 )}
             </div>
-
             <div className="flex gap-2">
-                <button onClick={logCombatStart} className="text-gray-400 hover:text-white p-2 hover:bg-gray-800 rounded" title="Записать начало боя">
-                    <Feather className="w-4 h-4"/>
-                </button>
-                {hasActiveTravel && (
-                    <button 
-                        onClick={returnToTravel}
-                        className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gold-500 border border-gold-600/50 px-3 py-2 rounded font-bold transition-colors text-xs sm:text-sm"
-                        title="Вернуться к экрану путешествия"
-                    >
-                        <Compass className="w-4 h-4" /> <span>В Путь</span>
-                    </button>
-                )}
-                <button onClick={handleEndCombatClick} className="flex items-center gap-2 bg-gray-800 hover:bg-green-900 text-gray-300 hover:text-green-300 px-3 py-2 rounded font-bold border border-gray-700 transition-colors text-xs sm:text-sm">
-                    <Flag className="w-4 h-4" /> <span>Завершить</span>
-                </button>
-                <button 
-                    onClick={nextTurn}
-                    className="flex items-center gap-2 bg-dnd-red hover:bg-red-700 text-white px-4 py-2 rounded font-bold transition-colors shadow-md text-xs sm:text-sm"
-                >
-                    <Play className="w-4 h-4" /> След. ход
-                </button>
+                <button onClick={logCombatStart} className="text-gray-400 hover:text-white p-2 hover:bg-gray-800 rounded"><Feather className="w-5 h-5"/></button>
+                <button onClick={handleEndCombatClick} className="flex items-center gap-2 bg-gray-800 hover:bg-green-900 text-gray-300 hover:text-green-300 px-3 py-2 rounded font-bold border border-gray-700 text-xs sm:text-sm"><Flag className="w-4 h-4" /> <span>Завершить</span></button>
             </div>
         </div>
-
-        {/* Active Combatant Bar */}
+        {/* Active Combatant Info Bar */}
         {activeCombatant && (
             <div className="text-xs text-gray-400 font-sans bg-gray-900/30 p-2 rounded border border-gray-800 flex flex-col gap-2">
                 <div className="flex items-center justify-between w-full">
-                    <span>Ход: <span className="text-white font-bold text-sm">{activeCombatant.name}</span></span>
-                    <div className="flex gap-2 items-center sm:hidden">
-                        {(activeCombatant.conditions || []).map(c => (
-                            <span key={c.id} className="bg-red-900/50 text-red-200 px-1.5 rounded border border-red-800 text-[10px] font-bold">
-                                {c.name.split(' (')[0]}
-                            </span>
-                        ))}
-                    </div>
+                    <span className="text-sm">Ход: <span className="text-white font-bold text-base">{activeCombatant.name}</span></span>
                 </div>
-                
                 {activeCombatant.actions && activeCombatant.actions.length > 0 && (
                     <div className="flex-1 border-t border-gray-700 pt-2 mt-1 text-gray-300">
                          <div className="flex flex-wrap gap-2">
                             {activeCombatant.actions.map((act, idx) => (
-                                <div key={idx} className="bg-black/40 px-2 py-1.5 rounded border border-gray-700 text-xs w-full sm:w-auto">
+                                <div key={idx} className="bg-black/40 px-3 py-2 rounded border border-gray-700 text-xs w-full sm:w-auto touch-manipulation">
                                     <ActionRenderer text={act} sourceName={activeCombatant.name} onRoll={handleActionRoll} />
                                 </div>
                             ))}
@@ -941,31 +703,20 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
                 )}
             </div>
         )}
-        
-        {/* Tools */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 no-scrollbar pt-2 border-t border-gray-800">
-            <button onClick={() => setShowInitModal(true)} className="bg-gray-800 hover:bg-gray-700 text-gold-500 flex items-center gap-1 text-xs px-3 py-2 rounded border border-gray-700 whitespace-nowrap">
-              <Dices className="w-4 h-4" /> Инициатива
-            </button>
+        {/* Quick Tools */}
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 no-scrollbar pt-2 border-t border-gray-800">
+            <button onClick={() => setShowInitModal(true)} className="bg-gray-800 hover:bg-gray-700 text-gold-500 flex items-center gap-1 text-xs px-3 py-2 rounded border border-gray-700 whitespace-nowrap"><Dices className="w-4 h-4" /> Инициатива</button>
             <div className="w-[1px] h-6 bg-gray-700 mx-1"></div>
-            <button onClick={generateLootForEncounter} disabled={lootLoading} className="bg-yellow-900/50 hover:bg-yellow-800 text-yellow-200 flex items-center gap-1 text-xs px-3 py-2 rounded border border-yellow-800 whitespace-nowrap">
-              {lootLoading ? <Loader className="w-3 h-3 animate-spin"/> : <Coins className="w-3 h-3" />} Лут
-            </button>
-            <button onClick={() => setShowBestiary(true)} className="bg-indigo-900/50 hover:bg-indigo-800 text-indigo-200 flex items-center gap-1 text-xs px-3 py-2 rounded border border-indigo-800 whitespace-nowrap">
-              <BookOpen className="w-3 h-3" /> Бестиарий
-            </button>
-            <button onClick={loadParty} className="bg-blue-900/50 hover:bg-blue-800 text-blue-200 flex items-center gap-1 text-xs px-3 py-2 rounded border border-blue-800 whitespace-nowrap">
-              <Users className="w-3 h-3" /> Группа
-            </button>
+            <button onClick={generateLootForEncounter} disabled={lootLoading} className="bg-yellow-900/50 hover:bg-yellow-800 text-yellow-200 flex items-center gap-1 text-xs px-3 py-2 rounded border border-yellow-800 whitespace-nowrap"><Coins className="w-3 h-3" /> Лут</button>
+            <button onClick={() => setShowBestiary(true)} className="bg-indigo-900/50 hover:bg-indigo-800 text-indigo-200 flex items-center gap-1 text-xs px-3 py-2 rounded border border-indigo-800 whitespace-nowrap"><BookOpen className="w-3 h-3" /> Бестиарий</button>
+            <button onClick={loadParty} className="bg-blue-900/50 hover:bg-blue-800 text-blue-200 flex items-center gap-1 text-xs px-3 py-2 rounded border border-blue-800 whitespace-nowrap"><Users className="w-3 h-3" /> Группа</button>
             <div className="flex-1"></div>
-            <button onClick={sortCombatants} className="text-gray-400 hover:text-white p-2 rounded hover:bg-gray-800" title="Сортировать по инициативе">
-              <RefreshCw className="w-4 h-4" />
-            </button>
+            <button onClick={sortCombatants} className="text-gray-400 hover:text-white p-2 rounded hover:bg-gray-800"><RefreshCw className="w-4 h-4" /></button>
         </div>
       </div>
 
-      {/* Combatant List */}
-      <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+      {/* Combatants List */}
+      <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar pb-20">
         {combatants.map((c) => {
           const isActive = c.id === activeId;
           const isDead = c.hp === 0;
@@ -973,109 +724,83 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
           const currentConditions = c.conditions || [];
 
           return (
-            <div 
-              key={c.id}
-              id={`combatant-${c.id}`}
-              className={`relative p-2 sm:p-3 rounded-lg border flex flex-col sm:flex-row gap-2 sm:items-center ${isActive ? 'border-gold-500 bg-gray-900 ring-1 ring-gold-500/30' : 'border-gray-700 bg-dnd-card'} transition-all`}
-            >
-                <div className="flex-1">
-                    <div className="flex items-center justify-between sm:justify-start sm:gap-3">
-                         <div className="flex items-center gap-3">
-                             <div className={`flex flex-col items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded border shrink-0 ${isActive ? 'bg-gold-600 text-black border-gold-500' : 'bg-gray-800 border-gray-600 text-white'}`}>
-                                <span className="text-[10px] opacity-70">ИНИЦ</span>
-                                <span className="font-bold text-sm sm:text-base">{c.initiative}</span>
-                             </div>
-                             <div>
-                                <div className="flex items-center gap-2">
-                                    <h4 className={`font-serif font-bold text-base sm:text-lg flex items-center gap-2 leading-tight ${isDead ? 'text-red-500 line-through' : 'text-gray-100'}`}>
-                                    {c.name}
-                                    {isDead && <Skull className="w-4 h-4 text-red-500" />}
-                                    </h4>
-                                    {c.type === EntityType.MONSTER && (
-                                        <button onClick={() => openStatBlock(c)} className="text-gray-500 hover:text-gold-500 p-0.5 rounded" title="Статблок">
-                                            <Book className="w-4 h-4"/>
-                                        </button>
-                                    )}
-                                    {/* Condition Badges */}
-                                    <div className="flex flex-wrap gap-1">
-                                        {currentConditions.map(cond => (
-                                            <button key={cond.id} onClick={() => openConditionInfo(cond.id, cond.name)} className="w-4 h-4 rounded-full bg-red-900 border border-red-500 flex items-center justify-center text-[10px] text-white hover:scale-110 transition-transform">
-                                                <Activity className="w-2.5 h-2.5"/>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="text-xs text-gray-400 flex gap-2 items-center mt-0.5">
-                                   <span className={`px-1 rounded ${
-                                       c.type === EntityType.PLAYER ? 'bg-blue-900/50 text-blue-200' : 
-                                       c.type === EntityType.NPC ? 'bg-green-900/50 text-green-200' : 
-                                       'bg-red-900/50 text-red-200'
-                                   }`}>
-                                     {c.type === EntityType.PLAYER ? 'ИГРОК' : c.type === EntityType.NPC ? 'СОЮЗНИК' : 'МОНСТР'}
-                                   </span>
-                                   <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> КД {c.ac}</span>
-                                   {c.notes && <span className="text-gray-500 truncate max-w-[100px]">{c.notes}</span>}
-                                </div>
-                             </div>
+            <div id={`combatant-${c.id}`} key={c.id} className={`relative p-3 rounded-lg border flex flex-col gap-3 ${isActive ? 'border-gold-500 bg-gray-900 ring-1 ring-gold-500/30' : 'border-gray-700 bg-dnd-card'} transition-all`}>
+                <div className="flex items-center justify-between gap-3">
+                     <div className="flex items-center gap-3 min-w-0">
+                         <div className={`flex flex-col items-center justify-center w-10 h-10 rounded border shrink-0 ${isActive ? 'bg-gold-600 text-black border-gold-500' : 'bg-gray-800 border-gray-600 text-white'}`}>
+                            <span className="text-[9px] opacity-70 uppercase font-bold">Иниц</span>
+                            <span className="font-bold text-lg leading-none">{c.initiative}</span>
                          </div>
-                         
-                         <div className="sm:hidden flex gap-2">
-                            <button onClick={() => setEditingConditionsId(isEditingConditions ? null : c.id)} className={`p-1 rounded ${currentConditions.length > 0 ? 'text-red-400' : 'text-gray-600'}`}>
-                                <Activity className="w-5 h-5"/>
-                            </button>
-                            <button onClick={() => removeCombatant(c.id)} className="text-gray-600 hover:text-red-500 p-1">
-                                <X className="w-5 h-5" />
-                            </button>
+                         <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                                <h4 className={`font-serif font-bold text-lg truncate ${isDead ? 'text-red-500 line-through' : 'text-gray-100'}`}>{c.name}</h4>
+                                {isDead && <Skull className="w-4 h-4 text-red-500" />}
+                            </div>
+                            <div className="text-xs text-gray-400 flex gap-2 items-center mt-0.5">
+                               <span className="flex items-center gap-1 bg-black/30 px-1.5 rounded"><Shield className="w-3 h-3" /> {c.ac}</span>
+                               {c.type === EntityType.MONSTER && <button onClick={() => openStatBlock(c)} className="text-gold-500 hover:text-white"><Book className="w-3 h-3"/></button>}
+                            </div>
                          </div>
-                    </div>
-                    
-                    {/* Simplified Action View for List Items (Non-Active) */}
-                    {c.type === EntityType.MONSTER && !isActive && c.actions && c.actions.length > 0 && (
-                        <div className="mt-1 text-[10px] text-gray-500 truncate max-w-xs hidden sm:block">
-                             {c.actions.map(a => a.replace(/<[^>]*>?/gm, '')).join(', ')}
-                        </div>
-                    )}
+                     </div>
+                     
+                     <div className="flex gap-2 shrink-0">
+                        <button onClick={() => setEditingConditionsId(isEditingConditions ? null : c.id)} className={`p-2 rounded border ${currentConditions.length > 0 ? 'text-red-400 border-red-900 bg-red-900/20' : 'text-gray-500 border-gray-700 bg-gray-800'}`}>
+                            <Activity className="w-5 h-5"/>
+                        </button>
+                        <button onClick={() => removeCombatant(c.id)} className="text-gray-600 hover:text-red-500 p-2 border border-transparent hover:bg-gray-800 rounded">
+                            <X className="w-5 h-5" />
+                        </button>
+                     </div>
                 </div>
 
-                <div className="flex items-center justify-between sm:justify-center gap-2 bg-gray-900/30 p-1 rounded sm:bg-transparent sm:p-0 min-w-[120px]">
-                    <button onClick={() => updateHp(c.id, -1)} className="w-8 h-8 flex items-center justify-center bg-red-900/30 rounded text-red-400 border border-red-900/50 active:scale-95"><Sword className="w-4 h-4" /></button>
+                {/* HP Control Row - Large Tap Targets */}
+                <div className="flex items-center gap-2 bg-black/20 p-1 rounded-lg">
+                    <button 
+                        onClick={() => updateHp(c.id, -1)} 
+                        className="w-12 h-12 flex items-center justify-center bg-red-900/20 rounded-lg text-red-400 border border-red-900/50 active:bg-red-600 active:text-white transition-colors touch-manipulation"
+                    >
+                        <Sword className="w-5 h-5" />
+                    </button>
                     
-                    <div className="flex flex-col items-center flex-1">
-                        <div className="flex items-center gap-1">
-                            <Heart className={`w-3 h-3 ${isDead ? 'text-gray-600' : 'text-red-500'}`} />
-                            <span className={`font-mono font-bold ${isDead ? 'text-gray-500' : 'text-white'}`}>{c.hp}</span>
-                            <span className="text-gray-500 text-xs">/{c.maxHp}</span>
+                    <div className="flex flex-col items-center flex-1 mx-2">
+                        <div className="flex items-end gap-1">
+                            <span className={`text-2xl font-mono font-bold leading-none ${isDead ? 'text-gray-500' : 'text-white'}`}>{c.hp}</span>
+                            <span className="text-gray-500 text-xs font-bold mb-1">/ {c.maxHp}</span>
                         </div>
-                        <div className="w-full h-1.5 bg-gray-700 rounded-full mt-1 overflow-hidden">
+                        <div className="w-full h-2 bg-gray-700 rounded-full mt-1 overflow-hidden">
                             <div className={`h-full transition-all duration-300 ${c.hp < c.maxHp / 2 ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${Math.min(100, (c.hp / c.maxHp) * 100)}%` }} />
                         </div>
                     </div>
                     
-                    <button onClick={() => updateHp(c.id, 1)} className="w-8 h-8 flex items-center justify-center bg-green-900/30 rounded text-green-400 border border-green-900/50 active:scale-95"><Plus className="w-4 h-4" /></button>
-                </div>
-
-                <div className="hidden sm:flex items-center gap-1 ml-2">
-                    <button onClick={() => setEditingConditionsId(isEditingConditions ? null : c.id)} className={`p-2 rounded hover:bg-gray-800 transition-colors ${currentConditions.length > 0 ? 'text-red-400' : 'text-gray-500 hover:text-white'}`}>
-                        <Activity className="w-5 h-5"/>
-                    </button>
-                    <button onClick={() => removeCombatant(c.id)} className="text-gray-600 hover:text-red-500 p-2 hover:bg-gray-800 rounded">
-                        <X className="w-5 h-5" />
+                    <button 
+                        onClick={() => updateHp(c.id, 1)} 
+                        className="w-12 h-12 flex items-center justify-center bg-green-900/20 rounded-lg text-green-400 border border-green-900/50 active:bg-green-600 active:text-white transition-colors touch-manipulation"
+                    >
+                        <Plus className="w-6 h-6" />
                     </button>
                 </div>
 
+                {/* Conditions List */}
+                {currentConditions.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                        {currentConditions.map(cond => (
+                            <button key={cond.id} onClick={() => openConditionInfo(cond.id, cond.name)} className="px-2 py-1 rounded bg-red-900/40 border border-red-500 text-xs text-red-100 flex items-center gap-1">
+                                <Activity className="w-3 h-3"/> {cond.name.split(' (')[0]}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+                {/* Conditions Selector Dropdown */}
                 {isEditingConditions && (
-                    <div className="absolute top-full left-0 right-0 z-20 bg-gray-900 border border-gold-500 rounded-b-lg shadow-xl p-3 animate-in fade-in slide-in-from-top-2">
-                        <div className="flex justify-between items-center mb-2 border-b border-gray-700 pb-1">
-                            <span className="text-xs font-bold text-gold-500 uppercase">Состояния</span>
-                            <button onClick={() => setEditingConditionsId(null)} className="text-gray-400 hover:text-white"><X className="w-3 h-3"/></button>
-                        </div>
-                        <div className="grid grid-cols-2 gap-1 max-h-40 overflow-y-auto custom-scrollbar">
+                    <div className="bg-gray-900 border border-gold-500 rounded shadow-xl p-3 animate-in fade-in slide-in-from-top-2">
+                        <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto custom-scrollbar">
                             {CONDITIONS.map(cond => {
                                 const isActiveCond = currentConditions.some(active => active.id === cond.id);
                                 return (
-                                    <button key={cond.id} onClick={() => toggleCondition(c.id, cond)} className={`text-left text-[10px] px-2 py-1.5 rounded border flex items-center justify-between ${isActiveCond ? 'bg-red-900/40 border-red-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}>
+                                    <button key={cond.id} onClick={() => toggleCondition(c.id, cond)} className={`text-left text-xs px-3 py-2 rounded border flex items-center justify-between ${isActiveCond ? 'bg-red-900/40 border-red-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}>
                                         <span>{cond.name.split(' (')[0]}</span>
-                                        {isActiveCond && <Activity className="w-3 h-3 text-red-400"/>}
+                                        {isActiveCond && <Check className="w-3 h-3 text-red-400"/>}
                                     </button>
                                 );
                             })}
@@ -1086,31 +811,35 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
           );
         })}
       </div>
-
-      {/* Add New Manual Form */}
-      <div className="bg-gray-900 p-3 rounded border border-gray-800 flex flex-col sm:flex-row gap-2 items-end shrink-0">
-        <div className="w-full sm:flex-1">
-            <input 
-                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-2 text-sm text-white focus:border-gold-500 outline-none"
-                value={newCombatant.name}
-                onChange={e => setNewCombatant({...newCombatant, name: e.target.value})}
-                placeholder="Имя существа..."
-            />
-        </div>
-        <div className="flex w-full sm:w-auto gap-2">
-            <div className="flex-1 sm:w-16">
-                <input type="number" placeholder="Иниц" className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-2 text-sm text-white focus:border-gold-500" value={newCombatant.initiative} onChange={e => setNewCombatant({...newCombatant, initiative: Number(e.target.value)})} />
-            </div>
-            <div className="flex-1 sm:w-16">
-                <input type="number" placeholder="HP" className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-2 text-sm text-white focus:border-gold-500" value={newCombatant.hp} onChange={e => setNewCombatant({...newCombatant, hp: Number(e.target.value)})} />
-            </div>
-            <div className="flex-1 sm:w-16">
-                <input type="number" placeholder="AC" className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-2 text-sm text-white focus:border-gold-500" value={newCombatant.ac} onChange={e => setNewCombatant({...newCombatant, ac: Number(e.target.value)})} />
-            </div>
-            <button onClick={addCombatant} className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded font-bold text-sm">
-                <Plus className="w-5 h-5"/>
-            </button>
-        </div>
+      
+      {/* Floating / Fixed Bottom Controls for Mobile */}
+      <div className="sticky bottom-0 left-0 right-0 p-3 bg-gray-900/95 border-t border-gold-600/30 backdrop-blur-md flex gap-3 z-10 shadow-lg">
+           {/* Add new simple input */}
+           <div className="flex-1 flex gap-2 bg-gray-800 rounded-lg p-1 border border-gray-700">
+               <input 
+                   className="flex-1 bg-transparent px-2 text-sm text-white outline-none placeholder-gray-500 min-w-0"
+                   value={newCombatant.name}
+                   onChange={e => setNewCombatant({...newCombatant, name: e.target.value})}
+                   placeholder="Имя..."
+               />
+               <input 
+                   type="number" 
+                   placeholder="Иниц" 
+                   className="w-12 bg-gray-900 rounded text-center text-sm text-white border border-gray-700" 
+                   value={newCombatant.initiative} 
+                   onChange={e => setNewCombatant({...newCombatant, initiative: Number(e.target.value)})} 
+               />
+               <button onClick={addCombatant} className="bg-gray-700 text-white px-3 rounded hover:bg-gray-600">
+                   <Plus className="w-5 h-5"/>
+               </button>
+           </div>
+           
+           <button 
+                onClick={nextTurn}
+                className="bg-dnd-red hover:bg-red-700 text-white px-6 py-3 rounded-lg font-bold shadow-lg flex items-center gap-2 active:scale-95 transition-transform"
+            >
+                <Play className="w-6 h-6 fill-current" /> <span className="hidden sm:inline">След. ход</span>
+           </button>
       </div>
     </div>
   );
