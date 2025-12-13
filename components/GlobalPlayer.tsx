@@ -2,14 +2,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   Play, Pause, SkipForward, SkipBack, Volume2, 
-  Music, Loader, AlertCircle, VolumeX, Shuffle
+  Music, Loader, AlertCircle, VolumeX, Shuffle, Sparkles
 } from 'lucide-react';
 import { useAudio } from '../contexts/AudioContext';
 
 const GlobalPlayer: React.FC = () => {
     const { 
-        currentTrack, isPlaying, isLoading, error, volume, isShuffle,
-        togglePlay, playNext, playPrev, setVolume, toggleShuffle 
+        currentTrack, isPlaying, isLoading, error, volume, isShuffle, isAutoDJEnabled,
+        togglePlay, playNext, playPrev, setVolume, toggleShuffle, toggleAutoDJ 
     } = useAudio();
 
     const [showVolume, setShowVolume] = useState(false);
@@ -47,6 +47,14 @@ const GlobalPlayer: React.FC = () => {
 
             {/* Right: Controls */}
             <div className="flex items-center gap-1 md:gap-2 shrink-0">
+                <button 
+                    onClick={toggleAutoDJ}
+                    className={`p-3 rounded-full hover:bg-gray-800 transition-colors hidden sm:flex ${isAutoDJEnabled ? 'text-gold-500' : 'text-gray-500 hover:text-white'}`}
+                    title={isAutoDJEnabled ? "Авто-DJ Включен (Подбирает музыку под сцену)" : "Авто-DJ Выключен"}
+                >
+                    <Sparkles className="w-5 h-5"/>
+                </button>
+
                 <button 
                     onClick={toggleShuffle}
                     className={`p-3 rounded-full hover:bg-gray-800 transition-colors ${isShuffle ? 'text-gold-500' : 'text-gray-500 hover:text-white'} hidden sm:flex`}

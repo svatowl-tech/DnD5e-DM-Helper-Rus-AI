@@ -1,3 +1,4 @@
+
 import { CampaignSettings, FullQuest, CampaignNpc, TravelResult, BestiaryEntry, QuestObjective, ChatMessage } from "../types";
 import { ECHOES_CAMPAIGN_PROMPT } from "../data/prompts/echoesPrompts";
 
@@ -202,6 +203,40 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 2, delay = 1000): Pr
         throw error;
     }
 }
+
+// --- NEW FUNCTION: ENHANCE DRAFT ---
+export const enhanceEntityDraft = async (
+    type: 'region' | 'location', 
+    currentData: { name: string, type: string, description: string }
+): Promise<{ addedDescription: string, suggestedType?: string }> => {
+    const context = getCampaignContext();
+    const entityType = type === 'region' ? 'Регион' : 'Локация';
+    
+    const systemPrompt = `Ты — соавтор Мастера Подземелий. ${context}
+    Твоя задача — ДОПОЛНИТЬ существующее описание, добавив глубину, сенсорику, слухи или исторические детали.
+    НЕ повторяй то, что уже написано. Напиши продолжение.
+    
+    Входные данные:
+    Тип сущности: ${entityType}
+    Название: ${currentData.name}
+    Текущий тип/столица: ${currentData.type}
+    Текущее описание: "${currentData.description}"
+
+    Верни JSON:
+    {
+        "addedDescription": "Текст дополнения (1-2 абзаца, можно использовать HTML теги <b>, <i>). Сфокусируйся на атмосфере и деталях.",
+        "suggestedType": "Предложение для поля Тип/Столица (только если оно сейчас пустое, иначе верни null)"
+    }`;
+
+    return withRetry(async () => {
+        const text = await makeRequest([
+            { role: "system", content: systemPrompt },
+            { role: "user", content: "Дополни описание." }
+        ], true);
+        
+        return JSON.parse(cleanText(text));
+    });
+};
 
 // --- CHAT GENERATION ---
 
@@ -590,9 +625,17 @@ export const enhanceNpc = async (npcData: CampaignNpc): Promise<CampaignNpc> => 
 
 export const generateLoot = async (level: number, type: string): Promise<string> => {
   const context = getCampaignContext();
-  const systemPrompt = `Ты помощник ДМ. Генерируй списки лута в формате HTML (<ul>, <li>, <strong>). Без JSON, просто красивый HTML текст. ${context}`;
-  const userPrompt = `Сгенерируй список добычи для группы уровня ${level}. Контекст: ${type}. 
-  Включи стоимость в золоте и 1 интересный магический предмет (с описанием), если уместно.`;
+  const systemPrompt = `Ты помощник ДМ. Генерируй списки лута в формате HTML (<ul>, <li>, <strong>). Без JSON, просто красивый HTML текст. ${context}
+  
+  ЭКОНОМИКА (СКУПОСТЬ):
+  - Уровень 1-4: Только медь (cp) и серебро (sp). Простые вещи, еда, расходники. НИКАКИХ магических предметов, если не указано иное.
+  - Уровень 5-10: Золото (gp), драгоценные камни, зелья.
+  - Уровень 11+: Платина (pp), редкие предметы.
+  `;
+  
+  const userPrompt = `Сгенерируй список добычи для группы уровня ${level}. Контекст: ${type}.
+  Будь реалистичен. Если это логово гоблинов, там мусор. Если сокровищница дракона - золото.
+  Магический предмет добавь ТОЛЬКО если это уместно для уровня ${level}.`;
 
   return withRetry(async () => {
     const text = await makeRequest([
@@ -605,25 +648,27 @@ export const generateLoot = async (level: number, type: string): Promise<string>
 
 export const generateCombatLoot = async (monsters: string[], avgLevel: number): Promise<string> => {
   const context = getCampaignContext();
-  const systemPrompt = `Ты генератор лута для D&D 5e. Твоя задача - создать список добычи.
+  const systemPrompt = `Ты генератор лута для D&D 5e. Твоя задача - создать список добычи после боя.
   Контекст кампании: ${context}.
   Формат ответа: HTML список (<ul>, <li>).
   
-  Правила:
-  1. Всегда возвращай хотя бы монеты.
-  2. Если монстр разумный, добавь оружие или безделушку.
-  3. Если монстр зверь, добавь шкуры или ингредиенты.
+  СТРОГИЕ ПРАВИЛА ЭКОНОМИКИ:
+  1. Звери и Чудовища (Beasts/Monstrosities) НЕ носят денег. С них можно собрать только части тела (шкуры, клыки, яд).
+  2. Разумные враги (Гуманоиды) имеют кошельки.
+     - Уровень 1-4: Медные (cp) и Серебряные (sp) монеты. Ржавое/простое оружие.
+     - Уровень 5+: Золото (gp).
+  3. Магические предметы выпадают КРАЙНЕ редко. Не добавляй их к рядовым врагам.
   4. Не пиши вступлений типа "Вот ваш лут". Только список.`;
   
   const userPrompt = `Бой завершен. Враги: ${monsters.join(', ')}. Уровень группы: ${avgLevel}.
-  Что нашли герои на телах?`;
+  Что нашли герои?`;
 
   return withRetry(async () => {
     const text = await makeRequest([
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
     ]);
-    return cleanText(text) || "<ul><li>Несколько медных монет.</li></ul>";
+    return cleanText(text) || "<ul><li>Ничего ценного.</li></ul>";
   });
 };
 
@@ -802,7 +847,7 @@ export const generateLocationContent = async (locationName: string, category: 'n
     } else if (category === 'secret') {
         userPrompt = `Придумай 3 тайны/слуха. JSON: ["строка 1", "строка 2"]`;
     } else if (category === 'loot') {
-        userPrompt = `Придумай 5 предметов лута. JSON: ["строка 1", "строка 2"]`;
+        userPrompt = `Придумай от 1 до 3 предметов лута, подходящих по богатству локации. Если это руины/трущобы - мусор и медь. Если дворец - золото. JSON: ["строка 1", "строка 2"]`;
     }
 
     return withRetry(async () => {

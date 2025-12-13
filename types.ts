@@ -198,6 +198,7 @@ export interface LocationData {
     id?: string;
     name: string;
     type: string;
+    status?: string; // New: Status of location (Destroyed, Peaceful, etc)
     description: string;
     atmosphere: string;
     npcs?: NpcData[];
@@ -285,6 +286,7 @@ export interface AudioContextType {
     currentPlaylistId: string | null;
     isPlaying: boolean;
     isShuffle: boolean;
+    isAutoDJEnabled: boolean; // New
     volume: number;
     isLoading: boolean;
     error: string | null;
@@ -292,6 +294,7 @@ export interface AudioContextType {
     playPlaylist: (playlistId: string, shuffle?: boolean) => void;
     togglePlay: () => void;
     toggleShuffle: () => void;
+    toggleAutoDJ: () => void; // New
     playNext: () => void;
     playPrev: () => void;
     setVolume: (vol: number) => void;

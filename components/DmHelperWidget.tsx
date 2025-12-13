@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { BrainCircuit, Dices, Sparkles, X, Cloud, User, Skull, Volume2, Sword, Ghost, Square, Download, Upload, Plus } from 'lucide-react';
+import { BrainCircuit, Dices, Sparkles, X, Cloud, User, Skull, Volume2, Sword, Ghost, Square, Download, Upload, Plus, RotateCcw } from 'lucide-react';
 import { generateNpc, generateScenarioDescription } from '../services/polzaService';
 import { CONDITIONS } from '../constants';
 import { useAudio } from '../contexts/AudioContext';
@@ -53,10 +53,14 @@ const DmHelperWidget: React.FC = () => {
     const { playSfx, stopAllSfx } = useAudio();
     const [isOpen, setIsOpen] = useState(false);
     const [dcValue, setDcValue] = useState(15);
-    const [activeTab, setActiveTab] = useState<'dc' | 'improv' | 'conditions' | 'sfx'>('dc');
+    const [activeTab, setActiveTab] = useState<'dc' | 'improv' | 'conditions' | 'sfx' | 'dice'>('dice');
     const [loading, setLoading] = useState(false);
     const [improvResult, setImprovResult] = useState<string | null>(null);
     const [selectedCondition, setSelectedCondition] = useState<string | null>(null);
+    
+    // Dice State
+    const [rollResult, setRollResult] = useState<string>('');
+    const [rollHistory, setRollHistory] = useState<string[]>([]);
     
     // Custom SFX
     const [customSounds, setCustomSounds] = useState<{ label: string, url: string }[]>([]);
@@ -90,6 +94,22 @@ const DmHelperWidget: React.FC = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const rollDice = (sides: number, count: number = 1) => {
+        let total = 0;
+        const rolls = [];
+        for (let i = 0; i < count; i++) {
+            const val = Math.floor(Math.random() * sides) + 1;
+            rolls.push(val);
+            total += val;
+        }
+        
+        let resultText = `${count}d${sides}: ${total}`;
+        if (count > 1) resultText += ` [${rolls.join(', ')}]`;
+        
+        setRollResult(resultText);
+        setRollHistory(prev => [resultText, ...prev].slice(0, 10));
     };
 
     const downloadSfx = async (url: string, filename: string) => {
@@ -136,22 +156,70 @@ const DmHelperWidget: React.FC = () => {
                 <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-white"><X className="w-4 h-4"/></button>
             </div>
 
-            <div className="flex bg-gray-800 shrink-0">
-                <button onClick={() => setActiveTab('dc')} className={`flex-1 py-2 text-xs font-bold ${activeTab === 'dc' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`} title="Сложность">
+            <div className="flex bg-gray-800 shrink-0 overflow-x-auto no-scrollbar">
+                <button onClick={() => setActiveTab('dice')} className={`flex-1 py-2 px-3 text-xs font-bold whitespace-nowrap ${activeTab === 'dice' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`} title="Дайсы">
                     <Dices className="w-4 h-4 mx-auto"/>
                 </button>
-                <button onClick={() => setActiveTab('improv')} className={`flex-1 py-2 text-xs font-bold ${activeTab === 'improv' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`} title="Импровизация">
+                <button onClick={() => setActiveTab('dc')} className={`flex-1 py-2 px-3 text-xs font-bold whitespace-nowrap ${activeTab === 'dc' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`} title="Сложность">
+                    <span className="font-serif text-sm">DC</span>
+                </button>
+                <button onClick={() => setActiveTab('improv')} className={`flex-1 py-2 px-3 text-xs font-bold whitespace-nowrap ${activeTab === 'improv' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`} title="Импровизация">
                     <Sparkles className="w-4 h-4 mx-auto"/>
                 </button>
-                <button onClick={() => setActiveTab('conditions')} className={`flex-1 py-2 text-xs font-bold ${activeTab === 'conditions' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`} title="Состояния">
+                <button onClick={() => setActiveTab('conditions')} className={`flex-1 py-2 px-3 text-xs font-bold whitespace-nowrap ${activeTab === 'conditions' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`} title="Состояния">
                     <Skull className="w-4 h-4 mx-auto"/>
                 </button>
-                <button onClick={() => setActiveTab('sfx')} className={`flex-1 py-2 text-xs font-bold ${activeTab === 'sfx' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`} title="Звуки">
+                <button onClick={() => setActiveTab('sfx')} className={`flex-1 py-2 px-3 text-xs font-bold whitespace-nowrap ${activeTab === 'sfx' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`} title="Звуки">
                     <Volume2 className="w-4 h-4 mx-auto"/>
                 </button>
             </div>
 
             <div className="p-4 bg-dnd-darker flex-1 overflow-y-auto custom-scrollbar">
+                
+                {activeTab === 'dice' && (
+                    <div className="space-y-4">
+                        <div className="bg-gray-900 border border-gray-700 p-3 rounded text-center min-h-[60px] flex items-center justify-center flex-col">
+                            {rollResult ? (
+                                <>
+                                    <div className="text-gray-400 text-xs uppercase tracking-wider mb-1">Результат</div>
+                                    <div className="text-2xl font-bold text-gold-500">{rollResult}</div>
+                                </>
+                            ) : (
+                                <span className="text-gray-600 text-xs italic">Бросьте кости...</span>
+                            )}
+                        </div>
+                        <div className="grid grid-cols-4 gap-2">
+                            {[4, 6, 8, 10, 12, 20, 100].map(d => (
+                                <button
+                                    key={d}
+                                    onClick={() => rollDice(d)}
+                                    className="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded py-2 text-xs font-bold text-white transition-colors"
+                                >
+                                    d{d}
+                                </button>
+                            ))}
+                            <button 
+                                onClick={() => rollDice(20, 2)}
+                                className="bg-gold-600 hover:bg-gold-500 text-black font-bold rounded py-2 text-xs"
+                                title="С преимуществом (2d20)"
+                            >
+                                ADV
+                            </button>
+                        </div>
+                        {rollHistory.length > 0 && (
+                            <div className="border-t border-gray-800 pt-2">
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-[10px] text-gray-500 uppercase">История</span>
+                                    <button onClick={() => setRollHistory([])}><RotateCcw className="w-3 h-3 text-gray-500 hover:text-white"/></button>
+                                </div>
+                                <div className="space-y-1 max-h-24 overflow-y-auto text-xs text-gray-400 custom-scrollbar">
+                                    {rollHistory.map((h, i) => <div key={i} className="truncate">{h}</div>)}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {activeTab === 'dc' && (
                     <div className="text-center space-y-4">
                         <div className="text-4xl font-bold text-white font-mono">{dcValue}</div>

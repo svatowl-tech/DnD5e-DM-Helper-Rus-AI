@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { LocationData, PartyMember, Combatant, EntityType, LoreEntry, LocationTrackerProps, Note, SavedImage, TravelResult, CampaignNpc, FullQuest, TravelState, BestiaryEntry } from '../types';
-import { parseLoreFromText, generateEncounterIntro, generateScenarioDescription, generateFullLocation, generateLocationContent, generateExtendedDetails, generateMultiverseBreach, generateRealityGlitch, generateImage, generateNpc, generateQuest, generateMonster } from '../services/polzaService';
+import { parseLoreFromText, generateEncounterIntro, generateScenarioDescription, generateFullLocation, generateLocationContent, generateExtendedDetails, generateMultiverseBreach, generateRealityGlitch, generateImage, generateNpc, generateQuest, generateMonster, enhanceEntityDraft } from '../services/polzaService';
 import { getMonstersByCr } from '../services/dndApiService';
-import { MapPin, Users, Skull, Sparkles, BookOpen, Loader, Search, Eye, ChevronRight, ArrowRight, Menu, Map, Copy, Plus, Home, Trees, Tent, Castle, ArrowLeft, LandPlot, Landmark, Beer, Footprints, ShieldAlert, Ghost, Info, X, Save, FileText, RefreshCcw, ChevronDown, ChevronUp, Zap, Anchor, Globe, Hexagon, Activity, Radio, Flame, Image as ImageIcon, ZoomIn, Church, Building, Mountain, ScrollText, Swords, UserPlus, Pickaxe, Wheat, Ship, ShoppingBag, Gavel, Gem, Compass, UserSquare2, PenTool, Wand2, Route, Signpost, DoorOpen, Feather, PackagePlus, Coins, Landmark as LandmarkIcon, MoreHorizontal, Archive, Upload } from 'lucide-react';
+import { MapPin, Users, Skull, Sparkles, BookOpen, Loader, Search, Eye, ChevronRight, ArrowRight, Menu, Map, Copy, Plus, Home, Trees, Tent, Castle, ArrowLeft, LandPlot, Landmark, Beer, Footprints, ShieldAlert, Ghost, Info, X, Save, FileText, RefreshCcw, ChevronDown, ChevronUp, Zap, Anchor, Globe, Hexagon, Activity, Radio, Flame, Image as ImageIcon, ZoomIn, Church, Building, Mountain, ScrollText, Swords, UserPlus, Pickaxe, Wheat, Ship, ShoppingBag, Gavel, Gem, Compass, UserSquare2, PenTool, Wand2, Route, Signpost, DoorOpen, Feather, PackagePlus, Coins, Landmark as LandmarkIcon, MoreHorizontal, Archive, Upload, FolderPlus, MapPinned } from 'lucide-react';
 import { FAERUN_LORE } from '../data/faerunLore';
 import { useAudio } from '../contexts/AudioContext';
 import SmartText from './SmartText';
@@ -42,6 +42,17 @@ const GENERIC_LOCATIONS = [
     { label: 'Сокровищница', icon: <Gem className="w-6 h-6 text-pink-500"/>, type: 'Тайная сокровищница' },
     { label: 'Библиотека', icon: <BookOpen className="w-6 h-6 text-amber-700"/>, type: 'Древняя библиотека' },
     { label: 'Арена', icon: <Swords className="w-6 h-6 text-red-600"/>, type: 'Бойцовская арена' },
+];
+
+const LOCATION_STATUSES = [
+    { id: 'peaceful', label: 'Спокойно', color: 'text-green-400 border-green-500/50 bg-green-900/20' },
+    { id: 'thriving', label: 'Процветает', color: 'text-gold-500 border-gold-500/50 bg-gold-900/20' },
+    { id: 'tension', label: 'Напряжение', color: 'text-yellow-400 border-yellow-500/50 bg-yellow-900/20' },
+    { id: 'under_attack', label: 'Под атакой', color: 'text-orange-500 border-orange-500/50 animate-pulse bg-orange-900/20' },
+    { id: 'occupied', label: 'Захвачена', color: 'text-red-400 border-red-500/50 bg-red-900/20' },
+    { id: 'destroyed', label: 'Уничтожена', color: 'text-gray-500 border-gray-500/50 line-through bg-black/40' },
+    { id: 'cursed', label: 'Проклята', color: 'text-purple-400 border-purple-500/50 bg-purple-900/20' },
+    { id: 'abandoned', label: 'Заброшена', color: 'text-gray-400 border-gray-500/50 border-dashed bg-gray-900/40' },
 ];
 
 const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, onImageGenerated, onShowImage }) => {
@@ -103,6 +114,11 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     const [addEntityDesc, setAddEntityDesc] = useState('');
     const [useAiGeneration, setUseAiGeneration] = useState(false);
     const [addLoading, setAddLoading] = useState(false);
+
+    // Manual Creation Modal State (Regions/Locations)
+    const [creationModal, setCreationModal] = useState<{ type: 'region' | 'location', isOpen: boolean }>({ type: 'region', isOpen: false });
+    const [creationData, setCreationData] = useState({ name: '', type: '', description: '' });
+    const [enhancing, setEnhancing] = useState(false);
 
     // Monster Generation State
     const [generatingMonster, setGeneratingMonster] = useState<string | null>(null);
@@ -180,7 +196,6 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
     useEffect(() => {
         if (location) {
             localStorage.setItem('dmc_active_location', JSON.stringify(location));
-            // Note: We DO NOT clear locationImage here anymore to avoid flickering/loss on updates
         } else {
             localStorage.removeItem('dmc_active_location');
             setLocationImage(null);
@@ -317,6 +332,11 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         autoPlayMusic('location', `${loc.type} ${loc.name} ${loc.atmosphere} ${loc.description}`);
     };
 
+    const updateLocationStatus = (newStatus: string) => {
+        if (!location) return;
+        setLocation(prev => prev ? ({ ...prev, status: newStatus }) : null);
+    };
+
     const logLocationArrival = () => {
         if (!location) return;
         addLog({
@@ -363,7 +383,6 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
 
     const handleOpenItem = (item: any) => {
         if (item.source === 'tracker') {
-            const type = addEntityType === 'npc' ? 'npc' : 'quest'; // Just for type inference
             // Open global detail modal for tracker items
             const event = new CustomEvent('dmc-show-details', {
                 detail: { type: item.original.race ? 'npc' : 'quest', id: item.original.name || item.original.title, title: item.original.name || item.original.title }
@@ -373,6 +392,84 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             // Open AI detail modal for lore items
             openDetailModal(item.original.race ? 'npc' : 'quest', item.original.name || item.original.title);
         }
+    };
+
+    // MANUAL CREATION HANDLERS
+    const openCreationModal = (type: 'region' | 'location') => {
+        setCreationData({ name: '', type: '', description: '' });
+        setCreationModal({ type, isOpen: true });
+    };
+
+    const handleEnhanceManualData = async () => {
+        if (!creationData.name) {
+            showToast("Введите хотя бы название для генерации.", "warning");
+            return;
+        }
+        setEnhancing(true);
+        try {
+            const enhanced = await enhanceEntityDraft(creationModal.type, creationData);
+            
+            setCreationData(prev => ({
+                ...prev,
+                type: (prev.type || enhanced.suggestedType) || prev.type,
+                description: prev.description 
+                    ? prev.description + "\n\n" + enhanced.addedDescription 
+                    : enhanced.addedDescription
+            }));
+            
+            showToast("Описание дополнено AI", "success");
+        } catch (e: any) {
+            showToast("Ошибка AI: " + e.message, "error");
+        } finally {
+            setEnhancing(false);
+        }
+    };
+
+    const handleCreateManual = () => {
+        if (!creationData.name) {
+            showToast("Введите название", "warning");
+            return;
+        }
+
+        if (creationModal.type === 'region') {
+            const newRegion: LoreEntry = {
+                id: Date.now().toString(),
+                name: creationData.name,
+                description: creationData.description,
+                capital: creationData.type, // Use type field for capital in region form
+                locations: []
+            };
+            setLore(prev => [newRegion, ...prev]);
+            setSelectedRegion(newRegion);
+            setExpandedRegion(newRegion.id);
+            showToast(`Регион "${newRegion.name}" создан`, "success");
+        } else {
+            if (!selectedRegion) {
+                showToast("Сначала выберите регион", "error");
+                return;
+            }
+            const newLocation: LocationData = {
+                id: Date.now().toString(),
+                name: creationData.name,
+                type: creationData.type || 'Локация',
+                description: creationData.description || 'Новое место.',
+                atmosphere: 'Спокойная.',
+                npcs: [],
+                quests: [],
+                loot: [],
+                monsters: [],
+                secrets: []
+            };
+            
+            setLore(prev => prev.map(r => 
+                r.id === selectedRegion.id 
+                ? { ...r, locations: [newLocation, ...r.locations] } 
+                : r
+            ));
+            updateLocation(newLocation);
+            showToast(`Локация "${newLocation.name}" создана`, "success");
+        }
+        setCreationModal({ ...creationModal, isOpen: false });
     };
 
     const handleAddEntity = async () => {
@@ -388,7 +485,8 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                     race: 'Гуманоид',
                     class: 'Обыватель',
                     status: 'alive',
-                    attitude: 'neutral'
+                    attitude: 'neutral',
+                    personality: ''
                 };
 
                 if (useAiGeneration) {
@@ -909,6 +1007,18 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         region.locations.some(l => l.name.toLowerCase().includes(handbookSearch.toLowerCase()))
     );
 
+    const getStatusStyle = (statusId?: string) => {
+        if (!statusId) return '';
+        const found = LOCATION_STATUSES.find(s => s.id === statusId);
+        return found ? found.color : '';
+    };
+    
+    const getStatusLabel = (statusId?: string) => {
+        if (!statusId) return '';
+        const found = LOCATION_STATUSES.find(s => s.id === statusId);
+        return found ? found.label : statusId;
+    };
+
     return (
         <div className="h-full flex gap-4 relative">
             
@@ -931,7 +1041,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                              {/(\d+)\s*(?:gp|zm|зм|sp|см|cp|мм)/i.test(selectedLootItem) ? (
                                  <button 
                                      onClick={() => { handleSplitMoney(selectedLootItem); setSelectedLootItem(null); }} 
-                                     className="w-full text-left px-4 py-3 bg-green-900/30 hover:bg-green-800/50 border border-green-800/50 rounded text-green-200 flex items-center gap-3 font-bold"
+                                     className="w-full text-left px-4 py-3 bg-green-900/30 hover:bg-green-900/50 border border-green-700 rounded text-green-300 flex items-center gap-3 font-bold"
                                  >
                                      <Coins className="w-5 h-5"/> Разделить деньги
                                  </button>
@@ -980,7 +1090,64 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                 />
             )}
 
-            {/* Add Custom Entity Modal */}
+            {/* Manual Creation Modal (Regions/Locations) */}
+            {creationModal.isOpen && (
+                <div className="fixed inset-0 z-[75] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-dnd-card border border-gold-600 w-full max-w-md rounded-lg shadow-2xl overflow-hidden">
+                        <div className="p-4 bg-gray-900 border-b border-gray-700 flex justify-between items-center">
+                            <h3 className="font-serif font-bold text-white">
+                                {creationModal.type === 'region' ? 'Новый Регион' : 'Новая Локация'}
+                            </h3>
+                            <button onClick={() => setCreationModal({...creationModal, isOpen: false})}><X className="w-5 h-5 text-gray-400"/></button>
+                        </div>
+                        <div className="p-4 space-y-4">
+                            <div>
+                                <label className="text-xs text-gray-500 uppercase font-bold block mb-1">Название</label>
+                                <input 
+                                    className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white focus:border-gold-500 outline-none"
+                                    value={creationData.name}
+                                    onChange={e => setCreationData({...creationData, name: e.target.value})}
+                                    autoFocus
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs text-gray-500 uppercase font-bold block mb-1">{creationModal.type === 'region' ? 'Столица (опционально)' : 'Тип локации'}</label>
+                                <input 
+                                    className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white focus:border-gold-500 outline-none"
+                                    value={creationData.type}
+                                    onChange={e => setCreationData({...creationData, type: e.target.value})}
+                                    placeholder={creationModal.type === 'region' ? 'Название столицы...' : 'Руины, Город, Лес...'}
+                                />
+                            </div>
+                            <div className="flex flex-col h-32">
+                                <div className="flex justify-between items-center mb-1">
+                                    <label className="text-xs text-gray-500 uppercase font-bold">Описание</label>
+                                    <button 
+                                        onClick={handleEnhanceManualData}
+                                        disabled={enhancing || !creationData.name}
+                                        className="text-xs text-purple-400 hover:text-purple-200 flex items-center gap-1 disabled:opacity-50"
+                                    >
+                                        {enhancing ? <Loader className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>}
+                                        Улучшить (AI)
+                                    </button>
+                                </div>
+                                <textarea 
+                                    className="w-full flex-1 bg-gray-800 border border-gray-600 rounded p-2 text-white resize-none focus:border-gold-500 outline-none"
+                                    value={creationData.description}
+                                    onChange={e => setCreationData({...creationData, description: e.target.value})}
+                                    placeholder="Краткое описание, которое AI может развить..."
+                                />
+                            </div>
+                        </div>
+                        <div className="p-4 border-t border-gray-700 bg-gray-900 flex justify-end gap-2">
+                            <button onClick={() => setCreationModal({...creationModal, isOpen: false})} className="px-4 py-2 text-gray-400 hover:text-white text-sm">Отмена</button>
+                            <button onClick={handleCreateManual} className="bg-green-600 hover:bg-green-500 text-white px-6 py-2 rounded font-bold text-sm shadow-lg">Создать</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add Custom Entity Modal (NPC/Quest) */}
             {isAddModalOpen && (
                 <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
                     <div className="bg-dnd-card border border-gold-600 w-full max-w-md rounded-lg shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
@@ -990,28 +1157,33 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                             </h3>
                             <button onClick={() => setIsAddModalOpen(false)}><X className="w-5 h-5 text-gray-400"/></button>
                         </div>
+                        
                         <div className="p-4 space-y-4">
+                            {/* Type Toggle */}
                             <div className="flex bg-gray-800 rounded p-1">
-                                <button onClick={() => setAddEntityType('npc')} className={`flex-1 py-2 text-xs font-bold rounded transition-colors ${addEntityType === 'npc' ? 'bg-gray-700 text-white' : 'text-gray-400'}`}>NPC</button>
-                                <button onClick={() => setAddEntityType('quest')} className={`flex-1 py-2 text-xs font-bold rounded transition-colors ${addEntityType === 'quest' ? 'bg-gray-700 text-white' : 'text-gray-400'}`}>Квест</button>
+                                <button onClick={() => setAddEntityType('npc')} className={`flex-1 py-2 text-xs font-bold rounded transition-colors ${addEntityType === 'npc' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'}`}>NPC</button>
+                                <button onClick={() => setAddEntityType('quest')} className={`flex-1 py-2 text-xs font-bold rounded transition-colors ${addEntityType === 'quest' ? 'bg-orange-600 text-white' : 'text-gray-400 hover:text-white'}`}>Квест</button>
                             </div>
+
+                            {/* Method Toggle */}
+                            <div className="flex bg-gray-800 rounded p-1 mb-2">
+                                <button onClick={() => setUseAiGeneration(false)} className={`flex-1 py-1.5 text-xs font-bold rounded transition-colors ${!useAiGeneration ? 'bg-gray-600 text-white' : 'text-gray-400'}`}>Вручную</button>
+                                <button onClick={() => setUseAiGeneration(true)} className={`flex-1 py-1.5 text-xs font-bold rounded transition-colors ${useAiGeneration ? 'bg-purple-600 text-white' : 'text-gray-400'}`}>AI Генерация</button>
+                            </div>
+
                             <div>
                                 <label className="text-xs text-gray-500 uppercase font-bold block mb-1">Название</label>
-                                <input className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white focus:border-gold-500 outline-none" value={addEntityName} onChange={e => setAddEntityName(e.target.value)} autoFocus />
+                                <input className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white focus:border-gold-500 outline-none" value={addEntityName} onChange={e => setAddEntityName(e.target.value)} autoFocus placeholder="Имя NPC или Название квеста" />
                             </div>
                             <div>
-                                <label className="text-xs text-gray-500 uppercase font-bold block mb-1">Описание / Ключевые слова</label>
-                                <textarea className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white h-24 resize-none focus:border-gold-500 outline-none" value={addEntityDesc} onChange={e => setAddEntityDesc(e.target.value)} />
+                                <label className="text-xs text-gray-500 uppercase font-bold block mb-1">{useAiGeneration ? 'Идея / Ключевые слова' : 'Описание'}</label>
+                                <textarea className="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white h-24 resize-none focus:border-gold-500 outline-none" value={addEntityDesc} onChange={e => setAddEntityDesc(e.target.value)} placeholder={useAiGeneration ? "Опишите, что сгенерировать..." : "Введите описание..."} />
                             </div>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" checked={useAiGeneration} onChange={e => setUseAiGeneration(e.target.checked)} className="accent-gold-600" />
-                                <span className="text-sm text-gray-300">Использовать AI для генерации деталей</span>
-                            </label>
                         </div>
                         <div className="p-4 border-t border-gray-700 bg-gray-900 flex justify-end gap-2">
                             <button onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 text-gray-400 hover:text-white text-sm">Отмена</button>
                             <button onClick={handleAddEntity} disabled={addLoading || !addEntityName} className="bg-gold-600 hover:bg-gold-500 text-black px-6 py-2 rounded font-bold text-sm flex items-center gap-2 disabled:opacity-50">
-                                {addLoading ? <Loader className="w-4 h-4 animate-spin"/> : <Plus className="w-4 h-4"/>} Добавить
+                                {addLoading ? <Loader className="w-4 h-4 animate-spin"/> : <Plus className="w-4 h-4"/>} {useAiGeneration ? 'Сгенерировать' : 'Добавить'}
                             </button>
                         </div>
                     </div>
@@ -1020,12 +1192,16 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
 
             {/* Handbook Sidebar */}
             <div className={`fixed xl:static inset-y-0 left-0 z-30 w-80 bg-gray-900 border-r border-gray-700 transform transition-transform duration-300 flex flex-col ${showHandbook ? 'translate-x-0' : '-translate-x-full'} xl:translate-x-0`}>
-                {/* ... existing sidebar content ... */}
                 <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-dnd-darker shrink-0">
                     <h2 className="font-serif font-bold text-gold-500 flex items-center gap-2">
                         <BookOpen className="w-5 h-5"/> Справочник
                     </h2>
-                    <button onClick={() => setShowHandbook(false)} className="xl:hidden text-gray-400"><ArrowRight /></button>
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => openCreationModal('region')} className="p-1 hover:bg-gray-800 rounded text-green-400" title="Создать регион вручную">
+                            <FolderPlus className="w-5 h-5"/>
+                        </button>
+                        <button onClick={() => setShowHandbook(false)} className="xl:hidden text-gray-400"><ArrowRight /></button>
+                    </div>
                 </div>
                 
                 <div className="p-2 shrink-0">
@@ -1064,9 +1240,14 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                         <button
                                             key={idx}
                                             onClick={() => loadFromHandbook(loc)}
-                                            className="w-full text-left text-xs text-blue-300 hover:text-white hover:bg-blue-900/30 px-2 py-1.5 rounded flex items-center gap-2"
+                                            className="w-full text-left text-xs text-blue-300 hover:text-white hover:bg-blue-900/30 px-2 py-1.5 rounded flex items-center justify-between gap-2"
                                         >
-                                            <MapPin className="w-3 h-3" /> {loc.name}
+                                            <span className="flex items-center gap-2 truncate">
+                                                <MapPin className="w-3 h-3 shrink-0" /> {loc.name}
+                                            </span>
+                                            {loc.status && (
+                                                <span className={`w-2 h-2 rounded-full shrink-0 ${getStatusStyle(loc.status).split(' ')[0].replace('text-', 'bg-')}`}></span>
+                                            )}
                                         </button>
                                     ))}
                                     {region.locations.length === 0 && <span className="text-xs text-gray-500 px-2">Нет локаций</span>}
@@ -1249,7 +1430,14 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                                     onClick={() => loadFromHandbook(loc)}
                                                     className="bg-dnd-card border border-gray-700 p-4 rounded-lg text-left hover:border-gold-500 hover:bg-gray-800 transition-all group"
                                                 >
-                                                    <div className="font-bold text-lg text-gold-500 group-hover:text-white">{loc.name}</div>
+                                                    <div className="flex justify-between items-start">
+                                                        <div className="font-bold text-lg text-gold-500 group-hover:text-white">{loc.name}</div>
+                                                        {loc.status && (
+                                                            <span className={`text-[10px] px-1.5 py-0.5 rounded border uppercase font-bold ${getStatusStyle(loc.status)}`}>
+                                                                {getStatusLabel(loc.status)}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     <div className="text-xs text-gray-500 uppercase mb-2">{loc.type || 'Локация'}</div>
                                                     <p className="text-sm text-gray-400 line-clamp-2">{loc.description}</p>
                                                 </button>
@@ -1280,9 +1468,17 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                     {/* Standard Generators */}
                                     <section>
                                         <h3 className="text-xl font-bold text-gray-200 mb-4 flex items-center gap-2">
-                                            <Sparkles className="w-5 h-5 text-purple-400"/> Обычные локации (AI)
+                                            <Sparkles className="w-5 h-5 text-purple-400"/> Генераторы локаций
                                         </h3>
                                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                                            <button 
+                                                onClick={() => openCreationModal('location')}
+                                                className="bg-green-900/40 border border-green-700/50 p-3 rounded-lg hover:bg-green-800 flex flex-col items-center gap-2 transition-colors group"
+                                            >
+                                                <div className="group-hover:scale-110 transition-transform duration-200"><MapPinned className="w-6 h-6 text-green-400"/></div>
+                                                <span className="font-bold text-center text-green-200">Ручная локация</span>
+                                            </button>
+                                            
                                             {GENERIC_LOCATIONS.map((loc, i) => (
                                                 <button 
                                                     key={i}
@@ -1351,6 +1547,20 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-3 overflow-hidden">
                                     <h1 className="text-2xl font-serif font-bold text-gold-500 truncate">{location.name}</h1>
+                                    
+                                    {/* Status Selector */}
+                                    <select 
+                                        className={`text-xs px-2 py-0.5 rounded border font-bold uppercase outline-none cursor-pointer appearance-none ${getStatusStyle(location.status || 'peaceful')}`}
+                                        value={location.status || 'peaceful'}
+                                        onChange={(e) => updateLocationStatus(e.target.value)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        title="Статус локации"
+                                    >
+                                        {LOCATION_STATUSES.map(s => (
+                                            <option key={s.id} value={s.id} className="bg-gray-800 text-gray-300 normal-case font-normal">{s.label}</option>
+                                        ))}
+                                    </select>
+
                                     {location.originWorld ? (
                                         <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded border border-indigo-400 hidden sm:inline-block shrink-0 animate-pulse">
                                             Разлом: {location.originWorld}

@@ -97,6 +97,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [currentPlaylistId, setCurrentPlaylistId] = useState<string | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isShuffle, setIsShuffle] = useState(false);
+    const [isAutoDJEnabled, setIsAutoDJEnabled] = useState(true);
     const [volume, setVolume] = useState(0.5);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -267,6 +268,10 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const toggleShuffle = () => {
         setIsShuffle(!isShuffle);
     };
+    
+    const toggleAutoDJ = () => {
+        setIsAutoDJEnabled(!isAutoDJEnabled);
+    };
 
     const getNextTrack = (direction: 'next' | 'prev') => {
         if (!currentPlaylistId || !currentTrack) return null;
@@ -385,6 +390,8 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     const autoPlayMusic = (type: 'combat' | 'location' | 'travel' | 'victory', contextText: string = '') => {
+        if (!isAutoDJEnabled) return;
+
         const text = contextText.toLowerCase();
         let targetId = 'travel'; // Default fallback
 
@@ -455,6 +462,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             currentPlaylistId,
             isPlaying,
             isShuffle,
+            isAutoDJEnabled,
             volume,
             isLoading,
             error,
@@ -462,6 +470,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             playPlaylist,
             togglePlay,
             toggleShuffle,
+            toggleAutoDJ,
             playNext,
             playPrev,
             setVolume: setVolumeWrapper,

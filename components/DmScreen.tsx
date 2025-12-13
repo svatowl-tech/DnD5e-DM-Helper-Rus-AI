@@ -3,10 +3,11 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { CONDITIONS } from '../constants';
 import { RULES_DATA } from '../data/rulesData';
 import { EQUIPMENT_DB, EquipmentItem } from '../data/equipmentData';
-import { RuleSection, SavedImage } from '../types';
-import { Search, Sword, Map, Users, Crown, Zap, Skull, BookOpen, X, ChevronDown, ChevronUp, Sparkles, Loader, Shield, Backpack, PenTool, Hammer, Image as ImageIcon, Eye, FlaskConical, Dices, Database, Globe, ScrollText, ChevronLeft, Menu, Layout } from 'lucide-react';
+import { RuleSection, SavedImage, PartyMember } from '../types';
+import { Search, Sword, Map, Users, Crown, Zap, Skull, BookOpen, X, ChevronDown, ChevronUp, Sparkles, Loader, Shield, Backpack, PenTool, Hammer, Image as ImageIcon, Eye, FlaskConical, Dices, Database, Globe, ScrollText, ChevronLeft, Menu, Layout, Archive, ArrowRightCircle, Gift } from 'lucide-react';
 import { generateExtendedDetails, generateItemCustomization, generateImage } from '../services/polzaService';
 import { searchSpells, getSpellDetails, searchEquipment, getEquipmentDetails, searchMagicItems, getMagicItemDetails, searchRules, getRuleDetails, ApiReference } from '../services/dndApiService';
+import { useToast } from '../contexts/ToastContext';
 
 interface DmScreenProps {
     onImageGenerated?: (image: SavedImage) => void;
@@ -81,6 +82,7 @@ const RuleCard: React.FC<{ rule: RuleSection, onSpellClick?: (spell: string) => 
 };
 
 const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) => {
+  const { showToast } = useToast();
   const [dataSource, setDataSource] = useState<'local' | 'api'>('local');
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<LocalCategory>('all');
@@ -105,6 +107,18 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
   
   const [itemImage, setItemImage] = useState<SavedImage | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
+
+  // Party State for distribution
+  const [party, setParty] = useState<PartyMember[]>([]);
+
+  useEffect(() => {
+    const savedParty = localStorage.getItem('dmc_party');
+    if (savedParty) {
+        try {
+            setParty(JSON.parse(savedParty).filter((p: any) => p.active));
+        } catch (e) { console.error(e); }
+    }
+  }, []);
 
   // Transform CONSTANTS conditions to standard RuleSection format
   const conditionRules: RuleSection[] = useMemo(() => CONDITIONS.map(c => ({
@@ -339,6 +353,54 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
       }
   };
 
+  // --- Distribution Handlers ---
+  const getCurrentItemPayload = () => {
+      if (customizedItem) {
+          return {
+              name: customizedItem.name,
+              description: `
+                <p><i>${customizedItem.visual}</i></p>
+                <p>${customizedItem.history}</p>
+                <p><strong class="text-green-400">[+]</strong> ${customizedItem.positive}</p>
+                <p><strong class="text-red-400">[-]</strong> ${customizedItem.negative}</p>
+              `
+          };
+      } else if (selectedItem) {
+          return {
+              name: selectedItem.name || 'Предмет',
+              description: selectedItem.description || ''
+          };
+      }
+      return null;
+  };
+
+  const handleGiveToPlayer = (memberId: string) => {
+      const payload = getCurrentItemPayload();
+      if (!payload) return;
+      
+      window.dispatchEvent(new CustomEvent('dmc-give-item', {
+          detail: { 
+              memberId, 
+              itemName: payload.name, 
+              itemDescription: payload.description 
+          }
+      }));
+      // Toast is handled by listener
+  };
+
+  const handleAddToStash = () => {
+      const payload = getCurrentItemPayload();
+      if (!payload) return;
+
+      window.dispatchEvent(new CustomEvent('dmc-add-to-stash', {
+          detail: { 
+              itemName: payload.name, 
+              itemDescription: payload.description 
+          }
+      }));
+      // Toast is handled by listener
+  };
+
   return (
     <div className="h-full flex flex-col space-y-4 relative">
         {/* Spell / Rule Modal */}
@@ -380,10 +442,10 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
             <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
                 <div className="bg-dnd-card border-2 border-gold-600 w-full max-w-lg max-h-[90vh] rounded-lg shadow-2xl flex flex-col relative overflow-hidden">
                     <div className="p-4 bg-gray-900 border-b border-gray-700 flex justify-between items-center shrink-0">
-                        <h3 className="text-xl font-serif font-bold text-gold-500 flex items-center gap-2">
-                            {loadingContent ? 'Загрузка...' : selectedItem?.name}
+                        <h3 className="text-xl font-serif font-bold text-gold-500 flex items-center gap-2 truncate pr-2">
+                            {loadingContent ? 'Загрузка...' : (customizedItem ? customizedItem.name : selectedItem?.name)}
                         </h3>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 shrink-0">
                             <button 
                                 onClick={handleGenerateItemImage} 
                                 disabled={imageLoading || loadingContent}
@@ -509,6 +571,42 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
                                         Введите пожелания и нажмите кнопку, чтобы превратить этот предмет в уникальный артефакт.
                                     </div>
                                 )}
+                            </div>
+
+                            {/* Distribution Section */}
+                            <div className="border-t border-gray-700 pt-4 mt-2">
+                                <h4 className="font-bold text-gold-500 flex items-center gap-2 mb-3 text-sm uppercase">
+                                    <Gift className="w-4 h-4"/> Выдача
+                                </h4>
+                                
+                                <div className="space-y-2">
+                                    <button 
+                                        onClick={handleAddToStash}
+                                        className="w-full text-left px-4 py-3 bg-yellow-900/30 hover:bg-yellow-900/50 border border-yellow-700 rounded text-yellow-200 flex items-center gap-3 font-bold text-sm transition-colors"
+                                    >
+                                        <Archive className="w-5 h-5"/> В Общий Мешок
+                                    </button>
+                                    
+                                    <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto custom-scrollbar">
+                                        {party.length === 0 ? (
+                                            <div className="px-2 py-2 text-xs text-gray-500 italic text-center border border-dashed border-gray-700 rounded">Нет активных героев</div>
+                                        ) : (
+                                            party.map(p => (
+                                                <button
+                                                    key={p.id}
+                                                    onClick={() => handleGiveToPlayer(p.id)}
+                                                    className="flex items-center gap-3 p-2 bg-gray-800 hover:bg-blue-900/30 border border-gray-700 hover:border-blue-500 rounded text-left transition-colors active:scale-95"
+                                                >
+                                                    <div className="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                                                        {p.name.charAt(0)}
+                                                    </div>
+                                                    <span className="text-xs font-bold text-gray-200 flex-1 truncate">{p.name}</span>
+                                                    <ArrowRightCircle className="w-4 h-4 text-gray-500"/>
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </>
                         )}

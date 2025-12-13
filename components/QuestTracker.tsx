@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { FullQuest, QuestObjective, Combatant, EntityType, QuestTrackerProps } from '../types';
 import { generateFullQuestTracker, parseQuestFromText, enhanceQuest } from '../services/polzaService';
@@ -477,7 +478,23 @@ const QuestTracker: React.FC<QuestTrackerProps> = ({ addLog }) => {
                             <p className="text-xs text-gray-500 mt-1 truncate">{q.summary || 'Нет описания'}</p>
                         </div>
                     ))}
-                    {quests.length === 0 && <div className="text-center text-gray-500 mt-10 text-sm">Список пуст.<br/>Создайте или сгенерируйте квест.</div>}
+                    {quests.length === 0 && (
+                        <div className="flex flex-col items-center justify-center h-full text-gray-500 p-6 text-center space-y-4">
+                            <div className="bg-gray-900/50 p-4 rounded-full border border-gray-800">
+                                <ScrollText className="w-12 h-12 opacity-30" />
+                            </div>
+                            <div>
+                                <p className="text-lg font-serif mb-1">Журнал пуст</p>
+                                <p className="text-xs opacity-60">Добавьте свой первый квест или попросите AI придумать приключение.</p>
+                            </div>
+                            <button 
+                                onClick={() => setShowAiModal(true)}
+                                className="bg-indigo-900/30 hover:bg-indigo-900/50 text-indigo-300 border border-indigo-800/50 py-2 px-4 rounded-full text-xs font-bold transition-all"
+                            >
+                                <Sparkles className="w-3 h-3 inline mr-1"/> Сгенерировать
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 
