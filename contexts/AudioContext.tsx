@@ -82,9 +82,6 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             try {
                 const parsed = JSON.parse(saved);
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                    // Merge strategy: Ensure all NEW structure playlists exist in the saved data.
-                    // If the saved data is from an old version (missing key new IDs), we prioritize the new structure.
-                    // Checking if "fight_boss" exists in saved data to determine if it's the new structure
                     const hasNewStructure = parsed.some(p => p.id === 'fight_boss');
                     if (hasNewStructure) return parsed;
                 }
@@ -107,6 +104,11 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const activeSfxRef = useRef<Set<HTMLAudioElement>>(new Set());
+    
+    // File Management for Local Tracks (Memory Only)
+    const fileRegistry = useRef<Map<string, File>>(new Map());
+    const activeBlobUrl = useRef<string | null>(null);
+    const lastTrackId = useRef<string | null>(null);
 
     // Initialize Audio Object and Unlock Logic
     useEffect(() => {
@@ -128,9 +130,11 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     console.warn(`Audio Error (${err.code}): ${err.message}`);
                 }
                 if (isPlaying) {
-                     if (err && err.code === 2) {
+                     // Try retry once for network errors
+                     if (err && (err.code === 2 || err.code === 4)) {
                          setTimeout(() => {
-                             if (audioRef.current && currentTrack) {
+                            // Only retry if still same track
+                             if (audioRef.current && currentTrack && audioRef.current.src) {
                                  audioRef.current.load();
                                  audioRef.current.play().catch(console.warn);
                              }
@@ -174,6 +178,9 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 audioRef.current.pause();
                 audioRef.current.removeAttribute('src');
             }
+            if (activeBlobUrl.current) {
+                URL.revokeObjectURL(activeBlobUrl.current);
+            }
             ['click', 'touchstart', 'keydown'].forEach(evt => 
                 document.removeEventListener(evt, unlockAudio)
             );
@@ -190,16 +197,40 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
     }, [volume]);
 
-    // Playback Control
+    // Playback Control with Lazy Loading
     useEffect(() => {
         const playAudio = async () => {
             if (!audioRef.current) return;
             
-            if (currentTrack && currentTrack.url) {
-                const currentSrc = audioRef.current.getAttribute('src');
-                if (currentSrc !== currentTrack.url) {
-                    audioRef.current.src = currentTrack.url;
+            if (currentTrack) {
+                // If track changed, load new source
+                if (currentTrack.id !== lastTrackId.current) {
+                    // Cleanup previous blob
+                    if (activeBlobUrl.current) {
+                        URL.revokeObjectURL(activeBlobUrl.current);
+                        activeBlobUrl.current = null;
+                    }
+
+                    let srcToPlay = '';
+
+                    if (currentTrack.isLocal) {
+                        const file = fileRegistry.current.get(currentTrack.id);
+                        if (file) {
+                            srcToPlay = URL.createObjectURL(file);
+                            activeBlobUrl.current = srcToPlay;
+                            setError(null);
+                        } else {
+                            setError("Файл не найден (треки сброшены). Перезагрузите файлы.");
+                            setIsPlaying(false);
+                            return;
+                        }
+                    } else {
+                        srcToPlay = currentTrack.url;
+                    }
+
+                    audioRef.current.src = srcToPlay;
                     audioRef.current.load();
+                    lastTrackId.current = currentTrack.id;
                 }
 
                 if (isPlaying) {
@@ -207,11 +238,12 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                         await audioRef.current.play();
                         setError(null);
                     } catch (e: any) {
-                        console.warn("Play attempt failed (likely autoplay block):", e);
+                        console.warn("Play attempt failed:", e);
                         if (e.name === 'NotAllowedError') {
                             setError("Нажмите любую кнопку, чтобы разрешить звук.");
                             setIsPlaying(false);
                         } else if (e.name !== 'AbortError') {
+                            // Don't auto-pause on abort (e.g. switching tracks fast)
                             setIsPlaying(false);
                         }
                     }
@@ -220,9 +252,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 }
             } else {
                 audioRef.current.pause();
-                if (audioRef.current.getAttribute('src')) {
-                     audioRef.current.removeAttribute('src');
-                }
+                lastTrackId.current = null;
             }
         };
 
@@ -324,17 +354,27 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 : p
             );
             localStorage.setItem('dmc_playlists', JSON.stringify(updated));
+            // Also clean up file registry if it was local
+            if (fileRegistry.current.has(trackId)) {
+                fileRegistry.current.delete(trackId);
+            }
             return updated;
         });
     };
 
     const importLocalTracks = (playlistId: string, files: File[]) => {
-        const newTracks: Track[] = files.map(f => ({
-            id: Date.now().toString() + Math.random(),
-            title: f.name.replace(/\.[^/.]+$/, ""),
-            url: URL.createObjectURL(f),
-            isLocal: true
-        }));
+        const newTracks: Track[] = files.map(f => {
+            const trackId = Date.now().toString() + Math.random();
+            // Store file in registry instead of creating blob URL immediately
+            fileRegistry.current.set(trackId, f);
+            
+            return {
+                id: trackId,
+                title: f.name.replace(/\.[^/.]+$/, ""),
+                url: "", // Lazy loaded
+                isLocal: true
+            };
+        });
 
         setPlaylists(prev => {
             const updated = prev.map(p => 
@@ -345,6 +385,10 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             localStorage.setItem('dmc_playlists', JSON.stringify(updated));
             return updated;
         });
+    };
+
+    const getFile = (trackId: string) => {
+        return fileRegistry.current.get(trackId);
     };
 
     const setVolumeWrapper = (vol: number) => {
@@ -447,8 +491,6 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         if (currentPlaylistId !== targetId) {
             const playlist = playlists.find(p => p.id === targetId);
-            // If playlist exists and has tracks, play it. 
-            // If empty, we still switch context so user can add tracks to the right place.
             if (playlist) {
                 playPlaylist(targetId, true);
             }
@@ -477,6 +519,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             addTrackToPlaylist,
             removeTrackFromPlaylist,
             importLocalTracks,
+            getFile,
             playSfx,
             stopAllSfx,
             autoPlayMusic

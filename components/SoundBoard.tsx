@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { 
   Music, Upload, Trash2, X, 
@@ -33,7 +34,7 @@ const CATEGORY_ICONS: Record<AudioCategory, string> = {
 const SoundBoard: React.FC = () => {
   const { 
       playlists, currentTrack, currentPlaylistId, isPlaying, isShuffle,
-      playTrack, playPlaylist, addTrackToPlaylist, removeTrackFromPlaylist, importLocalTracks, toggleShuffle
+      playTrack, playPlaylist, addTrackToPlaylist, removeTrackFromPlaylist, importLocalTracks, toggleShuffle, getFile
   } = useAudio();
   const { showToast } = useToast();
 
@@ -108,17 +109,14 @@ const SoundBoard: React.FC = () => {
 
   const downloadTrack = async (track: Track) => {
       if (track.isLocal) {
-          try {
-              const response = await fetch(track.url);
-              const blob = await response.blob();
-              saveBlob(blob, `${track.title}.mp3`);
-          } catch (e) {
-              console.error("Local download failed", e);
-              showToast("Ошибка при скачивании локального файла", "error");
+          const file = getFile(track.id);
+          if (file) {
+              saveBlob(file, `${track.title}.mp3`);
+          } else {
+              showToast("Файл не найден в памяти. Попробуйте перезагрузить трек.", "error");
           }
       } else {
-          // For external tracks, we cannot use fetch due to CORS.
-          // Open in new tab to let browser handle it.
+          // For external tracks, we cannot use fetch due to CORS usually.
           window.open(track.url, '_blank');
       }
   };
@@ -145,19 +143,15 @@ const SoundBoard: React.FC = () => {
                   const safeTitle = track.title.replace(/[\\/:*?"<>|]/g, "_");
                   
                   if (track.isLocal) {
-                      try {
-                          // Local blobs can be fetched
-                          const response = await fetch(track.url);
-                          if (!response.ok) throw new Error('Network error');
-                          const blob = await response.blob();
-                          folder.file(`${safeTitle}.mp3`, blob);
-                      } catch (e) {
-                          folder.file(`${safeTitle}_error.txt`, `Failed to read local file: ${track.title}`);
+                      const file = getFile(track.id);
+                      if (file) {
+                          folder.file(`${safeTitle}.mp3`, file);
+                      } else {
+                          folder.file(`${safeTitle}_error.txt`, `Failed to locate local file in memory: ${track.title}`);
                       }
                   } else {
-                      // External links usually block CORS, so we cannot blob them directly in JS.
-                      // Save a text file with the link instead so the user doesn't lose the reference.
-                      folder.file(`${safeTitle}_link.txt`, `Track: ${track.title}\nURL: ${track.url}\n\n(This file is hosted externally and cannot be included in the archive due to browser security restrictions on cross-origin requests.)`);
+                      // External links
+                      folder.file(`${safeTitle}_link.txt`, `Track: ${track.title}\nURL: ${track.url}\n\n(External link)`);
                   }
               }
           }
