@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { LocationData, PartyMember, Combatant, EntityType, LoreEntry, LocationTrackerProps, Note, SavedImage, TravelResult, CampaignNpc, FullQuest, TravelState, BestiaryEntry } from '../types';
 import { parseLoreFromText, generateEncounterIntro, generateScenarioDescription, generateFullLocation, generateLocationContent, generateExtendedDetails, generateMultiverseBreach, generateRealityGlitch, generateImage, generateNpc, generateQuest, generateMonster, enhanceEntityDraft } from '../services/polzaService';
-import { getMonstersByCr } from '../services/dndApiService';
+import { getMonstersByCr, getMonsterDetails } from '../services/dndApiService';
 import { MapPin, Users, Skull, Sparkles, BookOpen, Loader, Search, Eye, ChevronRight, ArrowRight, Menu, Map, Copy, Plus, Home, Trees, Tent, Castle, ArrowLeft, LandPlot, Landmark, Beer, Footprints, ShieldAlert, Ghost, Info, X, Save, FileText, RefreshCcw, ChevronDown, ChevronUp, Zap, Anchor, Globe, Hexagon, Activity, Radio, Flame, Image as ImageIcon, ZoomIn, Church, Building, Mountain, ScrollText, Swords, UserPlus, Pickaxe, Wheat, Ship, ShoppingBag, Gavel, Gem, Compass, UserSquare2, PenTool, Wand2, Route, Signpost, DoorOpen, Feather, PackagePlus, Coins, Landmark as LandmarkIcon, MoreHorizontal, Archive, Upload, FolderPlus, MapPinned } from 'lucide-react';
 import { FAERUN_LORE } from '../data/faerunLore';
 import { useAudio } from '../contexts/AudioContext';
@@ -26,7 +25,7 @@ const GENERIC_LOCATIONS = [
     { label: 'Лагерь', icon: <Tent className="w-6 h-6 text-orange-400"/>, type: 'Лагерь бандитов или наемников' },
     { label: 'Башня Мага', icon: <Zap className="w-6 h-6 text-purple-500"/>, type: 'Одинокая башня волшебника' },
     { label: 'Храм', icon: <Church className="w-6 h-6 text-gold-500"/>, type: 'Забытый храм' },
-    { label: 'Подземелье', icon: <Skull className="w-6 h-6 text-red-500"/>, type: 'Опасное подземелье' },
+    { label: 'Подземелье', icon: <Skull className="w-6 h-6 text-red-500"/>, type: 'Глубокое подземелье' },
     { label: 'Кладбище', icon: <Ghost className="w-6 h-6 text-gray-300"/>, type: 'Старое кладбище' },
     { label: 'Порт', icon: <Anchor className="w-6 h-6 text-blue-600"/>, type: 'Портовый док' },
     { label: 'Мост', icon: <LandPlot className="w-6 h-6 text-stone-400"/>, type: 'Переправа или мост' },
@@ -234,7 +233,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         if (!location) return [];
         
         const activeNpcs = trackerNpcs.filter(n => n.location === location.name);
-        const loreNpcs = location.npcs || [];
+        const loreNpcs = (location.npcs || []) as CampaignNpc[];
         
         // If name matches, use Tracker version (it's persistent/active)
         const merged = [
@@ -248,7 +247,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         if (!location) return [];
 
         const activeQuests = trackerQuests.filter(q => q.location === location.name || q.giver === location.name);
-        const loreQuests = location.quests || [];
+        const loreQuests = (location.quests || []) as FullQuest[];
 
         // Quests usually don't duplicate names as often, but same logic applies
         const merged = [
@@ -348,6 +347,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         showToast("Локация записана в летопись", 'success');
     };
 
+    /* Fix: Replace missing handler calls with local state update */
     const handleTravelUpdate = (state: TravelState) => {
         setActiveTravelPlan(state);
     };
@@ -377,6 +377,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         
         // 3. Set Active Location
         updateLocation(newLocation);
+        /* Fix: Reset travel state on completion */
         setActiveTravelPlan(null);
         showToast(`Прибытие в ${newLocation.name}. Локация сохранена.`, 'success');
     };
@@ -721,22 +722,18 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             // 1. Generate Stats via AI
             const stats = await generateMonster(monsterName);
             
-            // 2. Save to Local Bestiary
-            const savedBestiary = JSON.parse(localStorage.getItem('dmc_local_bestiary') || '[]');
-            // Check if already exists to avoid dups (by name)
-            if (!savedBestiary.some((m: BestiaryEntry) => m.name === stats.name)) {
-                localStorage.setItem('dmc_local_bestiary', JSON.stringify([stats, ...savedBestiary]));
-            }
-
-            // 3. Add to Combat
+            // 2. Add to Combat (The App handler will auto-save to bestiary)
             const event = new CustomEvent('dmc-add-combatant', {
                 detail: { 
                     name: stats.name, 
-                    type: 'MONSTER', 
+                    type: EntityType.MONSTER, 
+                    monsterType: stats.type,
                     hp: stats.hp, 
                     ac: stats.ac, 
+                    cr: stats.cr,
                     initiative: 10 + Math.floor(Math.random() * 5), 
                     xp: stats.xp,
+                    stats: stats.stats,
                     notes: `CR ${stats.cr} (AI Gen). ${location?.name || ''}`,
                     actions: stats.actions?.map((a: any) => `<b>${a.name}:</b> ${a.desc}`) || []
                 }
@@ -749,7 +746,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
             alert(`Ошибка генерации монстра: ${e.message}`);
             // Fallback: Add generic
             const event = new CustomEvent('dmc-add-combatant', {
-                detail: { name: monsterName, type: 'MONSTER', hp: 20, initiative: 10, notes: `Ошибка AI` }
+                detail: { name: monsterName, type: EntityType.MONSTER, hp: 20, initiative: 10, notes: `Ошибка AI` }
             });
             window.dispatchEvent(event);
         } finally {
@@ -766,20 +763,43 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
         const maxCr = Math.max(1, Math.ceil(avgLevel)); 
         const monsterTypeContext = location?.monsters && location.monsters.length > 0 ? location.monsters[Math.floor(Math.random() * location.monsters.length)] : undefined;
         try {
+            /**
+             * Fix: Updated call to getMonstersByCr to match its 3-arg signature
+             */
             const candidates = await getMonstersByCr(minCr, maxCr, monsterTypeContext);
             if (candidates.length === 0) { alert("Монстры не найдены (API)."); return; }
-            const currentCombatants: Combatant[] = JSON.parse(localStorage.getItem('dmc_combatants') || '[]');
-            const newMonsters: Combatant[] = candidates.map((m, i) => ({
-                id: Date.now().toString() + i,
-                name: m.name,
-                type: EntityType.MONSTER,
-                initiative: Math.floor(Math.random() * 20) + 1,
-                hp: 10 + (avgLevel * 5), maxHp: 10 + (avgLevel * 5), ac: 10 + Math.floor(avgLevel / 2), conditions: [], notes: `CR ${avgLevel}`
-            }));
+            
             const intro = await generateEncounterIntro(candidates.map(c => c.name), location?.name || 'Местность');
             setEncounterIntro(intro);
-            localStorage.setItem('dmc_combatants', JSON.stringify([...currentCombatants, ...newMonsters]));
-            window.dispatchEvent(new Event('dmc-update-combat'));
+
+            for (const c of candidates) {
+                const details = await getMonsterDetails(c.index);
+                const acValue = typeof details.armor_class === 'number' ? details.armor_class : (details.armor_class as any)[0]?.value || 10;
+                
+                const event = new CustomEvent('dmc-add-combatant', {
+                    detail: {
+                        name: details.name,
+                        type: EntityType.MONSTER,
+                        monsterType: details.type,
+                        hp: details.hit_points,
+                        ac: acValue,
+                        cr: details.challenge_rating,
+                        xp: details.xp,
+                        initiative: Math.floor(Math.random() * 20) + 1 + Math.floor((details.dexterity - 10) / 2),
+                        notes: `Источник: Глава SRD. ${location?.name || ''}`,
+                        stats: {
+                            str: details.strength,
+                            dex: details.dexterity,
+                            con: details.constitution,
+                            int: details.intelligence,
+                            wis: details.wisdom,
+                            cha: details.charisma
+                        },
+                        actions: details.actions?.map((a: any) => `<b>${a.name}:</b> ${a.desc}`) || []
+                    }
+                });
+                window.dispatchEvent(event);
+            }
         } catch (e: any) {
             console.error(e);
             alert(`Ошибка создания энкаунтера: ${e.message}`);
@@ -1181,7 +1201,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                             </div>
                         </div>
                         <div className="p-4 border-t border-gray-700 bg-gray-900 flex justify-end gap-2">
-                            <button onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 text-gray-400 hover:text-white text-sm">Отмена</button>
+                            <button onClick={setIsAddModalOpen.bind(null, false)} className="px-4 py-2 text-gray-400 hover:text-white text-sm">Отмена</button>
                             <button onClick={handleAddEntity} disabled={addLoading || !addEntityName} className="bg-gold-600 hover:bg-gold-500 text-black px-6 py-2 rounded font-bold text-sm flex items-center gap-2 disabled:opacity-50">
                                 {addLoading ? <Loader className="w-4 h-4 animate-spin"/> : <Plus className="w-4 h-4"/>} {useAiGeneration ? 'Сгенерировать' : 'Добавить'}
                             </button>
@@ -1935,7 +1955,7 @@ const LocationTracker: React.FC<LocationTrackerProps> = ({ addLog, onSaveNote, o
                                                         className="p-1 text-gray-500 hover:text-white"
                                                         title="В летопись"
                                                     >
-                                                        <Feather className="w-3 h-3" />
+                                                        <Feather className="w-4 h-4"/>
                                                     </button>
                                                 </div>
                                             </li>

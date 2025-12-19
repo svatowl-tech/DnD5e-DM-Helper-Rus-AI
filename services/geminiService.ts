@@ -1,10 +1,11 @@
-
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 
 // Helper to get a fresh client instance for every request to avoid stale state
-const getClient = () => new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Fix: Use recommended SDK initialization (no fallback)
+const getClient = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-const modelName = "gemini-2.5-flash";
+// Fix: Select recommended model for text tasks
+const modelName = "gemini-3-flash-preview";
 
 // Helper to strip Markdown code blocks
 const cleanText = (text: string): string => {
@@ -32,7 +33,8 @@ export const generateNpc = async (keywords: string): Promise<any> => {
   Предоставь: Имя, Расу, Класс (опционально), Описание внешности, Характер, Голос/Манеру речи, Секрет и Крючок для квеста.
   Отвечай строго на русском языке.`;
 
-  const schema: Schema = {
+  // Fix: Removed Schema type annotation as it's not exported by SDK
+  const schema = {
     type: Type.OBJECT,
     properties: {
       name: { type: Type.STRING },
@@ -234,7 +236,8 @@ export const parseLoreFromText = async (rawText: string): Promise<any> => {
   - loot (Список интересных предметов или ресурсов, упомянутых в тексте)
   `;
 
-  const schema: Schema = {
+  // Fix: Removed Schema type annotation as it's not exported by SDK
+  const schema = {
     type: Type.OBJECT,
     properties: {
       name: { type: Type.STRING },
@@ -296,7 +299,8 @@ export const generateFullLocation = async (regionName: string, locationType: str
     
     Русский язык.`;
 
-    const schema: Schema = {
+    // Fix: Removed Schema type annotation as it's not exported by SDK
+    const schema = {
         type: Type.OBJECT,
         properties: {
           name: { type: Type.STRING },
@@ -352,7 +356,8 @@ export const generateFullLocation = async (regionName: string, locationType: str
 
 export const generateLocationContent = async (locationName: string, category: 'npc' | 'secret' | 'loot' | 'quest'): Promise<any[]> => {
     let prompt = '';
-    let schema: Schema = { type: Type.ARRAY, items: { type: Type.STRING } }; // Default
+    // Fix: Default schema should be Type.ARRAY
+    let schema: any = { type: Type.ARRAY, items: { type: Type.STRING } };
 
     if (category === 'npc') {
         prompt = `Придумай 2 интересных NPC для локации "${locationName}". Верни JSON массив.`;
