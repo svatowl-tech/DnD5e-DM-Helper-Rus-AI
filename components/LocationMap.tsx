@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MapData, MapBlockType, MapMarker, LocationData, MapLevel, EntityType } from '../types';
 import { generateDungeonMap } from '../services/worldService';
 import { generateMonster } from '../services/entityService';
+import { saveMapToDB, getMapFromDB } from '../services/db';
 import { 
     Grid3X3, Layers, User, Coins, Skull, Star, Info, 
     RefreshCw, Loader, Eye, EyeOff, Maximize2, 
@@ -46,17 +47,42 @@ const LocationMap: React.FC = () => {
     const [isFogEnabled, setIsFogEnabled] = useState(false);
     const [selectedMarker, setSelectedMarker] = useState<MapMarker | null>(null);
 
-    const activeLocation: LocationData | null = (() => {
+    const getActiveLocation = (): LocationData | null => {
         const saved = localStorage.getItem('dmc_active_location');
         try {
             return saved ? JSON.parse(saved) : null;
         } catch {
             return null;
         }
-    })();
+    };
+
+    const activeLocation = getActiveLocation();
+
+    // Auto-load map if it exists for this location
+    useEffect(() => {
+        if (activeLocation?.id) {
+            getMapFromDB(activeLocation.id).then(savedMap => {
+                if (savedMap) {
+                    setMapData(savedMap);
+                    // Initialize fog if not already there
+                    const fogs = savedMap.levels.map((level) => {
+                        const height = level.grid?.length || 0;
+                        const width = level.grid?.[0]?.length || 0;
+                        return Array(height).fill(null).map(() => Array(width).fill(true));
+                    });
+                    setFogOfWarLevels(fogs);
+                } else {
+                    setMapData(null);
+                    setFogOfWarLevels([]);
+                }
+            });
+        } else {
+            setMapData(null);
+        }
+    }, [activeLocation?.id]);
 
     const handleGenerate = async () => {
-        if (!activeLocation) {
+        if (!activeLocation || !activeLocation.id) {
             showToast("Сначала выберите или создайте локацию в разделе 'Локация'", "warning");
             return;
         }
@@ -81,8 +107,11 @@ const LocationMap: React.FC = () => {
             
             setMapData(data);
             setFogOfWarLevels(fogs);
+
+            // Persist to DB
+            await saveMapToDB(activeLocation.id, data);
             
-            showToast(`Карта готова: ${data.levels.length} уровней`, "success");
+            showToast(`Карта создана и сохранена`, "success");
         } catch (e: any) {
             showToast(`Ошибка: ${e.message}`, "error");
         } finally {
@@ -162,7 +191,6 @@ const LocationMap: React.FC = () => {
 
     return (
         <div className="h-full flex flex-col gap-2 sm:gap-4 overflow-hidden md:overflow-hidden">
-            {/* Header */}
             <div className="flex justify-between items-center bg-dnd-card p-3 sm:p-4 rounded-lg border border-gray-700 shrink-0">
                 <div className="flex items-center gap-3 sm:gap-4 min-w-0">
                     <div className="p-2 bg-gray-900 rounded border border-gray-700 shrink-0">
@@ -191,13 +219,12 @@ const LocationMap: React.FC = () => {
                         className="bg-gold-600 hover:bg-gold-500 text-black px-3 sm:px-4 py-2 rounded font-bold flex items-center gap-2 disabled:opacity-50 transition-all text-xs sm:text-sm"
                     >
                         {loading ? <Loader className="w-3 h-3 sm:w-4 sm:h-4 animate-spin"/> : <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4"/>}
-                        <span className="hidden xs:inline">Генерация</span>
+                        <span className="hidden xs:inline">{mapData ? 'Пересоздать' : 'Генерация'}</span>
                     </button>
                 </div>
             </div>
 
             <div className="flex-1 flex flex-col lg:flex-row gap-4 overflow-y-auto lg:overflow-hidden custom-scrollbar">
-                {/* Level Switcher */}
                 {mapData && (
                     <div className="flex lg:flex-col gap-2 shrink-0 bg-gray-900/50 p-2 rounded-lg border border-gray-800 h-fit overflow-x-auto no-scrollbar">
                         {mapData.levels.map((level, idx) => (
@@ -219,14 +246,13 @@ const LocationMap: React.FC = () => {
                     </div>
                 )}
 
-                {/* Map Area - Crucial min-height for mobile */}
                 <div className="flex-1 min-h-[400px] lg:min-h-0 bg-black rounded-lg border border-gray-800 overflow-auto flex items-start justify-start relative custom-scrollbar group scroll-smooth">
                     {!mapData && !loading && (
                         <div className="w-full h-full text-center text-gray-600 flex flex-col items-center justify-center gap-4 p-4">
                             <LayoutGrid className="w-16 h-16 sm:w-20 sm:h-20 opacity-10"/>
                             <div className="max-w-xs">
-                                <p className="text-sm font-serif mb-1 text-gray-400">Архитектор готов к работе</p>
-                                <p className="text-[10px] sm:text-xs italic opacity-50">Нажмите «Генерация», чтобы создать план текущей локации.</p>
+                                <p className="text-sm font-serif mb-1 text-gray-400">План для "{activeLocation?.name || 'локации'}" еще не создан</p>
+                                <p className="text-[10px] sm:text-xs italic opacity-50">Нажмите «Генерация», чтобы AI спроектировал тактическую карту.</p>
                             </div>
                         </div>
                     )}
@@ -240,8 +266,8 @@ const LocationMap: React.FC = () => {
                                 </div>
                             </div>
                             <div className="text-center">
-                                <span className="font-serif block text-base sm:text-lg animate-pulse">Возводим стены...</span>
-                                <span className="text-[10px] uppercase tracking-widest text-gray-500"> AI Processing </span>
+                                <span className="font-serif block text-base sm:text-lg animate-pulse">Архитектор работает...</span>
+                                <span className="text-[10px] uppercase tracking-widest text-gray-500"> AI Картография </span>
                             </div>
                         </div>
                     )}
@@ -294,11 +320,11 @@ const LocationMap: React.FC = () => {
                                                         </button>
                                                     ))}
                                                     
-                                                    {!isFogged && block === 'door' && <DoorOpen className="w-3 h-3 sm:w-4 sm:h-4 absolute inset-0 m-auto text-amber-500/40"/>}
-                                                    {!isFogged && block === 'stairs' && <ArrowUpCircle className="w-4 h-4 sm:w-5 sm:h-5 absolute inset-0 m-auto text-white/40"/>}
-                                                    {!isFogged && block === 'hazard' && <Flame className="w-3 h-3 sm:w-4 sm:h-4 absolute inset-0 m-auto text-red-500/40 animate-pulse"/>}
-                                                    {!isFogged && block === 'water' && <Waves className="w-3 h-3 sm:w-4 sm:h-4 absolute inset-0 m-auto text-blue-400/30"/>}
-                                                    {!isFogged && block === 'secret' && <Zap className="w-3 h-3 sm:w-4 sm:h-4 absolute inset-0 m-auto text-purple-400/40"/>}
+                                                    {!isFogged && block === 'door' && <DoorOpen className="w-3 h-3 sm:w-4 h-4 absolute inset-0 m-auto text-amber-500/40"/>}
+                                                    {!isFogged && block === 'stairs' && <ArrowUpCircle className="w-4 h-4 sm:w-5 h-5 absolute inset-0 m-auto text-white/40"/>}
+                                                    {!isFogged && block === 'hazard' && <Flame className="w-3 h-3 sm:w-4 h-4 absolute inset-0 m-auto text-red-500/40 animate-pulse"/>}
+                                                    {!isFogged && block === 'water' && <Waves className="w-3 h-3 sm:w-4 h-4 absolute inset-0 m-auto text-blue-400/30"/>}
+                                                    {!isFogged && block === 'secret' && <Zap className="w-3 h-3 sm:w-4 h-4 absolute inset-0 m-auto text-purple-400/40"/>}
                                                 </div>
                                             );
                                         })
@@ -308,7 +334,6 @@ const LocationMap: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Floating Map Controls */}
                     {mapData && (
                         <div className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 flex flex-col gap-2 sm:gap-3 z-30">
                             <button 
@@ -333,7 +358,6 @@ const LocationMap: React.FC = () => {
                     )}
                 </div>
 
-                {/* Sidebar: Details */}
                 <div className="w-full lg:w-80 flex flex-col gap-4 shrink-0 pb-10 lg:pb-0">
                     {selectedMarker && (
                         <div className="bg-dnd-card border-2 border-gold-600 rounded-lg p-4 animate-in slide-in-from-right-5 shadow-2xl">
@@ -371,14 +395,6 @@ const LocationMap: React.FC = () => {
                                         onClick={() => showToast("Лут передан в общий мешок", "success")}
                                     >
                                         <Coins className="w-3 h-3"/> Забрать
-                                    </button>
-                                )}
-                                {selectedMarker.type === 'npc' && (
-                                    <button 
-                                        className="flex-1 bg-blue-900/50 hover:bg-blue-800 text-blue-100 py-2 rounded text-[10px] font-bold border border-blue-700 uppercase transition-colors"
-                                        onClick={() => showToast("NPC добавлен в базу кампании", "success")}
-                                    >
-                                        <User className="w-3 h-3"/> Запомнить
                                     </button>
                                 )}
                             </div>

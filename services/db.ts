@@ -1,10 +1,11 @@
 
-import { SavedImage } from "../types";
+import { SavedImage, MapData } from "../types";
 
 const DB_NAME = 'dmc_database';
-const DB_VERSION = 2; // Incremented version to trigger upgrade for audio store
+const DB_VERSION = 3; // Incremented for maps store
 const STORE_IMAGES = 'images';
 const STORE_AUDIO = 'audio';
+const STORE_MAPS = 'maps';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -21,6 +22,9 @@ export const initDB = (): Promise<IDBDatabase> => {
       }
       if (!db.objectStoreNames.contains(STORE_AUDIO)) {
         db.createObjectStore(STORE_AUDIO, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(STORE_MAPS)) {
+        db.createObjectStore(STORE_MAPS, { keyPath: 'locationId' });
       }
     };
 
@@ -103,6 +107,40 @@ export const deleteAudioFromDB = async (id: string): Promise<void> => {
         const transaction = db.transaction([STORE_AUDIO], 'readwrite');
         const store = transaction.objectStore(STORE_AUDIO);
         const request = store.delete(id);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+};
+
+// Map Helpers
+export const saveMapToDB = async (locationId: string, mapData: MapData): Promise<void> => {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_MAPS], 'readwrite');
+        const store = transaction.objectStore(STORE_MAPS);
+        const request = store.put({ locationId, ...mapData, timestamp: Date.now() });
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+};
+
+export const getMapFromDB = async (locationId: string): Promise<MapData | null> => {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_MAPS], 'readonly');
+        const store = transaction.objectStore(STORE_MAPS);
+        const request = store.get(locationId);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error);
+    });
+};
+
+export const deleteMapFromDB = async (locationId: string): Promise<void> => {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_MAPS], 'readwrite');
+        const store = transaction.objectStore(STORE_MAPS);
+        const request = store.delete(locationId);
         request.onsuccess = () => resolve();
         request.onerror = () => reject(request.error);
     });

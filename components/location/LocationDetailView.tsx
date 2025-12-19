@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { MapPin, X, Save, Eye, Map, ImageIcon, Loader, Zap, Skull, ShieldAlert, PackagePlus, Users, Sparkles, Plus, Feather, ScrollText } from 'lucide-react';
-import { LocationData, SavedImage, Note, CampaignNpc, FullQuest } from '../../types';
+import { LocationData, SavedImage, Note, CampaignNpc, FullQuest, Tab } from '../../types';
 import SmartText from '../SmartText';
 import LootInteraction from '../LootInteraction';
 import { generateImage, generateScenarioDescription, generateRealityGlitch, generateLocationContent, generateExtendedDetails } from '../../services/polzaService';
@@ -55,6 +55,10 @@ const LocationDetailView: React.FC<LocationDetailViewProps> = ({
         } catch (e: any) { alert(e.message); } finally { setGenSection(null); }
     };
 
+    const openMap = () => {
+        window.dispatchEvent(new CustomEvent('dmc-switch-tab', { detail: Tab.MAP }));
+    };
+
     return (
         <div className="flex-1 flex flex-col h-full overflow-hidden">
             <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
@@ -62,7 +66,7 @@ const LocationDetailView: React.FC<LocationDetailViewProps> = ({
                     <div className="flex justify-between items-center mb-3">
                         <h1 className="text-2xl font-serif font-bold text-gold-500 truncate">{location.name}</h1>
                         <div className="flex gap-2">
-                            <button onClick={handleGenImage} disabled={imageLoading} className="p-2 bg-gray-800 rounded-full text-gold-500">
+                            <button onClick={handleGenImage} disabled={imageLoading} className="p-2 bg-gray-800 rounded-full text-gold-500" title="Генерировать арт">
                                 {imageLoading ? <Loader className="animate-spin w-4 h-4"/> : <ImageIcon className="w-4 h-4"/>}
                             </button>
                             <button onClick={onClose} className="p-2 bg-gray-800 rounded-full text-gray-400"><X className="w-4 h-4" /></button>
@@ -77,8 +81,9 @@ const LocationDetailView: React.FC<LocationDetailViewProps> = ({
                         </div>
                     )}
                     <SmartText content={`${location.atmosphere} — ${location.description}`} className="text-sm text-gray-300 border-l-2 border-gold-500 pl-3 py-1" />
-                    <div className="grid grid-cols-3 gap-2 mt-4">
+                    <div className="grid grid-cols-4 gap-2 mt-4">
                         <button onClick={handleGenAtmosphere} className="bg-gray-800 hover:bg-gray-700 py-2 rounded text-xs flex justify-center items-center gap-2"><Eye className="w-3 h-3"/> Описать</button>
+                        <button onClick={openMap} className="bg-indigo-900/40 hover:bg-indigo-800 py-2 rounded text-xs flex justify-center items-center gap-2 text-indigo-200 border border-indigo-500/30"><Map className="w-3 h-3"/> Карта</button>
                         <button className="bg-purple-900/40 hover:bg-purple-800 py-2 rounded text-xs flex justify-center items-center gap-2 text-purple-200"><Zap className="w-3 h-3"/> Аномалия</button>
                         <button className="bg-red-900/40 hover:bg-red-800 py-2 rounded text-xs flex justify-center items-center gap-2 text-red-100"><Skull className="w-3 h-3"/> Бой</button>
                     </div>
