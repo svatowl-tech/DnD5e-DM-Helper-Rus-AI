@@ -26,79 +26,72 @@ const GlobalPlayer: React.FC = () => {
     }, []);
 
     return (
-        <div className="fixed bottom-20 md:bottom-0 left-0 right-0 h-16 md:h-16 bg-gray-900/95 border-t border-gold-600/30 backdrop-blur-md flex items-center px-4 justify-between select-none z-40 shadow-[0_-4px_10px_rgba(0,0,0,0.5)] md:shadow-none">
+        <div className="fixed bottom-16 md:bottom-0 left-0 right-0 h-14 md:h-16 bg-gray-900/98 border-t border-gold-600/20 backdrop-blur-lg flex items-center px-4 justify-between select-none z-40 shadow-[0_-2px_15px_rgba(0,0,0,0.4)] md:shadow-none">
             
-            {/* Left: Info */}
+            {/* Left: Track Info */}
             <div className="flex items-center gap-3 flex-1 overflow-hidden min-w-0 mr-2">
                 <div className={`w-2 h-2 rounded-full shrink-0 ${isLoading ? 'bg-blue-500 animate-pulse' : isPlaying ? 'bg-green-500 animate-pulse' : 'bg-gray-600'}`} />
                 
                 <div className="flex flex-col justify-center overflow-hidden">
                     {currentTrack ? (
                         <>
-                            <div className="font-bold text-gold-500 text-sm truncate">{currentTrack.title}</div>
-                            <div className="text-xs text-gray-500 truncate">{currentTrack.artist || 'Unknown Artist'}</div>
+                            <div className="font-bold text-gold-500 text-xs sm:text-sm truncate leading-tight">{currentTrack.title}</div>
+                            <div className="text-[10px] text-gray-500 truncate leading-tight">{currentTrack.artist || 'Неизвестен'}</div>
                         </>
                     ) : (
-                        <span className="text-gray-600 italic text-sm">Нет активного трека</span>
+                        <span className="text-gray-600 italic text-xs">Трек не выбран</span>
                     )}
-                    {error && <div className="flex items-center gap-1 text-xs text-red-500 mt-0.5"><AlertCircle className="w-3 h-3"/> Ошибка</div>}
                 </div>
             </div>
 
-            {/* Right: Controls */}
-            <div className="flex items-center gap-1 md:gap-2 shrink-0">
+            {/* Center/Right: Controls */}
+            <div className="flex items-center gap-0.5 sm:gap-2 shrink-0">
                 <button 
                     onClick={toggleAutoDJ}
-                    className={`p-3 rounded-full hover:bg-gray-800 transition-colors hidden sm:flex ${isAutoDJEnabled ? 'text-gold-500' : 'text-gray-500 hover:text-white'}`}
-                    title={isAutoDJEnabled ? "Авто-DJ Включен (Подбирает музыку под сцену)" : "Авто-DJ Выключен"}
+                    className={`p-2 rounded-full hover:bg-gray-800 transition-colors hidden sm:flex ${isAutoDJEnabled ? 'text-gold-500' : 'text-gray-500'}`}
+                    title="Auto-DJ"
                 >
-                    <Sparkles className="w-5 h-5"/>
-                </button>
-
-                <button 
-                    onClick={toggleShuffle}
-                    className={`p-3 rounded-full hover:bg-gray-800 transition-colors ${isShuffle ? 'text-gold-500' : 'text-gray-500 hover:text-white'} hidden sm:flex`}
-                >
-                    <Shuffle className="w-5 h-5"/>
+                    <Sparkles className="w-4 h-4"/>
                 </button>
 
                 <button 
                     onClick={playPrev} 
                     disabled={!currentTrack}
-                    className="p-3 text-gray-400 hover:text-white hover:bg-gray-800 rounded-full transition-colors disabled:opacity-30"
+                    className="p-2 text-gray-400 hover:text-white disabled:opacity-20 transition-opacity"
                 >
-                    <SkipBack className="w-6 h-6 fill-current"/>
+                    <SkipBack className="w-5 h-5 fill-current"/>
                 </button>
                 
                 <button 
                     onClick={togglePlay}
                     disabled={!currentTrack} 
-                    className={`p-3 rounded-full transition-all flex items-center justify-center mx-1 ${isPlaying ? 'bg-gold-600 text-black' : 'bg-gray-800 text-white'}`}
+                    className={`p-2.5 rounded-full transition-all flex items-center justify-center mx-1 shadow-lg active:scale-90 ${isPlaying ? 'bg-gold-600 text-black' : 'bg-gray-800 text-white border border-gray-700'}`}
                 >
-                    {isLoading ? <Loader className="w-6 h-6 animate-spin"/> : isPlaying ? <Pause className="w-6 h-6 fill-current"/> : <Play className="w-6 h-6 fill-current ml-0.5"/>}
+                    {isLoading ? <Loader className="w-5 h-5 animate-spin"/> : isPlaying ? <Pause className="w-5 h-5 fill-current"/> : <Play className="w-5 h-5 fill-current ml-0.5"/>}
                 </button>
 
                 <button 
                     onClick={playNext} 
                     disabled={!currentTrack}
-                    className="p-3 text-gray-400 hover:text-white hover:bg-gray-800 rounded-full transition-colors disabled:opacity-30"
+                    className="p-2 text-gray-400 hover:text-white disabled:opacity-20 transition-opacity"
                 >
-                    <SkipForward className="w-6 h-6 fill-current"/>
+                    <SkipForward className="w-5 h-5 fill-current"/>
                 </button>
 
+                {/* Volume Control - Desktop only or expanded */}
                 <div className="relative ml-1 hidden sm:block" ref={volumeRef}>
                     <button 
                         onClick={() => setShowVolume(!showVolume)}
-                        className={`p-3 rounded-full hover:bg-gray-800 transition-colors ${showVolume ? 'text-gold-500' : 'text-gray-400 hover:text-white'}`}
+                        className={`p-2 rounded-full hover:bg-gray-800 transition-colors ${showVolume ? 'text-gold-500' : 'text-gray-400'}`}
                     >
                         {volume === 0 ? <VolumeX className="w-5 h-5"/> : <Volume2 className="w-5 h-5"/>}
                     </button>
 
                     {showVolume && (
-                        <div className="absolute bottom-full right-0 mb-2 p-4 bg-gray-900 border border-gray-700 rounded-lg shadow-xl w-12 flex flex-col items-center gap-3 animate-in fade-in zoom-in-95 origin-bottom-right">
-                            <div className="h-32 w-2 bg-gray-700 rounded-full relative">
+                        <div className="absolute bottom-full right-0 mb-3 p-4 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-12 flex flex-col items-center gap-3 animate-in fade-in zoom-in-95 origin-bottom-right">
+                            <div className="h-32 w-2 bg-gray-800 rounded-full relative overflow-hidden">
                                 <div 
-                                    className="absolute bottom-0 left-0 right-0 bg-gold-500 rounded-full"
+                                    className="absolute bottom-0 left-0 right-0 bg-gold-500 transition-all duration-100"
                                     style={{ height: `${volume * 100}%` }}
                                 />
                                 <input 
