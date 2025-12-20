@@ -1,6 +1,15 @@
+
 {
   "outputDirectory": "dist",
   "rewrites": [
+    {
+      "source": "/service-worker.js",
+      "destination": "/service-worker.js"
+    },
+    {
+      "source": "/manifest.json",
+      "destination": "/manifest.json"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"

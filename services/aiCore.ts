@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { AiProvider, CampaignSettings } from "../types";
 import { ECHOES_CAMPAIGN_PROMPT } from "../data/prompts/echoesPrompts";
@@ -42,8 +43,9 @@ const STORAGE_KEY_MODE = 'dmc_campaign_mode';
 const STORAGE_KEY_API_POLZA = 'dmc_polza_api_key';
 const STORAGE_KEY_API_OPENROUTER = 'dmc_openrouter_api_key';
 
-// Fix: Always use const ai = new GoogleGenAI({apiKey: process.env.API_KEY});.
-export const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Helper function to get a fresh AI client instance
+// This prevents crashes on load if process.env.API_KEY is missing
+export const getAiClient = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 function safeHeaderValue(val: any): string {
     if (val === undefined || val === null) return "";
@@ -107,15 +109,11 @@ export const cleanText = (text: string): string => {
     return text.trim();
 };
 
-/**
- * Standard request router supporting multiple providers via REST
- */
 export async function makeRequest(messages: Array<{role: string, content: string}>, jsonMode: boolean = false): Promise<string> {
     const provider = getAiProvider();
     const model = getActiveModel();
     const baseUrl = provider === 'openrouter' ? OPENROUTER_BASE_URL : POLZA_BASE_URL;
     
-    // Key hierarchy: Custom Key > process.env.API_KEY
     let apiKey = getCustomApiKey(provider) || process.env.API_KEY || '';
     apiKey = apiKey.replace(/[^\x21-\x7E]/g, "").trim();
 
@@ -140,7 +138,6 @@ export async function makeRequest(messages: Array<{role: string, content: string
     };
 
     if (jsonMode) {
-        // Some providers support response_format, some need it in prompt
         body.response_format = { type: "json_object" };
     }
 

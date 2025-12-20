@@ -1,6 +1,6 @@
 
 import { CampaignNpc, BestiaryEntry, ChatMessage } from "../types";
-import { withRetry, cleanText, getCampaignContext, getActiveImageModel, makeRequest, ai } from "./aiCore";
+import { withRetry, cleanText, getCampaignContext, getActiveImageModel, makeRequest, getAiClient } from "./aiCore";
 
 /**
  * Generates an NPC using the configured AI provider (Polza/OpenRouter).
@@ -78,7 +78,7 @@ export const generateItemCustomization = async (name: string, category: string, 
 
 export const chatWithNpc = async (npc: CampaignNpc, messages: ChatMessage[]): Promise<string> => {
     const context = getCampaignContext();
-    const systemPrompt = `Ты отыгрываешь роль NPC в D&D. Имя: ${npc.name}, Раса: ${npc.race}. Описание: ${npc.description}. ${context}`;
+    const systemPrompt = `Ты отыгрываешь роль NPC in D&D. Имя: ${npc.name}, Раса: ${npc.race}. Описание: ${npc.description}. ${context}`;
     const userPrompt = messages.map(m => `${m.role === 'user' ? 'Игрок' : npc.name}: ${m.content}`).join('\n');
     
     return withRetry(async () => {
@@ -90,12 +90,12 @@ export const chatWithNpc = async (npc: CampaignNpc, messages: ChatMessage[]): Pr
 };
 
 /**
- * Image generation still uses Gemini SDK as it's a specific modality 
- * not typically supported by standard chat completion proxies.
+ * Image generation still uses Gemini SDK.
  */
 export const generateImage = async (imagePrompt: string, ratio: string = "1:1"): Promise<string> => {
     const model = getActiveImageModel();
-    const response = await ai.models.generateContent({
+    const aiClient = getAiClient();
+    const response = await aiClient.models.generateContent({
         model: model,
         contents: imagePrompt.substring(0, 950),
         config: {
