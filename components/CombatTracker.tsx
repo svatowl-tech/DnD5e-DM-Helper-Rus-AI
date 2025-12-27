@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { Combatant, EntityType, LogEntry, PartyMember, Condition, BestiaryEntry } from '../types';
 import { CONDITIONS, SAMPLE_COMBATANTS } from '../constants';
-import { Shield, Heart, Sword, Skull, Play, RefreshCw, Plus, X, Trash2, Users, BookOpen, Coins, Loader, Flag, Zap, Activity, HelpCircle, Trophy, Star, Dices, Compass, ArrowLeft, Check, Book, Sparkles, Save, UserPlus, Feather, RotateCcw, Minus, Swords } from 'lucide-react';
+import { Skull, RefreshCw, Plus, X, BookOpen, Coins, Loader, Flag, Trophy, Star, Dices, Compass, Sparkles, Save, UserPlus, Feather, Swords, Shield, Book, Activity } from 'lucide-react';
 import BestiaryBrowser from './BestiaryBrowser';
 import { generateCombatLoot, generateMonster } from '../services/polzaService';
 import { calculateEncounterDifficulty, EncounterResult } from '../services/encounterService';
@@ -9,54 +10,12 @@ import { useAudio } from '../contexts/AudioContext';
 import { useToast } from '../contexts/ToastContext';
 import SmartText from './SmartText';
 import LootInteraction from './LootInteraction';
+import ActionRenderer from './ActionRenderer';
+import CombatantCard from './combat/CombatantCard';
 
 interface CombatTrackerProps {
   addLog: (entry: LogEntry) => void;
 }
-
-// Helper to parse text and make dice clickable
-const ActionRenderer: React.FC<{ text: string, sourceName: string, onRoll: (expr: string, result: number, total: number) => void }> = ({ text, sourceName, onRoll }) => {
-    const diceRegex = /(\d+d\d+(?:\s*[+\-]\s*\d+)?)/g;
-    const parts = text.split(diceRegex);
-    
-    const rollDice = (expression: string) => {
-        try {
-            const cleanExpr = expression.replace(/\s/g, '');
-            const [dicePart, modPart] = cleanExpr.split(/[+\-]/);
-            const [count, sides] = dicePart.split('d').map(Number);
-            const modifier = modPart ? Number(modPart) : 0;
-            const isNegative = cleanExpr.includes('-');
-            
-            let total = 0;
-            for (let i = 0; i < count; i++) {
-                total += Math.floor(Math.random() * sides) + 1;
-            }
-            const finalTotal = isNegative ? total - modifier : total + modifier;
-            onRoll(expression, finalTotal, finalTotal);
-        } catch (e) {
-            console.error("Dice parse error", e);
-        }
-    };
-
-    return (
-        <span>
-            {parts.map((part, i) => {
-                if (part.match(diceRegex)) {
-                    return (
-                        <button 
-                            key={i}
-                            onClick={(e) => { e.stopPropagation(); rollDice(part); }}
-                            className="inline-flex items-center gap-1 px-2 py-1 mx-1 bg-indigo-900/80 hover:bg-indigo-600 border border-indigo-500/50 rounded text-indigo-100 font-mono text-sm font-bold cursor-pointer transition-colors active:scale-95 touch-manipulation"
-                        >
-                            <Dices className="w-3 h-3"/> {part}
-                        </button>
-                    );
-                }
-                return <span key={i} dangerouslySetInnerHTML={{__html: part}} />;
-            })}
-        </span>
-    );
-};
 
 const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
   const { autoPlayMusic } = useAudio();
@@ -93,9 +52,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
   const [viewingStatBlock, setViewingStatBlock] = useState<BestiaryEntry | null>(null);
   const [generatingStats, setGeneratingStats] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ message: string, onConfirm: () => void } | null>(null);
-
-  // HP Management State
-  const [hpInputs, setHpInputs] = useState<Record<string, string>>({});
 
   const [newCombatant, setNewCombatant] = useState<Partial<Combatant>>({
     name: '', initiative: 10, hp: 10, maxHp: 10, ac: 10, type: EntityType.MONSTER
@@ -192,20 +148,16 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
     setTurnIndex(nextIndex);
     setActiveId(combatants[nextIndex].id);
     
-    // Scroll to active combatant (optional, but good UX)
     const el = document.getElementById(`combatant-${combatants[nextIndex].id}`);
     if(el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   };
 
-  const applyDamageOrHeal = (id: string, type: 'damage' | 'heal') => {
-      const value = parseInt(hpInputs[id] || '0');
-      if (!value || isNaN(value)) return;
-
+  const applyDamageOrHeal = (id: string, type: 'damage' | 'heal', amount: number) => {
       const multiplier = type === 'damage' ? -1 : 1;
       
       setCombatants(prev => prev.map(c => {
         if (c.id === id) {
-          const newHp = Math.max(0, Math.min(c.maxHp, c.hp + (value * multiplier)));
+          const newHp = Math.max(0, Math.min(c.maxHp, c.hp + (amount * multiplier)));
           if (newHp === 0 && c.hp > 0) {
                showToast(`${c.name} теряет сознание!`, 'warning');
           }
@@ -213,13 +165,6 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
         }
         return c;
       }));
-      
-      // Clear input
-      setHpInputs(prev => ({ ...prev, [id]: '' }));
-  };
-
-  const handleHpInputChange = (id: string, val: string) => {
-      setHpInputs(prev => ({ ...prev, [id]: val }));
   };
 
   const toggleCondition = (combatantId: string, condition: Condition) => {
@@ -723,7 +668,7 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
             <div className="w-[1px] h-6 bg-gray-700 mx-1"></div>
             <button onClick={generateLootForEncounter} disabled={lootLoading} className="bg-yellow-900/50 hover:bg-yellow-800 text-yellow-200 flex items-center gap-1 text-xs px-3 py-2 rounded border border-yellow-800 whitespace-nowrap"><Coins className="w-3 h-3" /> Лут</button>
             <button onClick={() => setShowBestiary(true)} className="bg-indigo-900/50 hover:bg-indigo-800 text-indigo-200 flex items-center gap-1 text-xs px-3 py-2 rounded border border-indigo-800 whitespace-nowrap"><BookOpen className="w-3 h-3" /> Бестиарий</button>
-            <button onClick={loadParty} className="bg-blue-900/50 hover:bg-blue-800 text-blue-200 flex items-center gap-1 text-xs px-3 py-2 rounded border border-blue-800 whitespace-nowrap"><Users className="w-3 h-3" /> Группа</button>
+            <button onClick={loadParty} className="bg-blue-900/50 hover:bg-blue-800 text-blue-200 flex items-center gap-1 text-xs px-3 py-2 rounded border border-blue-800 whitespace-nowrap"><Shield className="w-3 h-3" /> Группа</button>
             <div className="flex-1"></div>
             <button onClick={sortCombatants} className="text-gray-400 hover:text-white p-2 rounded hover:bg-gray-800"><RefreshCw className="w-4 h-4" /></button>
         </div>
@@ -731,112 +676,21 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
 
       {/* Combatants List */}
       <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar pb-20">
-        {combatants.map((c) => {
-          const isActive = c.id === activeId;
-          const isDead = c.hp === 0;
-          const isBloodied = c.hp <= c.maxHp / 2 && !isDead;
-          const isEditingConditions = editingConditionsId === c.id;
-          const currentConditions = c.conditions || [];
-
-          return (
-            <div id={`combatant-${c.id}`} key={c.id} className={`relative p-3 rounded-lg border flex flex-col gap-3 ${isActive ? 'border-gold-500 bg-gray-900 ring-1 ring-gold-500/30' : 'border-gray-700 bg-dnd-card'} ${isBloodied ? 'shadow-[inset_0_0_10px_rgba(220,38,38,0.2)]' : ''} transition-all`}>
-                <div className="flex items-center justify-between gap-3">
-                     <div className="flex items-center gap-3 min-w-0">
-                         <div className={`flex flex-col items-center justify-center w-10 h-10 rounded border shrink-0 ${isActive ? 'bg-gold-600 text-black border-gold-500' : 'bg-gray-800 border-gray-600 text-white'}`}>
-                            <span className="text-[9px] opacity-70 uppercase font-bold">Иниц</span>
-                            <span className="font-bold text-lg leading-none">{c.initiative}</span>
-                         </div>
-                         <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                                <h4 className={`font-serif font-bold text-lg truncate ${isDead ? 'text-red-500 line-through' : isBloodied ? 'text-red-400' : 'text-gray-100'}`}>{c.name}</h4>
-                                {isDead && <Skull className="w-4 h-4 text-red-500" />}
-                                {isBloodied && !isDead && <div className="text-[10px] bg-red-900 text-red-200 px-1 rounded">Ранен</div>}
-                            </div>
-                            <div className="text-xs text-gray-400 flex gap-2 items-center mt-0.5">
-                               <span className="flex items-center gap-1 bg-black/30 px-1.5 rounded"><Shield className="w-3 h-3" /> {c.ac}</span>
-                               {c.type === EntityType.MONSTER && <button onClick={() => openStatBlock(c)} className="text-gold-500 hover:text-white"><Book className="w-3 h-3"/></button>}
-                            </div>
-                         </div>
-                     </div>
-                     
-                     <div className="flex gap-2 shrink-0">
-                        <button onClick={() => setEditingConditionsId(isEditingConditions ? null : c.id)} className={`p-2 rounded border ${currentConditions.length > 0 ? 'text-red-400 border-red-900 bg-red-900/20' : 'text-gray-500 border-gray-700 bg-gray-800'}`}>
-                            <Activity className="w-5 h-5"/>
-                        </button>
-                        <button onClick={() => removeCombatant(c.id)} className="text-gray-600 hover:text-red-500 p-2 border border-transparent hover:bg-gray-800 rounded">
-                            <X className="w-5 h-5" />
-                        </button>
-                     </div>
-                </div>
-
-                {/* HP Control Row - Enhanced */}
-                <div className="flex items-center gap-2 bg-black/20 p-1 rounded-lg relative">
-                    <div className="flex flex-col items-center flex-1 mx-2 relative z-10">
-                         <div className="flex items-end gap-1 mb-1">
-                            <span className={`text-2xl font-mono font-bold leading-none ${isDead ? 'text-gray-500' : isBloodied ? 'text-red-400' : 'text-white'}`}>{c.hp}</span>
-                            <span className="text-gray-500 text-xs font-bold mb-1">/ {c.maxHp}</span>
-                        </div>
-                        <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden border border-gray-700">
-                            <div className={`h-full transition-all duration-300 ${c.hp < c.maxHp / 2 ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${Math.min(100, (c.hp / c.maxHp) * 100)}%` }} />
-                        </div>
-                    </div>
-                    
-                    {/* Quick Damage/Heal Inputs */}
-                    <div className="flex items-center gap-1 bg-gray-900 p-1 rounded border border-gray-700">
-                        <input 
-                            type="number" 
-                            className="w-12 bg-transparent text-white text-center font-bold outline-none text-sm" 
-                            placeholder="0"
-                            value={hpInputs[c.id] || ''}
-                            onChange={(e) => handleHpInputChange(c.id, e.target.value)}
-                        />
-                        <button 
-                            onClick={() => applyDamageOrHeal(c.id, 'damage')}
-                            className="p-1.5 bg-red-900/50 hover:bg-red-600 text-red-200 hover:text-white rounded transition-colors"
-                            title="Нанести урон"
-                        >
-                            <Sword className="w-4 h-4"/>
-                        </button>
-                        <button 
-                            onClick={() => applyDamageOrHeal(c.id, 'heal')}
-                            className="p-1.5 bg-green-900/50 hover:bg-green-600 text-green-200 hover:text-white rounded transition-colors"
-                            title="Исцелить"
-                        >
-                            <Heart className="w-4 h-4"/>
-                        </button>
-                    </div>
-                </div>
-
-                {/* Conditions List */}
-                {currentConditions.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                        {currentConditions.map(cond => (
-                            <button key={cond.id} onClick={() => openConditionInfo(cond.id, cond.name)} className="px-2 py-1 rounded bg-red-900/40 border border-red-500 text-xs text-red-100 flex items-center gap-1">
-                                <Activity className="w-3 h-3"/> {cond.name.split(' (')[0]}
-                            </button>
-                        ))}
-                    </div>
-                )}
-
-                {/* Conditions Selector Dropdown */}
-                {isEditingConditions && (
-                    <div className="bg-gray-900 border border-gold-500 rounded shadow-xl p-3 animate-in fade-in slide-in-from-top-2">
-                        <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto custom-scrollbar">
-                            {CONDITIONS.map(cond => {
-                                const isActiveCond = currentConditions.some(active => active.id === cond.id);
-                                return (
-                                    <button key={cond.id} onClick={() => toggleCondition(c.id, cond)} className={`text-left text-xs px-3 py-2 rounded border flex items-center justify-between ${isActiveCond ? 'bg-red-900/40 border-red-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}>
-                                        <span>{cond.name.split(' (')[0]}</span>
-                                        {isActiveCond && <Check className="w-3 h-3 text-red-400"/>}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-            </div>
-          );
-        })}
+        {combatants.map((c) => (
+            <CombatantCard
+                key={c.id}
+                combatant={c}
+                isActive={c.id === activeId}
+                isEditingConditions={editingConditionsId === c.id}
+                onToggleConditionEdit={setEditingConditionsId}
+                onRemove={removeCombatant}
+                onUpdateHp={applyDamageOrHeal}
+                onToggleCondition={toggleCondition}
+                onOpenConditionInfo={openConditionInfo}
+                onOpenStatBlock={openStatBlock}
+                onRoll={handleActionRoll}
+            />
+        ))}
         {combatants.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-gray-500 opacity-60">
                 <Swords className="w-16 h-16 mb-4"/>
@@ -872,7 +726,8 @@ const CombatTracker: React.FC<CombatTrackerProps> = ({ addLog }) => {
                 onClick={nextTurn}
                 className="bg-dnd-red hover:bg-red-700 text-white px-6 py-3 rounded-lg font-bold shadow-lg flex items-center gap-2 active:scale-95 transition-transform"
             >
-                <Play className="w-6 h-6 fill-current" /> <span className="hidden sm:inline">След. ход</span>
+                <div className="w-6 h-6 bg-white mask-play"></div>
+                <span className="hidden sm:inline">След. ход</span>
            </button>
       </div>
     </div>
