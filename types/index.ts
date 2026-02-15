@@ -19,6 +19,16 @@ export interface InventoryItem {
     description?: string;
 }
 
+export interface TrackedItem extends InventoryItem {
+    category?: string; // Weapon, Armor, Potion, etc.
+    rarity?: string;
+    value?: string;
+    status: 'unassigned' | 'party' | 'npc' | 'location' | 'stash';
+    ownerId?: string; // ID of the entity holding it
+    ownerName?: string; // Name for display
+    locationName?: string; // Name of location if status is location
+}
+
 export interface PartyMember {
     id: string;
     name: string;
@@ -45,9 +55,6 @@ export interface PartyManagerProps {
     addLog: (entry: any) => void;
 }
 
-/**
- * Fix: Added missing QuestTrackerProps export
- */
 export interface QuestTrackerProps {
     addLog: (entry: any) => void;
 }
@@ -72,9 +79,6 @@ export interface GeneratorsProps {
 
 export type AiProvider = 'polza' | 'openrouter';
 
-/**
- * Fix: Added missing CampaignMode type
- */
 export type CampaignMode = 'standard' | 'echoes';
 
 export interface RuleSection {

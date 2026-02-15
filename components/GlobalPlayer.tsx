@@ -2,18 +2,25 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   Play, Pause, SkipForward, SkipBack, Volume2, 
-  Music, Loader, AlertCircle, VolumeX, Shuffle, Sparkles
+  Music, Loader, VolumeX, Sparkles, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { useAudio } from '../contexts/AudioContext';
 
 const GlobalPlayer: React.FC = () => {
     const { 
-        currentTrack, isPlaying, isLoading, error, volume, isShuffle, isAutoDJEnabled,
-        togglePlay, playNext, playPrev, setVolume, toggleShuffle, toggleAutoDJ 
+        currentTrack, isPlaying, isLoading, volume, isAutoDJEnabled,
+        togglePlay, playNext, playPrev, setVolume, toggleAutoDJ 
     } = useAudio();
 
+    const [isCollapsed, setIsCollapsed] = useState(() => {
+        return localStorage.getItem('dmc_player_collapsed') === 'true';
+    });
     const [showVolume, setShowVolume] = useState(false);
     const volumeRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        localStorage.setItem('dmc_player_collapsed', isCollapsed.toString());
+    }, [isCollapsed]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -25,9 +32,33 @@ const GlobalPlayer: React.FC = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    // Collapsed handle
+    if (isCollapsed) {
+        return (
+            <div className="h-6 md:h-8 bg-gray-900/90 border-t border-gold-600/20 backdrop-blur-md flex items-center px-4 justify-between select-none transition-all cursor-pointer hover:bg-gray-800 shrink-0"
+                 onClick={() => setIsCollapsed(false)}>
+                <div className="flex-1 flex items-center gap-2 overflow-hidden">
+                    <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isPlaying ? 'bg-green-500 animate-pulse' : 'bg-gray-600'}`} />
+                    <span className="text-[10px] text-gray-400 truncate font-medium">
+                        {currentTrack ? `Играет: ${currentTrack.title}` : 'Плеер свернут'}
+                    </span>
+                </div>
+                <ChevronUp className="w-3 h-3 text-gold-500" />
+            </div>
+        );
+    }
+
     return (
-        <div className="fixed bottom-16 md:bottom-0 left-0 right-0 h-14 md:h-16 bg-gray-900/98 border-t border-gold-600/20 backdrop-blur-lg flex items-center px-4 justify-between select-none z-40 shadow-[0_-2px_15px_rgba(0,0,0,0.4)] md:shadow-none">
+        <div className="relative h-14 md:h-16 bg-gray-900/98 border-t border-gold-600/30 backdrop-blur-lg flex items-center px-4 justify-between select-none shadow-[0_-4px_12px_rgba(0,0,0,0.5)] transition-all shrink-0">
             
+            {/* Collapse Toggle */}
+            <button 
+                onClick={() => setIsCollapsed(true)}
+                className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gray-900 border border-gold-600/30 rounded-full p-0.5 text-gray-500 hover:text-gold-500 transition-colors z-50 md:hidden"
+            >
+                <ChevronDown className="w-4 h-4" />
+            </button>
+
             {/* Left: Track Info */}
             <div className="flex items-center gap-3 flex-1 overflow-hidden min-w-0 mr-2">
                 <div className={`w-2 h-2 rounded-full shrink-0 ${isLoading ? 'bg-blue-500 animate-pulse' : isPlaying ? 'bg-green-500 animate-pulse' : 'bg-gray-600'}`} />
@@ -78,7 +109,7 @@ const GlobalPlayer: React.FC = () => {
                     <SkipForward className="w-5 h-5 fill-current"/>
                 </button>
 
-                {/* Volume Control - Desktop only or expanded */}
+                {/* Volume Control - Desktop only */}
                 <div className="relative ml-1 hidden sm:block" ref={volumeRef}>
                     <button 
                         onClick={() => setShowVolume(!showVolume)}

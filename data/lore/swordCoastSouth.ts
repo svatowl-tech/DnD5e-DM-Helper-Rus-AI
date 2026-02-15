@@ -1,5 +1,6 @@
 
 import { LoreEntry } from "../../types";
+import { BALDURS_GATE_LOCATIONS, CANDLEKEEP_LOCATIONS, DAGGERFORD_LOCATIONS, MERE_OF_DEAD_MEN_LOCATIONS } from "../sublocations/swordCoastSouthLocations";
 
 export const LORE_SWORD_COAST_SOUTH: LoreEntry[] = [
   {
@@ -30,7 +31,8 @@ export const LORE_SWORD_COAST_SOUTH: LoreEntry[] = [
             { title: "Война гильдий", description: "Выбрать сторону в конфликте между Гильдией Воров и Зентарим за контроль над портом." },
             { title: "Возрождение Баала", description: "Остановить культистов, пытающихся провести ритуал воскрешения в тайном храме." },
             { title: "Заговор Абсолюта", description: "Исследовать подземные пещеры и предотвратить вторжение иллитидов." }
-        ]
+        ],
+        subLocations: BALDURS_GATE_LOCATIONS
       },
       {
         name: "Кэндлкип (Candlekeep)",
@@ -41,7 +43,8 @@ export const LORE_SWORD_COAST_SOUTH: LoreEntry[] = [
         secrets: ["Под библиотекой скрыты пророчества Алаундо.", "Есть секретные катакомбы."],
         monsters: ["Ghost", "Arcanaloth", "Animated Armor"],
         loot: ["Редчайшие книги", "Свитки 9 уровня", "Амулеты"],
-        quests: []
+        quests: [],
+        subLocations: CANDLEKEEP_LOCATIONS
       },
       {
         name: "Даггерфорд (Daggerford)",
@@ -52,7 +55,8 @@ export const LORE_SWORD_COAST_SOUTH: LoreEntry[] = [
         secrets: ["В городе скрываются оборотни.", "Зентарим пытается захватить совет."],
         monsters: ["Werewolf", "Gnoll", "Red Wizard"],
         loot: ["Товары", "Зелья"],
-        quests: []
+        quests: [],
+        subLocations: DAGGERFORD_LOCATIONS
       },
       {
         name: "Болото Мёртвых (Mere of Dead Men)",
@@ -63,7 +67,8 @@ export const LORE_SWORD_COAST_SOUTH: LoreEntry[] = [
         secrets: ["Здесь живут черные драконы-близнецы Воарагаммантар и Ваэрваэрендор.", "В руинах замков скрыты сокровища павших королей."],
         monsters: ["Lizardfolk", "Bullywug", "Black Dragon", "Giant Toad"],
         loot: ["Драконья чешуя", "Затонувшие доспехи", "Древние монеты"],
-        quests: []
+        quests: [],
+        subLocations: MERE_OF_DEAD_MEN_LOCATIONS
       },
       {
         name: "Высокое Болото (High Moor)",

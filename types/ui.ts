@@ -6,6 +6,7 @@ export enum Tab {
     QUESTS = 'quests',
     NPCS = 'npcs',
     GENERATORS = 'generators',
+    EQUIPMENT = 'equipment',
     SCREEN = 'screen',
     PARTY = 'party',
     SOUNDS = 'sounds',

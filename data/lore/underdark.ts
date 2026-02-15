@@ -1,5 +1,6 @@
 
 import { LoreEntry } from "../../types";
+import { MENZOBERRANZAN_LOCATIONS, GRACKLSTUGH_LOCATIONS } from "../sublocations/underdarkLocations";
 
 export const LORE_UNDERDARK: LoreEntry[] = [
   {
@@ -21,7 +22,8 @@ export const LORE_UNDERDARK: LoreEntry[] = [
         secrets: ["Дом Баенре связан с демонами.", "Рабы готовят восстание.", "Академия Магии скрывает опасные секреты."],
         monsters: ["Drow Priestess", "Drider", "Yochlol", "Giant Spider"],
         loot: ["Адамантин", "Яд дроу", "Паутинная броня", "Пивафви"],
-        quests: [{ title: "Побег", description: "Выбраться на поверхность из плена." }]
+        quests: [{ title: "Побег", description: "Выбраться на поверхность из плена." }],
+        subLocations: MENZOBERRANZAN_LOCATIONS
       },
       {
         name: "Граклстуг (Gracklstugh)",
@@ -35,7 +37,8 @@ export const LORE_UNDERDARK: LoreEntry[] = [
         secrets: ["Дракон хочет захватить власть.", "Деро влияют на короля.", "Тайный культ Думатена."],
         monsters: ["Duergar", "Red Dragon", "Derro", "Stone Giant"],
         loot: ["Дуэргарское оружие +2", "Ошейники подчинения", "Драгоценные камни"],
-        quests: [{ title: "Драконий заговор", description: "Помочь дракону или королю." }]
+        quests: [{ title: "Драконий заговор", description: "Помочь дракону или королю." }],
+        subLocations: GRACKLSTUGH_LOCATIONS
       },
       {
         name: "Блингденстоун (Blingdenstone)",

@@ -1,5 +1,6 @@
 
 import { LoreEntry } from "../../types";
+import { ATHKATLA_LOCATIONS, MURANN_LOCATIONS } from "../sublocations/southLocations";
 
 export const LORE_AMN: LoreEntry[] = [
   {
@@ -21,7 +22,8 @@ export const LORE_AMN: LoreEntry[] = [
             secrets: ["Теневые Воры фактически управляют городом.", "Под кладбищем находится город вампиров.", "Есть портал в План Фейри."],
             monsters: ["Mage Hunter", "Thief", "Vampire"],
             loot: ["Лицензия на магию", "Драгоценности", "Векселя", "Золотая вода"],
-            quests: [{ title: "Теневая война", description: "Вмешаться в конфликт гильдии воров и вампиров." }]
+            quests: [{ title: "Теневая война", description: "Вмешаться в конфликт гильдии воров и вампиров." }],
+            subLocations: ATHKATLA_LOCATIONS
         },
         {
             name: "Облачные Вершины (Cloud Peaks)",
@@ -48,13 +50,14 @@ export const LORE_AMN: LoreEntry[] = [
         {
             name: "Мириамн (Murann)",
             type: "Город Мечей",
-            description: "Второй город Амна. База флота. Оружейная столица.",
+            description: "Второй город Амна. База флота. Оружейная столица. (Сейчас захвачен монстрами)",
             atmosphere: "Дым, звон металла, военная дисциплина, запах моря. Гильдия Кузнецов.",
             npcs: [],
             secrets: ["Алхимики создают новую взрывчатку.", "Гильдия кузнецов скрывает секрет стали."],
             monsters: ["Ogre", "Pirate", "Guard"],
             loot: ["Оружие +1", "Алхимический огонь", "Доспехи"],
-            quests: []
+            quests: [],
+            subLocations: MURANN_LOCATIONS
         },
         {
             name: "Кракеннаут (Kraenhaul)",

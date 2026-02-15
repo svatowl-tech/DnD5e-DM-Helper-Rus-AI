@@ -4,7 +4,7 @@ import { CONDITIONS } from '../constants';
 import { RULES_DATA } from '../data/rulesData';
 import { EQUIPMENT_DB, EquipmentItem } from '../data/equipmentData';
 import { RuleSection, SavedImage, PartyMember } from '../types';
-import { Search, Sword, Map, Users, Crown, Zap, Skull, BookOpen, X, ChevronDown, ChevronUp, Sparkles, Loader, Shield, Backpack, PenTool, Hammer, Image as ImageIcon, Eye, FlaskConical, Dices, Database, Globe, ScrollText, ChevronLeft, Menu, Layout, Archive, ArrowRightCircle, Gift } from 'lucide-react';
+import { Search, Sword, Map, Users, Crown, Zap, Skull, BookOpen, X, ChevronDown, ChevronUp, Sparkles, Loader, Shield, Backpack, PenTool, Hammer, Image as ImageIcon, Eye, FlaskConical, Dices, Database, Globe, ScrollText, ChevronLeft, Menu, Layout, Archive, ArrowRightCircle, Gift, Package } from 'lucide-react';
 import { generateExtendedDetails, generateItemCustomization, generateImage } from '../services/polzaService';
 import { searchSpells, getSpellDetails, searchEquipment, getEquipmentDetails, searchMagicItems, getMagicItemDetails, searchRules, getRuleDetails, ApiReference } from '../services/dndApiService';
 import { useToast } from '../contexts/ToastContext';
@@ -385,7 +385,6 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
               itemDescription: payload.description 
           }
       }));
-      // Toast is handled by listener
   };
 
   const handleAddToStash = () => {
@@ -398,7 +397,16 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
               itemDescription: payload.description 
           }
       }));
-      // Toast is handled by listener
+  };
+  
+  const handleAddToGlobalTracker = () => {
+      const payload = getCurrentItemPayload();
+      if (!payload) return;
+      
+      window.dispatchEvent(new CustomEvent('dmc-track-loot', {
+            detail: { itemName: payload.name, itemDescription: payload.description }
+      }));
+      showToast("Добавлено в список Снаряжения (Бесхозное)", "success");
   };
 
   return (
@@ -582,12 +590,19 @@ const DmScreen: React.FC<DmScreenProps> = ({ onImageGenerated, onShowImage }) =>
                                 <div className="space-y-2">
                                     <button 
                                         onClick={handleAddToStash}
-                                        className="w-full text-left px-4 py-3 bg-yellow-900/30 hover:bg-yellow-900/50 border border-yellow-700 rounded text-yellow-200 flex items-center gap-3 font-bold text-sm transition-colors"
+                                        className="w-full text-left px-4 py-2 bg-yellow-900/30 hover:bg-yellow-900/50 border border-yellow-700 rounded text-yellow-200 flex items-center gap-3 font-bold text-xs transition-colors"
                                     >
-                                        <Archive className="w-5 h-5"/> В Общий Мешок
+                                        <Archive className="w-4 h-4"/> В Общий Мешок
+                                    </button>
+
+                                    <button 
+                                        onClick={handleAddToGlobalTracker}
+                                        className="w-full text-left px-4 py-2 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-gray-200 flex items-center gap-3 font-bold text-xs transition-colors"
+                                    >
+                                        <Package className="w-4 h-4"/> В список Лута (Global Tracker)
                                     </button>
                                     
-                                    <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto custom-scrollbar">
+                                    <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto custom-scrollbar mt-2">
                                         {party.length === 0 ? (
                                             <div className="px-2 py-2 text-xs text-gray-500 italic text-center border border-dashed border-gray-700 rounded">Нет активных героев</div>
                                         ) : (

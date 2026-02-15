@@ -42,6 +42,30 @@ export const generateMonster = async (prompt: string, cr?: string): Promise<Best
     });
 };
 
+/**
+ * Generates item details and mechanics for D&D 5e.
+ */
+export const generateItemStats = async (name: string, context?: string): Promise<any> => {
+    const ctx = getCampaignContext();
+    const prompt = `Создай предмет D&D 5e для "${name}". Контекст: ${context || 'Фэнтези'}.
+    Верни JSON: {
+        "name": "Название",
+        "category": "Тип (Оружие, Броня, Чудесный предмет, Зелье)",
+        "rarity": "Редкость",
+        "cost": "Цена (в зм)",
+        "description": "Художественное описание и история.",
+        "mechanics": "Игромеханика (урон, КД, эффекты) в формате текста."
+    }`;
+
+    return withRetry(async () => {
+        const text = await makeRequest([
+            { role: "system", content: `Ты — мастер артефактов D&D. Будь креативен. ${ctx}` },
+            { role: "user", content: prompt }
+        ], true);
+        return JSON.parse(cleanText(text || "{}"));
+    });
+};
+
 export const generateLoot = async (level: number, type: string): Promise<string> => {
     const prompt = `Сгенерируй список добычи для группы уровня ${level}. Контекст: ${type}. Используй HTML (ul, li).`;
     return withRetry(async () => {

@@ -120,9 +120,11 @@ const SmartText: React.FC<SmartTextProps> = ({ content, className = "" }) => {
   };
 
   // Enforce high contrast text colors for all elements to prevent "white on white" issues
+  // Added [&_*]:!bg-transparent to force transparency on nested elements (AI generated cards)
   return (
     <div 
         className={`smart-text-content prose prose-invert max-w-none 
+        [&_*]:!bg-transparent
         [&_p]:text-gray-300 [&_li]:text-gray-300 [&_span]:text-gray-300 
         [&_h1]:text-gold-500 [&_h2]:text-gold-500 [&_h3]:text-gold-500 
         [&_strong]:text-white [&_b]:text-white [&_em]:text-gray-400

@@ -9,11 +9,9 @@ interface LootInteractionProps {
 
 const LootInteraction: React.FC<LootInteractionProps> = ({ htmlContent }) => {
     const [party, setParty] = useState<PartyMember[]>([]);
-    // Track which item (index) has the dropdown open
     const [openDropdownIndex, setOpenDropdownIndex] = useState<number | null>(null);
     
     useEffect(() => {
-        // Load party for dropdowns
         const saved = localStorage.getItem('dmc_party');
         if (saved) {
             try {
@@ -22,7 +20,6 @@ const LootInteraction: React.FC<LootInteractionProps> = ({ htmlContent }) => {
             } catch(e) { console.error(e); }
         }
 
-        // Close dropdowns on outside click
         const close = () => setOpenDropdownIndex(null);
         window.addEventListener('click', close);
         return () => window.removeEventListener('click', close);
@@ -40,7 +37,6 @@ const LootInteraction: React.FC<LootInteractionProps> = ({ htmlContent }) => {
         e.stopPropagation();
         
         if (isMoney) {
-            // Parse amount and type
             const matches = itemName.match(/(\d+)\s*(?:gp|zm|зм|sp|см|cp|мм|gold|silver|copper)/i);
             if (matches) {
                 const amount = parseInt(matches[1]);
@@ -56,6 +52,7 @@ const LootInteraction: React.FC<LootInteractionProps> = ({ htmlContent }) => {
                 }));
             }
         } else {
+            // Adds to stash AND tracks globally
             window.dispatchEvent(new CustomEvent('dmc-add-to-stash', {
                 detail: { itemName, itemDescription: itemDesc }
             }));
@@ -64,13 +61,22 @@ const LootInteraction: React.FC<LootInteractionProps> = ({ htmlContent }) => {
         setOpenDropdownIndex(null);
     };
 
+    const handleAddToGlobalTracker = (e: React.MouseEvent, itemName: string, itemDesc: string) => {
+        e.stopPropagation();
+        window.dispatchEvent(new CustomEvent('dmc-track-loot', {
+            detail: { itemName, itemDescription: itemDesc }
+        }));
+        // Show local toast or just rely on global handler
+        setOpenDropdownIndex(null);
+        alert(`"${itemName}" добавлен в список Снаряжения (Бесхозное)`);
+    };
+
     const handleSplitMoney = (e: React.MouseEvent, itemName: string) => {
         e.stopPropagation();
-        // First add to stash wallet, then trigger distribute
         handleAddToStash(e, itemName, "", true);
         setTimeout(() => {
              window.dispatchEvent(new CustomEvent('dmc-distribute-currency'));
-        }, 100); // slight delay to ensure add completes
+        }, 100); 
     };
 
     const handleInspect = (e: React.MouseEvent, itemName: string) => {
@@ -81,56 +87,34 @@ const LootInteraction: React.FC<LootInteractionProps> = ({ htmlContent }) => {
         window.dispatchEvent(event);
         setOpenDropdownIndex(null);
     };
-    
-    const handleLog = (e: React.MouseEvent, itemName: string) => {
-        e.stopPropagation();
-         // Assuming addLog isn't directly available, we might need a global event for logging if not passed as prop
-         // Or rely on the fact this component is usually inside something that handles logs.
-         // But for now, let's skip "Log" here since it's already IN the log usually.
-         setOpenDropdownIndex(null);
-    };
 
     const toggleDropdown = (e: React.MouseEvent, index: number) => {
         e.stopPropagation();
         setOpenDropdownIndex(openDropdownIndex === index ? null : index);
     };
 
-    // Parse HTML string into React elements with interactivity
     const renderContent = () => {
-        // Create a temporary DOM element to parse HTML
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlContent, 'text/html');
-        
         const elements: React.ReactNode[] = [];
         
-        // Helper to process nodes
         const processNode = (node: Node, index: number): React.ReactNode => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return node.textContent;
-            }
+            if (node.nodeType === Node.TEXT_NODE) return node.textContent;
             
             if (node.nodeType === Node.ELEMENT_NODE) {
                 const el = node as HTMLElement;
                 const tagName = el.tagName.toLowerCase();
                 
-                // If it's a list item <li>, make it interactive
                 if (tagName === 'li') {
-                    // Smart Parsing for "Name: Description" format
                     let name = "";
                     let desc = "";
-                    
-                    // Try to find bold tag at start for name
                     const boldTag = el.querySelector('strong, b');
                     if (boldTag) {
                         name = boldTag.textContent || "";
-                        // Description is everything after the bold tag (and colon)
                         let fullText = el.innerHTML;
-                        // Remove the bold part from description
                         desc = fullText.replace(boldTag.outerHTML, '').trim();
-                        // Remove leading colon or dash if present
                         desc = desc.replace(/^[:\-\s]+/, '').trim();
                     } else {
-                        // Fallback: Split by colon if bold tag missing
                         const textContent = el.textContent || "";
                         const colonIndex = textContent.indexOf(':');
                         if (colonIndex > -1) {
@@ -138,16 +122,12 @@ const LootInteraction: React.FC<LootInteractionProps> = ({ htmlContent }) => {
                             desc = textContent.substring(colonIndex + 1).trim();
                         } else {
                             name = textContent.trim();
-                            desc = ""; // No description found
+                            desc = ""; 
                         }
                     }
                     
                     const cleanItemText = name.replace(/<[^>]*>/g, '').trim();
-                    
-                    // Check if it looks like an item (not just text)
                     const isItem = cleanItemText.length > 1;
-                    
-                    // Simple money detection
                     const isMoney = /(\d+)\s*(?:gp|zm|зм|sp|см|cp|мм|gold|silver|copper)/i.test(cleanItemText);
 
                     return (
@@ -197,13 +177,20 @@ const LootInteraction: React.FC<LootInteractionProps> = ({ htmlContent }) => {
                                                                     <Sparkles className="w-5 h-5"/> Изучить (AI)
                                                                 </button>
                                                                 <button 
-                                                                    onClick={(e) => handleAddToStash(e, cleanItemText, desc, false)}
-                                                                    className="px-3 py-3 bg-blue-900/30 hover:bg-blue-900/50 border border-blue-700 rounded text-blue-200 flex flex-col items-center justify-center gap-1 font-bold text-xs"
+                                                                    onClick={(e) => handleAddToGlobalTracker(e, cleanItemText, desc)}
+                                                                    className="px-3 py-3 bg-gray-700 hover:bg-gray-600 border border-gray-500 rounded text-gray-200 flex flex-col items-center justify-center gap-1 font-bold text-xs"
                                                                 >
-                                                                    <Archive className="w-5 h-5"/> В общий мешок
+                                                                    <PackagePlus className="w-5 h-5"/> В список (Лут)
                                                                 </button>
                                                             </div>
                                                             
+                                                            <button 
+                                                                onClick={(e) => handleAddToStash(e, cleanItemText, desc, false)}
+                                                                className="w-full text-left px-4 py-3 bg-blue-900/30 hover:bg-blue-900/50 border border-blue-700 rounded text-blue-200 flex items-center gap-3 font-bold text-sm"
+                                                            >
+                                                                <Archive className="w-5 h-5"/> Добавить в Казну/Мешок
+                                                            </button>
+
                                                             <div>
                                                                 <p className="text-xs font-bold text-gray-500 uppercase mb-2">Передать герою:</p>
                                                                 <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto custom-scrollbar">
@@ -238,7 +225,6 @@ const LootInteraction: React.FC<LootInteractionProps> = ({ htmlContent }) => {
                     );
                 }
 
-                // If list <ul> or <ol>, process children
                 if (tagName === 'ul' || tagName === 'ol') {
                     const children = Array.from(el.childNodes).map((child, i) => processNode(child, index * 100 + i));
                     return tagName === 'ul' 
@@ -246,16 +232,11 @@ const LootInteraction: React.FC<LootInteractionProps> = ({ htmlContent }) => {
                         : <ol key={index} className="list-decimal list-inside space-y-1 my-2 pl-2">{children}</ol>;
                 }
 
-                // For other tags, just return sanitized HTML wrapper (simplified)
-                return React.createElement(
-                    tagName,
-                    { key: index, dangerouslySetInnerHTML: { __html: el.innerHTML } }
-                );
+                return React.createElement(tagName, { key: index, dangerouslySetInnerHTML: { __html: el.innerHTML } });
             }
             return null;
         };
 
-        // Only process body children
         Array.from(doc.body.childNodes).forEach((node, i) => {
             elements.push(processNode(node, i));
         });

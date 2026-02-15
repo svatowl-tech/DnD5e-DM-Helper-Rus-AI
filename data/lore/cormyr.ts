@@ -1,5 +1,6 @@
 
 import { LoreEntry } from "../../types";
+import { SUZAIL_LOCATIONS } from "../sublocations/heartlandsLocations";
 
 export const LORE_CORMYR: LoreEntry[] = [
   {
@@ -21,7 +22,8 @@ export const LORE_CORMYR: LoreEntry[] = [
         secrets: ["В катакомбах дворца есть порталы для эвакуации.", "Зентарим шпионит в порту."],
         monsters: ["Doppelganger", "Assassin", "Spy"],
         loot: ["Королевские грамоты", "Магические кольца", "Изысканное оружие"],
-        quests: [{ title: "Королевский указ", description: "Раскрыть заговор против короны." }]
+        quests: [{ title: "Королевский указ", description: "Раскрыть заговор против короны." }],
+        subLocations: SUZAIL_LOCATIONS
       },
       {
         name: "Королевский Лес (King's Forest)",

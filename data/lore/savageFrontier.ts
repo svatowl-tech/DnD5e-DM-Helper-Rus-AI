@@ -1,5 +1,6 @@
 
 import { LoreEntry } from "../../types";
+import { YARTAR_LOCATIONS, EVERMOORS_LOCATIONS, HELLGATE_KEEP_LOCATIONS } from "../sublocations/savageFrontierLocations";
 
 export const LORE_SAVAGE_FRONTIER: LoreEntry[] = [
   {
@@ -19,7 +20,8 @@ export const LORE_SAVAGE_FRONTIER: LoreEntry[] = [
               secrets: ["В городе действует тайное общество Кракена.", "Канализация ведет к древним руинам."],
               monsters: ["Doppelganger", "Thug", "Spy", "Merrow"],
               loot: ["Торговые векселя", "Редкие товары", "Фишки казино"],
-              quests: []
+              quests: [],
+              subLocations: YARTAR_LOCATIONS
           },
           {
               name: "Несме (Nesme)",
@@ -67,7 +69,8 @@ export const LORE_SAVAGE_FRONTIER: LoreEntry[] = [
               secrets: ["Гиганты раскапывают здесь гробницы древней империи Остория.", "Тролли вытеснены гигантами."],
               monsters: ["Troll", "Hill Giant", "Ettin"],
               loot: ["Сокровища троллей", "Руда", "Кольца гигантов"],
-              quests: []
+              quests: [],
+              subLocations: EVERMOORS_LOCATIONS
           },
           {
               name: "Замок Иллюзий",
@@ -156,7 +159,8 @@ export const LORE_SAVAGE_FRONTIER: LoreEntry[] = [
               secrets: ["Печать слабеет, демоны просачиваются.", "Культ пытается открыть врата."],
               monsters: ["Tanarukk", "Vrock", "Cambion"],
               loot: ["Демоническое оружие", "Проклятое золото"],
-              quests: [{ title: "Проклятие", description: "Запечатать демонический портал." }]
+              quests: [{ title: "Проклятие", description: "Запечатать демонический портал." }],
+              subLocations: HELLGATE_KEEP_LOCATIONS
           },
           {
               name: "Подземелье Смерти (Dungeon of Death)",

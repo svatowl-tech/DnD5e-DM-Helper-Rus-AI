@@ -1,5 +1,6 @@
 
 import { LoreEntry } from "../../types";
+import { SHADOWDALE_LOCATIONS } from "../sublocations/heartlandsLocations";
 
 export const LORE_DALELANDS: LoreEntry[] = [
   {
@@ -22,7 +23,8 @@ export const LORE_DALELANDS: LoreEntry[] = [
         secrets: ["Под долиной проходят туннели дроу.", "Эльминстер хранит здесь ключи от мироздания."],
         monsters: ["Drow", "Zhentarim Soldier", "Beholder (underground)"],
         loot: ["Волшебные посохи", "Свитки", "Арфистские значки"],
-        quests: [{ title: "Совет Мудреца", description: "Получить аудиенцию у Эльминстера." }]
+        quests: [{ title: "Совет Мудреца", description: "Получить аудиенцию у Эльминстера." }],
+        subLocations: SHADOWDALE_LOCATIONS
       },
       {
         name: "Архендейл (Archendale)",

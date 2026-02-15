@@ -1,5 +1,13 @@
 
 import { LoreEntry } from "../../types";
+import { 
+    WATERDEEP_LOCATIONS, 
+    NEVERWINTER_LOCATIONS, 
+    NEVERWINTER_WOOD_LOCATIONS, 
+    MOUNT_HOTENOW_LOCATIONS, 
+    LUSKAN_LOCATIONS, 
+    GAUNTLGRYM_LOCATIONS 
+} from "../sublocations/swordCoastCities";
 
 export const LORE_SWORD_COAST_NORTH: LoreEntry[] = [
   {
@@ -12,7 +20,7 @@ export const LORE_SWORD_COAST_NORTH: LoreEntry[] = [
         name: "Уотердип (Waterdeep)",
         type: "Метрополис",
         description: "«Королева Побережья Мечей» и «Город Шпионящих Масок». Величайший город Фаэруна, расположенный вокруг горы Вотердип. Управляется Открытым Лордом и тайным советом Маскированных Лордов. Разделен на 7 кварталов: от элитного Замкового до опасной Гавани и нищего Внешнего Города.",
-        atmosphere: "Магический туман с моря, блеск шпилей Замка Вотердип, бесконечный шум Глубокой Гавани. Запах денег, соли и старых тайн. Ощущение, что статуи богов следят за каждым шагом, а каждая тень скрывает шпиона.",
+        atmosphere: "Магический туман с моря, блеск шпилей Замка Вотердип, бесконечный шум Глубокой Гавани. Запах денег, соль и старые тайны. Ощущение, что статуи богов следя за каждым шагом, а каждая тень скрывает шпиона.",
         npcs: [
             { name: "Дагульт Невермебурн", race: "Человек", description: "Открытый Лорд", personality: "Амбициозный, казнокрад, строит 'Новый Вотердип' на севере" },
             { name: "Лаэрел Сильверхенд", race: "Человек (Избранная)", description: "Маскированный Лорд (Архимаг)", personality: "Мудрая, скрытная защитница, агент Арфистов" },
@@ -35,7 +43,8 @@ export const LORE_SWORD_COAST_NORTH: LoreEntry[] = [
             { title: "Война банд", description: "Выбрать сторону в конфликте Зентарим и Ксантами за Гавань." },
             { title: "Тайны Масок", description: "Раскрыть личность коррумпированного Маскированного Лорда." },
             { title: "Захват Ксантами", description: "Проникнуть в базу Ксанатара в Подгорье и спасти рабов." }
-        ]
+        ],
+        subLocations: WATERDEEP_LOCATIONS
       },
       {
         name: "Невервинтер (Neverwinter)",
@@ -59,11 +68,12 @@ export const LORE_SWORD_COAST_NORTH: LoreEntry[] = [
         monsters: ["Mercenary (Mintarn)", "Cultist of Ash", "Fire Elemental", "Weretiger", "Spy"],
         loot: ["Водяные часы Невервинтера", "Лампа Многоцветного Стекла", "Меч Справедливости Нашера", "Вулканическое стекло"],
         quests: [
-            { title: "Пропавший наследник", description: "Найти Банна III Алогондара в Старом Городе." },
+            { title: "Пропавший наследник", description: "Найти Банн III Алогондара в Старом Городе." },
             { title: "Воющая Смерть возвращается", description: "Разыскать источник новых случаев древнего проклятия." },
             { title: "Извержение Хотеноу", description: "Остановить ритуал пробуждения вулкана." },
             { title: "Возрождение династии", description: "Помочь (или помешать) восстановить власть Алогондаров." }
-        ]
+        ],
+        subLocations: NEVERWINTER_LOCATIONS
       },
       {
         name: "Невервинтерский Лес (Neverwinter Wood)",
@@ -82,7 +92,8 @@ export const LORE_SWORD_COAST_NORTH: LoreEntry[] = [
         loot: ["Волшебная древесина", "Эльфийские реликвии", "Зеркало Агаты"],
         quests: [
             { title: "Вопрос Агате", description: "Убедить банши поделиться знанием (требуется красивый подарок)." }
-        ]
+        ],
+        subLocations: NEVERWINTER_WOOD_LOCATIONS
       },
       {
         name: "Гора Хотеноу (Mount Hotenow)",
@@ -101,7 +112,8 @@ export const LORE_SWORD_COAST_NORTH: LoreEntry[] = [
         loot: ["Огненные камни", "Обсидиан", "Жезел Элементаля"],
         quests: [
             { title: "Сердце Вулкана", description: "Предотвратить новое извержение." }
-        ]
+        ],
+        subLocations: MOUNT_HOTENOW_LOCATIONS
       },
       {
         name: "Лускан (Luskan)",
@@ -112,7 +124,8 @@ export const LORE_SWORD_COAST_NORTH: LoreEntry[] = [
         secrets: ["Капитаны берут 10% за 'защиту' грузов.", "Дроу Бреган Д'Эрт тайно манипулируют городом.", "В Башне Хост вернулись личи Аркейн Бразерхуд."],
         monsters: ["Pirate", "Mage", "Ghoul"],
         loot: ["Пиратское золото", "Контрабанда", "Морские карты"],
-        quests: [{ title: "Морское проклятие", description: "Снять проклятие с пиратского корабля." }]
+        quests: [{ title: "Морское проклятие", description: "Снять проклятие с пиратского корабля." }],
+        subLocations: LUSKAN_LOCATIONS
       },
       {
         name: "Гаунтлегрим (Gauntlgrym)",
@@ -123,7 +136,8 @@ export const LORE_SWORD_COAST_NORTH: LoreEntry[] = [
         secrets: ["Печать огня слабеет.", "Дроу все еще скрываются в глубинах."],
         monsters: ["Drow", "Fire Elemental", "Salamander"],
         loot: ["Легендарное оружие", "Адамантин", "Сердце вулкана"],
-        quests: [{ title: "Кузница", description: "Запустить Великую Кузню." }]
+        quests: [{ title: "Кузница", description: "Запустить Великую Кузню." }],
+        subLocations: GAUNTLGRYM_LOCATIONS
       }
     ]
   }

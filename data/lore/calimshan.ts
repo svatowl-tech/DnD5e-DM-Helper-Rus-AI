@@ -1,5 +1,6 @@
 
 import { LoreEntry } from "../../types";
+import { CALIMPORT_LOCATIONS } from "../sublocations/southLocations";
 
 export const LORE_CALIMSHAN: LoreEntry[] = [
   {
@@ -29,7 +30,8 @@ export const LORE_CALIMSHAN: LoreEntry[] = [
         quests: [
             { title: "Семь ярусов", description: "Пробраться с нижнего яруса в дворец, чтобы украсть артефакт." },
             { title: "Кровь и шёлк", description: "Разоблачить заговор гильдии Багровых Когтей против паши." }
-        ]
+        ],
+        subLocations: CALIMPORT_LOCATIONS
       },
       {
         name: "Альмрайвен (Almraiven)",

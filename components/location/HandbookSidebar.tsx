@@ -25,16 +25,23 @@ const HandbookSidebar: React.FC<HandbookSidebarProps> = ({
     openCreationModal, loadFromHandbook, setShowLoreInput, getStatusStyle
 }) => {
     return (
-        <div className={`fixed xl:static inset-y-0 left-0 z-30 w-80 bg-gray-900 border-r border-gray-700 transform transition-transform duration-300 flex flex-col ${showHandbook ? 'translate-x-0' : '-translate-x-full'} xl:translate-x-0`}>
+        <div className={`absolute xl:static top-0 bottom-0 left-0 z-50 w-full sm:w-80 bg-gray-900 border-r border-gray-700 transform transition-transform duration-300 flex flex-col ${showHandbook ? 'translate-x-0' : '-translate-x-full'} xl:translate-x-0 shadow-2xl xl:shadow-none`}>
             <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-dnd-darker shrink-0">
                 <h2 className="font-serif font-bold text-gold-500 flex items-center gap-2">
                     <BookOpen className="w-5 h-5"/> Справочник
                 </h2>
                 <div className="flex items-center gap-2">
-                    <button onClick={() => openCreationModal('region')} className="p-1 hover:bg-gray-800 rounded text-green-400" title="Создать регион вручную">
+                    <button 
+                        onClick={() => { setShowLoreInput(true); setShowHandbook(false); }} 
+                        className="p-1.5 hover:bg-indigo-900/40 rounded text-indigo-400 transition-colors border border-transparent hover:border-indigo-500/30" 
+                        title="AI Импорт текста"
+                    >
+                        <Sparkles className="w-5 h-5"/>
+                    </button>
+                    <button onClick={() => openCreationModal('region')} className="p-1.5 hover:bg-gray-800 rounded text-green-400 transition-colors" title="Создать регион вручную">
                         <FolderPlus className="w-5 h-5"/>
                     </button>
-                    <button onClick={() => setShowHandbook(false)} className="xl:hidden text-gray-400"><ArrowRight /></button>
+                    <button onClick={() => setShowHandbook(false)} className="xl:hidden text-gray-400 p-1.5 hover:bg-gray-800 rounded"><ArrowRight className="w-5 h-5"/></button>
                 </div>
             </div>
             
@@ -42,7 +49,7 @@ const HandbookSidebar: React.FC<HandbookSidebarProps> = ({
                 <div className="relative">
                     <Search className="absolute left-2 top-2.5 w-4 h-4 text-gray-500"/>
                     <input 
-                        className="w-full bg-gray-800 border border-gray-600 rounded pl-8 pr-2 py-2 text-sm text-white focus:border-gold-500 outline-none"
+                        className="w-full bg-gray-800 border border-gray-600 rounded pl-8 pr-2 py-2 text-sm text-white focus:border-gold-500 outline-none placeholder-gray-500"
                         placeholder="Поиск региона..."
                         value={handbookSearch}
                         onChange={e => setHandbookSearch(e.target.value)}
@@ -71,14 +78,14 @@ const HandbookSidebar: React.FC<HandbookSidebarProps> = ({
                                         {loc.status && <span className={`w-2 h-2 rounded-full shrink-0 ${getStatusStyle(loc.status).split(' ')[0].replace('text-', 'bg-')}`}></span>}
                                     </button>
                                 ))}
+                                {region.locations.length === 0 && <div className="text-[10px] text-gray-600 italic px-2">Нет локаций</div>}
                             </div>
                         )}
                     </div>
                 ))}
-            </div>
-
-            <div className="p-2 border-t border-gray-700 shrink-0">
-                <button onClick={() => { setShowLoreInput(true); setShowHandbook(false); }} className="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 py-2 rounded text-xs flex justify-center items-center gap-2"><Sparkles className="w-3 h-3" /> AI Импорт текста</button>
+                {filteredLore.length === 0 && (
+                    <div className="text-center py-10 text-gray-600 italic text-sm">Ничего не найдено</div>
+                )}
             </div>
         </div>
     );

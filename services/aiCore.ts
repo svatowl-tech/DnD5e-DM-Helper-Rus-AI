@@ -104,9 +104,20 @@ export const getCampaignContext = (): string => {
 
 export const cleanText = (text: string): string => {
     if (!text) return "";
+    
+    // First try to extract content between code fences
     const codeBlockMatch = text.match(/```(?:json|html|xml|markdown)?\s*([\s\S]*?)\s*```/);
     if (codeBlockMatch) return codeBlockMatch[1].trim();
-    return text.trim();
+    
+    // If no complete block found, check if it starts with a code fence and strip it
+    let cleaned = text.trim();
+    if (cleaned.startsWith("```")) {
+        cleaned = cleaned.replace(/^```(?:json|html|xml|markdown)?\s*/i, "");
+        // Try to remove closing fence if it exists at the very end
+        cleaned = cleaned.replace(/\s*```$/, "");
+    }
+    
+    return cleaned.trim();
 };
 
 export async function makeRequest(messages: Array<{role: string, content: string}>, jsonMode: boolean = false): Promise<string> {

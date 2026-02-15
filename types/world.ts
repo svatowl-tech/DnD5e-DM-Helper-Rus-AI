@@ -29,6 +29,7 @@ export interface LocationData {
     anomalyEffect?: string;
     anchor?: string;
     breachEvent?: BreachEvent;
+    subLocations?: LocationData[]; // Layer 3: Locations inside this location
 }
 
 export interface LoreEntry {

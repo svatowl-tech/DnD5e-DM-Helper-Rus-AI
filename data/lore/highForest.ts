@@ -1,5 +1,6 @@
 
 import { LoreEntry } from "../../types";
+import { GRANDFATHER_TREE_LOCATIONS, STAR_MOUNTS_LOCATIONS, LOST_PEAKS_LOCATIONS } from "../sublocations/highForestLocations";
 
 export const LORE_HIGH_FOREST: LoreEntry[] = [
   {
@@ -16,7 +17,8 @@ export const LORE_HIGH_FOREST: LoreEntry[] = [
               secrets: ["Здесь находятся порталы на план Воздуха и Земли.", "В пещерах спрятаны яйца гигантских орлов."],
               monsters: ["Aarakocra", "Air Elemental", "Manticore"],
               loot: ["Перья ааракокра", "Элементальные камни"],
-              quests: []
+              quests: [],
+              subLocations: LOST_PEAKS_LOCATIONS
           },
           {
               name: "Звездные Вершины (Star Mounts)",
@@ -27,7 +29,8 @@ export const LORE_HIGH_FOREST: LoreEntry[] = [
               secrets: ["В горах есть пещеры, где время течет иначе.", "Руины эльфийских городов Нетерила."],
               monsters: ["Green Dragon", "Aarakocra", "Air Elemental"],
               loot: ["Звездный металл", "Изумруды", "Драконьи сокровища"],
-              quests: []
+              quests: [],
+              subLocations: STAR_MOUNTS_LOCATIONS
           },
           {
               name: "Дедово Дерево (Grandfather Tree)",
@@ -38,7 +41,8 @@ export const LORE_HIGH_FOREST: LoreEntry[] = [
               secrets: ["Под корнями спит древний страж.", "Древо связано с духами предков."],
               monsters: ["Treant", "Dryad", "Barbarian Spirit"],
               loot: ["Тотемные амулеты", "Целебный сок"],
-              quests: []
+              quests: [],
+              subLocations: GRANDFATHER_TREE_LOCATIONS
           },
           {
               name: "Потерянный Шпиль",

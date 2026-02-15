@@ -10,6 +10,7 @@ interface DataManagerProps {
 const STORAGE_KEYS = [
     { key: 'dmc_party', label: 'Группа (Party)', type: 'array' },
     { key: 'dmc_npcs', label: 'NPC (Трекер)', type: 'array' },
+    { key: 'dmc_equipment', label: 'Снаряжение (Лут)', type: 'array' },
     { key: 'dmc_quests', label: 'Квесты', type: 'array' },
     { key: 'dmc_notes', label: 'Заметки/Журнал', type: 'array' },
     { key: 'dmc_session_logs', label: 'Логи Сессии', type: 'array' },
@@ -64,6 +65,15 @@ const getTemplate = (key: string) => {
                 threats: [],
                 reward: ""
             };
+        case 'dmc_equipment':
+             return {
+                 id: id,
+                 name: "Новый Предмет",
+                 description: "",
+                 quantity: 1,
+                 status: "unassigned",
+                 category: "Снаряжение"
+             };
         case 'dmc_local_bestiary':
             return {
                 id: id,
@@ -151,6 +161,7 @@ const DataManager: React.FC<DataManagerProps> = ({ onClose }) => {
             if (selectedKeyObj.key === 'dmc_quests') window.dispatchEvent(new Event('dmc-update-quests'));
             if (selectedKeyObj.key === 'dmc_combatants') window.dispatchEvent(new Event('dmc-update-combat'));
             if (selectedKeyObj.key === 'dmc_notes') window.dispatchEvent(new Event('dmc-update-notes'));
+            if (selectedKeyObj.key === 'dmc_equipment') window.dispatchEvent(new Event('dmc-update-equipment'));
             
         } catch (e) {
             showToast('Ошибка при сохранении', 'error');

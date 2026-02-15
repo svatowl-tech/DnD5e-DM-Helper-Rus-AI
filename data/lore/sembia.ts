@@ -1,5 +1,6 @@
 
 import { LoreEntry } from "../../types";
+import { SELGAUNT_LOCATIONS } from "../sublocations/heartlandsLocations";
 
 export const LORE_SEMBIA: LoreEntry[] = [
   {
@@ -21,7 +22,8 @@ export const LORE_SEMBIA: LoreEntry[] = [
         secrets: ["В городе процветает культ Шар.", "Гильдии нанимают убийц для решения споров."],
         monsters: ["Assassin", "Thug", "Noble", "Shadow"],
         loot: ["Векселя", "Драгоценности", "Редкие товары"],
-        quests: [{ title: "Корпоративный шпионаж", description: "Украсть книгу счетов конкурента." }]
+        quests: [{ title: "Корпоративный шпионаж", description: "Украсть книгу счетов конкурента." }],
+        subLocations: SELGAUNT_LOCATIONS
       },
       {
         name: "Даэрлун (Daerlun)",

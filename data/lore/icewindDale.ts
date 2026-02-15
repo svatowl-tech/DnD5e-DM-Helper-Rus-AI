@@ -1,5 +1,6 @@
 
 import { LoreEntry } from "../../types";
+import { BRYN_SHANDER_LOCATIONS, KELVINS_CAIRN_LOCATIONS } from "../sublocations/northLocations";
 
 export const LORE_ICEWIND_DALE: LoreEntry[] = [
   {
@@ -21,7 +22,8 @@ export const LORE_ICEWIND_DALE: LoreEntry[] = [
             secrets: ["В городе скрываются агенты Зентарим, скупающие чардалин.", "Под городом есть старые туннели."],
             monsters: ["Yeti", "Crag Cat", "Frost Giant"],
             loot: ["Костяная резьба (скримшоу)", "Китовый жир", "Чардалин"],
-            quests: [{ title: "Вечная Изморозь", description: "Найти источник проклятия, не дающего солнцу взойти." }]
+            quests: [{ title: "Вечная Изморозь", description: "Найти источник проклятия, не дающего солнцу взойти." }],
+            subLocations: BRYN_SHANDER_LOCATIONS
         },
         {
             name: "Таргос (Targos)",
@@ -76,7 +78,8 @@ export const LORE_ICEWIND_DALE: LoreEntry[] = [
             secrets: ["В глубине горы дремлет призрак ледяного гиганта Келвина."],
             monsters: ["Duergar", "Remorhaz", "Yeti"],
             loot: ["Мифриловая руда", "Дварфийское пиво"],
-            quests: [{ title: "Ритуал племени", description: "Помочь варварам провести ритуал на склоне." }]
+            quests: [{ title: "Ритуал племени", description: "Помочь варварам провести ритуал на склоне." }],
+            subLocations: KELVINS_CAIRN_LOCATIONS
         }
     ]
   }

@@ -1,7 +1,6 @@
 
 import { LoreEntry } from "../../types";
-
-export const LORE_CORMYR: LoreEntry[] = []; // Placeholder to prevent import errors if referenced elsewhere, though main file imports specific constants.
+import { MYTH_DRANNOR_LOCATIONS } from "../sublocations/heartlandsLocations";
 
 export const LORE_CORMANTHOR: LoreEntry[] = [
   {
@@ -31,7 +30,8 @@ export const LORE_CORMANTHOR: LoreEntry[] = [
         quests: [
             { title: "Наследие Коронала", description: "Найти утерянный меч правителей в руинах замка Кормантор." },
             { title: "Закрытие Врат", description: "Уничтожить нестабильный портал в Бездну, открывшийся после падения города." }
-        ]
+        ],
+        subLocations: MYTH_DRANNOR_LOCATIONS
       },
       {
         name: "Эльфийский Двор (Elven Court)",

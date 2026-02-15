@@ -1,5 +1,6 @@
 
 import { LoreEntry } from "../../types";
+import { SILVERYMOON_LOCATIONS, MITHRAL_HALL_LOCATIONS } from "../sublocations/northLocations";
 
 export const LORE_SILVER_MARCHES: LoreEntry[] = [
   {
@@ -30,7 +31,8 @@ export const LORE_SILVER_MARCHES: LoreEntry[] = [
         quests: [
             { title: "Тень на Луне", description: "Найти причину мерцания Лунного Моста." },
             { title: "Шпион дроу", description: "Вычислить агента Матроны Миз'ри в Совете." }
-        ]
+        ],
+        subLocations: SILVERYMOON_LOCATIONS
       },
       {
         name: "Сундабар (Sundabar)",
@@ -54,7 +56,7 @@ export const LORE_SILVER_MARCHES: LoreEntry[] = [
         name: "Мифрил Халл (Mithral Hall)",
         type: "Дварфийская Цитадель",
         description: "Легендарная крепость клана Боевого Молота, возвращенная Бруенором. Богатейшие залежи мифрила на севере. Место славы Дриззта До'Урдена.",
-        atmosphere: "Величие древних залов, статуи героев, эхо песен в тавернах. Глубинные уровни все еще опасны.",
+        atmosphere: "Величие древней залов, статуи героев, эхо песен в тавернах. Глубинные уровни все еще опасны.",
         npcs: [
             { name: "Бруенор Боевой Молот", race: "Дварф", description: "Король (в отставке/легенда)", personality: "Ворчливый, но с золотым сердцем" },
             { name: "Киттиара", race: "Дварф", description: "Королева", personality: "Мудрая правительница" }
@@ -67,7 +69,8 @@ export const LORE_SILVER_MARCHES: LoreEntry[] = [
         loot: ["Мифриловая кольчуга", "Эгис-фанг (реплика)", "Геммы"],
         quests: [
             { title: "Тень из глубин", description: "Зачистить нижние уровни от разведчиков дроу." }
-        ]
+        ],
+        subLocations: MITHRAL_HALL_LOCATIONS
       },
       {
         name: "Цитадель Адбар (Citadel Adbar)",
